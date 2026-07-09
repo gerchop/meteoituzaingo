@@ -14,7 +14,10 @@ async function cargarClima(){
             obs.metric.temp + "°";
 
         document.querySelector(".status").textContent =
-            "Datos actualizados";
+        obs.wxPhraseLong || "Tiempo actual";
+
+        document.getElementById("actualizacion").textContent =
+        new Date(obs.obsTimeLocal).toLocaleString("es-AR");
 
         const cards = document.querySelectorAll(".card span");
 
