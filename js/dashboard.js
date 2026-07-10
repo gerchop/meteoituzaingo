@@ -14,11 +14,25 @@ async function cargarClima(){
         document.querySelector(".temp").textContent =
             obs.metric.temp + "°";
 
-        document.querySelector(".status").textContent =
-        obs.wxPhraseLong || "Tiempo actual";
+        let estado = "Condiciones normales";
 
-        document.getElementById("actualizacion").textContent =
-        new Date(obs.obsTimeLocal).toLocaleString("es-AR");
+        if(obs.metric.precipRate > 0){
+        estado = "🌧 Lloviendo";
+        }
+        else if(obs.metric.windSpeed > 30){
+            estado = "💨 Mucho viento";
+        }
+        else if(obs.metric.temp >= 32){
+            estado = "🥵 Mucho calor";
+        }
+        else if(obs.metric.temp <= 5){
+            estado = "🥶 Mucho frío";
+        }
+        else{
+            estado = "🌤 Tiempo estable";
+        }
+        
+        document.querySelector(".status").textContent = estado;
 
         const cards = document.querySelectorAll(".card span");
 
