@@ -1,16 +1,13 @@
 <!DOCTYPE html>
-
 <html lang="es">
-
 <head>
 
-<meta charset="utf-8">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Meteo Ituzaingó</title>
 
-<link rel="stylesheet" href="css/dashboard.css">
-
-<title>Meteo Ituzaingó</title>
+    <link rel="stylesheet" href="css/dashboard.css">
 
 </head>
 
@@ -18,74 +15,77 @@
 
 <section id="meteo-dashboard">
 
-<div class="dashboard-header">
+    <div class="hero">
 
-<div>
+        <div class="hero-left">
 
-<div class="city">
+            <div class="city">
+                📍 Ituzaingó - Buenos Aires
+            </div>
 
-📍 Ituzaingó - Buenos Aires
+            <div class="temp">
+                --°
+            </div>
 
-</div>
+            <div class="status">
+                Cargando...
+            </div>
 
-<div class="temp">--°</div>
+            <div id="actualizacion">
+                Actualizando...
+            </div>
 
-<div class="status"></div>
+        </div>
 
-<div id="actualizacion" style="margin-top:15px;font-size:16px;color:white;opacity:.9;"></div>
+    </div>
 
-</div>
+    <div class="cards">
 
-</div>
+        <div class="card">
+            <h3>🌡 Temperatura</h3>
+            <span id="cTemp">--</span>
+        </div>
 
-<div class="cards">
+        <div class="card">
+            <h3>🌡 Sensación</h3>
+            <span id="cST">--</span>
+        </div>
 
-<div class="card">
-<h3>🌡 Temperatura</h3>
-<span id="cTemp">--</span>
-</div>
+        <div class="card">
+            <h3>💧 Humedad</h3>
+            <span id="cHumedad">--</span>
+        </div>
 
-<div class="card">
-<h3>💧 Humedad</h3>
-<span id="cHumedad">--</span>
-</div>
+        <div class="card">
+            <h3>💨 Viento</h3>
+            <span id="cViento">--</span>
+        </div>
 
-<div class="card">
-<h3>💨 Viento</h3>
-<span id="cViento">--</span>
-</div>
+        <div class="card">
+            <h3>🧭 Dirección</h3>
+            <span id="cDireccion">--</span>
+        </div>
 
-<div class="card">
-<h3>🧭 Dirección</h3>
-<span id="cDireccion">--</span>
-</div>
+        <div class="card">
+            <h3>🌧 Lluvia</h3>
+            <span id="cLluvia">--</span>
+        </div>
 
-<div class="card">
-<h3>🌧 Lluvia</h3>
-<span id="cLluvia">--</span>
-</div>
+        <div class="card">
+            <h3>📈 Presión</h3>
+            <span id="cPresion">--</span>
+        </div>
 
-<div class="card">
-<h3>🌡 Sensación</h3>
-<span id="cST">--</span>
-</div>
+        <div class="card">
+            <h3>☀ Radiación</h3>
+            <span id="cSolar">--</span>
+        </div>
 
-<div class="card">
-<h3>📈 Presión</h3>
-<span id="cPresion">--</span>
-</div>
-
-<div class="card">
-<h3>☀ Radiación</h3>
-<span id="cSolar">--</span>
-</div>
-
-</div>
+    </div>
 
 </section>
 
 <script src="js/dashboard.js"></script>
 
 </body>
-
 </html>
