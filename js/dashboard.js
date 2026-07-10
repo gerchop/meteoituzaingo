@@ -54,6 +54,26 @@ async function cargarClima(){
         
         document.getElementById("cSolar").textContent =
         obs.solarRadiation==null ? "--" : obs.solarRadiation;
+
+        function direccion(grados){
+
+        const dir=[
+        "N","NNE","NE","ENE",
+        "E","ESE","SE","SSE",
+        "S","SSO","SO","OSO",
+        "O","ONO","NO","NNO"
+        ];
+        
+        return dir[Math.round(grados/22.5)%16];
+        
+        }
+
+        document.getElementById("cDireccion").textContent =
+        direccion(obs.winddir);
+
+        document.getElementById("actualizacion").textContent =
+        "Actualizado: " +
+        new Date(obs.obsTimeLocal).toLocaleTimeString("es-AR");
             }
     
         catch(error){
