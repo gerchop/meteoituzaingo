@@ -34,24 +34,36 @@ async function cargarClima(){
         
         document.querySelector(".status").textContent = estado;
 
-        const cards = document.querySelectorAll(".card span");
-
-        cards[0].textContent = obs.humidity + "%";
-        cards[1].textContent = obs.metric.windSpeed + " km/h";
-        cards[2].textContent = obs.metric.precipTotal + " mm";
-        cards[3].textContent = obs.metric.windChill + "°";
-        cards[4].textContent = obs.metric.pressure + " hPa";
-
-    }
-
-    catch(error){
-
-        console.error(error);
-
-        document.querySelector(".status").textContent =
-            "Error al cargar datos";
-
-    }
+        document.getElementById("cTemp").textContent =
+        obs.metric.temp + "°";
+        
+        document.getElementById("cHumedad").textContent =
+        obs.humidity + "%";
+        
+        document.getElementById("cViento").textContent =
+        obs.metric.windSpeed + " km/h";
+        
+        document.getElementById("cLluvia").textContent =
+        obs.metric.precipTotal + " mm";
+        
+        document.getElementById("cST").textContent =
+        obs.metric.windChill + "°";
+        
+        document.getElementById("cPresion").textContent =
+        obs.metric.pressure + " hPa";
+        
+        document.getElementById("cSolar").textContent =
+        obs.solarRadiation==null ? "--" : obs.solarRadiation;
+            }
+    
+        catch(error){
+    
+            console.error(error);
+    
+            document.querySelector(".status").textContent =
+                "Error al cargar datos";
+    
+        }
 
 }
 
