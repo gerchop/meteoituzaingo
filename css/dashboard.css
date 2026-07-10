@@ -1,81 +1,85 @@
 :root{
-    --primary:#1976d2;
-    --secondary:#42a5f5;
-    --bg:#edf4fb;
-    --card:#ffffff;
-    --text:#243447;
+
+    --azul:#1976d2;
+    --celeste:#42a5f5;
+    --gris:#edf3fa;
+    --texto:#243447;
+
 }
 
 *{
+
     margin:0;
     padding:0;
     box-sizing:border-box;
+
 }
 
 body{
-    background:var(--bg);
-    font-family:'Segoe UI',Arial,sans-serif;
+
+    background:var(--gris);
+    font-family:Segoe UI,Arial,sans-serif;
+
 }
 
 #meteo-dashboard{
 
-    max-width:1300px;
-
-    margin:25px auto;
-
-    border-radius:22px;
-
+    max-width:1400px;
+    margin:30px auto;
+    border-radius:24px;
     overflow:hidden;
-
     box-shadow:0 20px 45px rgba(0,0,0,.15);
 
 }
 
-.dashboard-header{
+.hero{
 
     background:linear-gradient(135deg,#1565c0,#42a5f5);
 
     color:white;
 
-    padding:45px;
+    padding:50px;
 
 }
 
 .city{
 
     font-size:18px;
-
     opacity:.9;
 
 }
 
 .temp{
 
-    font-size:92px;
-
-    font-weight:700;
-
+    font-size:96px;
+    font-weight:bold;
     margin-top:10px;
 
 }
 
 .status{
 
-    font-size:26px;
-
+    font-size:28px;
     margin-top:10px;
+
+}
+
+#actualizacion{
+
+    margin-top:20px;
+    opacity:.9;
 
 }
 
 .cards{
 
+    background:#f7f9fc;
+
     display:grid;
 
-    grid-template-columns:repeat(5,1fr);
+    grid-template-columns:repeat(4,1fr);
 
     gap:20px;
-
-    background:#f5f8fc;
 
     padding:25px;
 
@@ -87,13 +91,13 @@ body{
 
     border-radius:18px;
 
-    padding:25px;
-
     text-align:center;
+
+    padding:25px;
 
     transition:.3s;
 
-    box-shadow:0 8px 20px rgba(0,0,0,.08);
+    box-shadow:0 10px 25px rgba(0,0,0,.08);
 
 }
 
@@ -105,7 +109,7 @@ body{
 
 .card h3{
 
-    color:#1976d2;
+    color:var(--azul);
 
     font-size:18px;
 
@@ -115,11 +119,13 @@ body{
 
     display:block;
 
-    margin-top:20px;
+    margin-top:18px;
 
-    font-size:32px;
+    font-size:34px;
 
     font-weight:bold;
+
+    color:var(--texto);
 
 }
 
@@ -133,7 +139,7 @@ grid-template-columns:repeat(2,1fr);
 
 .temp{
 
-font-size:64px;
+font-size:72px;
 
 }
 
@@ -147,7 +153,7 @@ grid-template-columns:1fr;
 
 }
 
-.dashboard-header{
+.hero{
 
 text-align:center;
 
@@ -157,7 +163,7 @@ padding:30px;
 
 .temp{
 
-font-size:56px;
+font-size:58px;
 
 }
 
