@@ -122,4 +122,4 @@ async function cargarClima(){
 
 cargarClima();
 
-setInterval(cargarClima,150000);
+setInterval(cargarClima,10000);
