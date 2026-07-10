@@ -9,6 +9,7 @@ async function cargarClima(){
         const data = await response.json();
 
         const obs = data.observations[0];
+        console.log(obs);
 
         document.querySelector(".temp").textContent =
             obs.metric.temp + "°";
