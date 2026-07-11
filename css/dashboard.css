@@ -168,3 +168,7 @@ font-size:22px;
 }
 
 }
+
+
+/* v0.4 enhancements */
+.card{transition:transform .2s,box-shadow .2s}.card:hover{transform:translateY(-4px)}
