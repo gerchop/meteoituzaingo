@@ -1,1 +1,170 @@
-body{font-family:Segoe UI;background:#eef3f8;margin:0}#meteo-dashboard{max-width:1200px;margin:20px auto}.hero{background:linear-gradient(135deg,#1565c0,#42a5f5);padding:40px;color:#fff}.temp{font-size:84px}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;padding:20px}.card{background:#fff;padding:20px;border-radius:16px}
+:root{
+    --primary:#1976d2;
+    --secondary:#42a5f5;
+    --bg:#edf4fb;
+    --card:#ffffff;
+    --text:#243447;
+}
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+body{
+    background:var(--bg);
+    font-family:'Segoe UI',Arial,sans-serif;
+}
+
+#meteo-dashboard{
+
+    max-width:1300px;
+
+    margin:25px auto;
+
+    border-radius:22px;
+
+    overflow:hidden;
+
+    box-shadow:0 20px 45px rgba(0,0,0,.15);
+
+}
+
+.dashboard-header{
+
+    background:linear-gradient(135deg,#1565c0,#42a5f5);
+
+    color:white;
+
+    padding:45px;
+
+}
+
+.city{
+
+    font-size:18px;
+
+    opacity:.9;
+
+}
+
+.temp{
+
+    font-size:92px;
+
+    font-weight:700;
+
+    margin-top:10px;
+
+}
+
+.status{
+
+    font-size:26px;
+
+    margin-top:10px;
+
+}
+
+.cards{
+
+    display:grid;
+
+    grid-template-columns:repeat(5,1fr);
+
+    gap:20px;
+
+    background:#f5f8fc;
+
+    padding:25px;
+
+}
+
+.card{
+
+    background:white;
+
+    border-radius:18px;
+
+    padding:25px;
+
+    text-align:center;
+
+    transition:.3s;
+
+    box-shadow:0 8px 20px rgba(0,0,0,.08);
+
+}
+
+.card:hover{
+
+    transform:translateY(-8px);
+
+}
+
+.card h3{
+
+    color:#1976d2;
+
+    font-size:18px;
+
+}
+
+.card span{
+
+    display:block;
+
+    margin-top:20px;
+
+    font-size:32px;
+
+    font-weight:bold;
+
+}
+
+@media(max-width:900px){
+
+.cards{
+
+grid-template-columns:repeat(2,1fr);
+
+}
+
+.temp{
+
+font-size:64px;
+
+}
+
+}
+
+@media(max-width:600px){
+
+.cards{
+
+grid-template-columns:1fr;
+
+}
+
+.dashboard-header{
+
+text-align:center;
+
+padding:30px;
+
+}
+
+.temp{
+
+font-size:56px;
+
+}
+
+.status{
+
+font-size:22px;
+
+}
+
+}
