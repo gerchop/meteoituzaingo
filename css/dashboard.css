@@ -169,3 +169,5 @@ font-size:22px;
 }
 
 }
+
+.hero{background:linear-gradient(135deg,#0d47a1,#42a5f5)!important}.card{transition:.3s}.card:hover{transform:translateY(-6px) scale(1.02)}#actualizacion{font-style:italic;color:#eef}
