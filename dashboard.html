@@ -1,92 +1,72 @@
-<!DOCTYPE html>
-
+<!doctype html>
 <html lang="es">
-
 <head>
-
-<meta charset="utf-8">
-
-<meta name="viewport" content="width=device-width,initial-scale=1">
-
-<link rel="stylesheet" href="css/dashboard.css">
-
-<title>Meteo Ituzaingó</title>
-<link rel="preconnect" href="https://cdnjs.cloudflare.com">
-
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css"></head>
-
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Condiciones meteorológicas actuales en Ituzaingó, Buenos Aires.">
+  <meta name="theme-color" content="#0c3b66">
+  <title>Meteo Ituzaingó | Tiempo actual</title>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+</head>
 <body>
+  <main id="meteo-dashboard" aria-live="polite">
+    <section class="weather-hero" aria-labelledby="location-title">
+      <div class="hero-topline">
+        <p class="eyebrow"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> Estación meteorológica local</p>
+        <p id="actualizacion" class="updated-at">Actualizando datos…</p>
+      </div>
 
-<section id="meteo-dashboard">
+      <div class="hero-content">
+        <div>
+          <h1 id="location-title">Ituzaingó</h1>
+          <p class="location-subtitle">Buenos Aires, Argentina</p>
+          <div class="temperature-row">
+            <span class="temp" aria-label="Temperatura actual">--°</span>
+            <div class="weather-status">
+              <i id="statusIcon" class="fa-solid fa-cloud-sun" aria-hidden="true"></i>
+              <span class="status">Cargando condiciones</span>
+            </div>
+          </div>
+        </div>
+        <div class="hero-summary" aria-label="Resumen de condiciones">
+          <div>
+            <i class="fa-solid fa-temperature-half" aria-hidden="true"></i>
+            <span>Sensación térmica</span>
+            <strong id="heroST">--°</strong>
+          </div>
+          <div>
+            <i class="fa-solid fa-droplet" aria-hidden="true"></i>
+            <span>Humedad</span>
+            <strong id="heroHumedad">--%</strong>
+          </div>
+        </div>
+      </div>
+    </section>
 
-<div class="dashboard-header">
+    <section class="conditions" aria-labelledby="conditions-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Observación actual</p>
+          <h2 id="conditions-title">Condiciones en este momento</h2>
+        </div>
+        <span class="live-indicator"><i class="fa-solid fa-circle" aria-hidden="true"></i> En vivo</span>
+      </div>
 
-<div>
-
-<div class="city">
-
-Ituzaingó - Buenos Aires
-
-</div>
-
-<div class="temp">--掳</div>
-
-<div class="status"></div>
-
-<div id="actualizacion" style="margin-top:15px;font-size:16px;color:white;opacity:.9;"></div>
-
-</div>
-
-</div>
-
-<div class="cards">
-
-<div class="card">
-<h3><i class="fa-solid fa-temperature-half"></i> Temperatura</h3>
-<span id="cTemp">--</span>
-</div>
-
-<div class="card">
-<h3><i class="fa-solid fa-droplet"></i> Humedad</h3>
-<span id="cHumedad">--</span>
-</div>
-
-<div class="card">
-<h3><i class="fa-solid fa-wind"></i> Viento</h3>
-<span id="cViento">--</span>
-</div>
-
-<div class="card">
-<h3><i class="fa-solid fa-compass"></i> Dirección</h3>
-<span id="cDireccion">--</span>
-</div>
-
-<div class="card">
-<h3><i class="fa-solid fa-cloud-rain"></i> Lluvia</h3>
-<span id="cLluvia">--</span>
-</div>
-
-<div class="card">
-<h3><i class="fa-solid fa-person-rays"></i> Sensación</h3>
-<span id="cST">--</span>
-</div>
-
-<div class="card">
-<h3><i class="fa-solid fa-gauge-high"></i> Presión</h3>
-<span id="cPresion">--</span>
-</div>
-
-<div class="card">
-<h3><i class="fa-solid fa-sun"></i> Radiación</h3>
-<span id="cSolar">--</span>
-</div>
-
-</div>
-
-</section>
-
-<script src="js/dashboard.js"></script>
-
+      <div class="cards">
+        <article class="card"><i class="fa-solid fa-temperature-half card-icon" aria-hidden="true"></i><h3>Temperatura</h3><span id="cTemp">--</span></article>
+        <article class="card"><i class="fa-solid fa-droplet card-icon" aria-hidden="true"></i><h3>Humedad</h3><span id="cHumedad">--</span></article>
+        <article class="card"><i class="fa-solid fa-wind card-icon" aria-hidden="true"></i><h3>Viento</h3><span id="cViento">--</span></article>
+        <article class="card"><i class="fa-solid fa-compass card-icon" aria-hidden="true"></i><h3>Dirección</h3><span id="cDireccion">--</span></article>
+        <article class="card"><i class="fa-solid fa-wind card-icon" aria-hidden="true"></i><h3>Ráfagas</h3><span id="cRafagas">--</span></article>
+        <article class="card"><i class="fa-solid fa-cloud-rain card-icon" aria-hidden="true"></i><h3>Lluvia acumulada</h3><span id="cLluvia">--</span></article>
+        <article class="card"><i class="fa-solid fa-person-rays card-icon" aria-hidden="true"></i><h3>Sensación térmica</h3><span id="cST">--</span></article>
+        <article class="card"><i class="fa-solid fa-gauge-high card-icon" aria-hidden="true"></i><h3>Presión</h3><span id="cPresion">--</span></article>
+        <article class="card"><i class="fa-solid fa-sun card-icon" aria-hidden="true"></i><h3>Radiación solar</h3><span id="cSolar">--</span></article>
+      </div>
+    </section>
+  </main>
+  <script src="js/dashboard.js"></script>
 </body>
-
 </html>
