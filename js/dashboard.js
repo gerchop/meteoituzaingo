@@ -1,57 +1,136 @@
-const API_URL = "https://api.weather.com/v2/pws/observations/current?stationId=IITUZAIN9&format=json&units=m&apiKey=1f02ece8a18244d482ece8a18284d480&numericPrecision=decimal";
-
+const API_KEY = "1f02ece8a18244d482ece8a18284d480";
+const API_URL = `https://api.weather.com/v2/pws/observations/current?stationId=IITUZAIN9&format=json&units=m&apiKey=${API_KEY}&numericPrecision=decimal`;
+const GEOCOORDENADAS = "-34.655,-58.667";
+const FORECAST_URL = "https://api.weather.com/v3/wx/forecast";
 const DIRECCIONES = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
+let ultimaCargaPronostico = 0;
 
-/** Devuelve la dirección cardinal correspondiente a una lectura en grados. */
-function direccion(grados) {
-  return Number.isFinite(grados) ? DIRECCIONES[Math.round(grados / 22.5) % 16] : "--";
-}
-
-/** Describe la condición predominante sin depender de recursos visuales externos. */
-function estadoTiempo(obs) {
-  const metric = obs.metric;
-  if (metric.precipRate > 0) return { texto: "Lloviendo", icono: "fa-cloud-rain" };
-  if (metric.windSpeed >= 30) return { texto: "Viento intenso", icono: "fa-wind" };
-  if (metric.temp >= 32) return { texto: "Mucho calor", icono: "fa-sun" };
-  if (metric.temp <= 5) return { texto: "Mucho frío", icono: "fa-snowflake" };
-  return { texto: "Tiempo estable", icono: "fa-cloud-sun" };
-}
-
+function direccion(grados) { return Number.isFinite(grados) ? DIRECCIONES[Math.round(grados / 22.5) % 16] : "--"; }
 function valor(id, contenido) { document.getElementById(id).textContent = contenido; }
-function grados(valor) { return Number.isFinite(valor) ? `${valor}°` : "--"; }
-function textoPorDefecto(valor, sufijo) { return valor === null || valor === undefined ? `--${sufijo}` : `${valor}${sufijo}`; }
+function grados(numero) { return Number.isFinite(numero) ? `${Math.round(numero)}°` : "--"; }
+function textoPorDefecto(numero, sufijo) { return numero === null || numero === undefined ? `--${sufijo}` : `${numero}${sufijo}`; }
 
-/** Actualiza los valores visibles con la observación más reciente de la estación. */
+/** Calcula el punto de rocío en °C mediante la aproximación de Magnus. */
+function puntoDeRocio(temperatura, humedad) {
+  if (!Number.isFinite(temperatura) || !Number.isFinite(humedad) || humedad <= 0) return null;
+  const a = 17.62;
+  const b = 243.12;
+  const gamma = (a * temperatura) / (b + temperatura) + Math.log(humedad / 100);
+  return (b * gamma) / (a - gamma);
+}
+
+function iconoClima(frase) {
+  const texto = (frase || "").toLowerCase();
+  if (/torment|thunder/.test(texto)) return "fa-cloud-bolt";
+  if (/lloviz|drizzle/.test(texto)) return "fa-cloud-rain";
+  if (/lluv|rain|shower/.test(texto)) return "fa-cloud-showers-heavy";
+  if (/niebla|fog|neblina|haze|bruma/.test(texto)) return "fa-smog";
+  if (/viento|wind/.test(texto)) return "fa-wind";
+  if (/cubierto|overcast|nublado|cloud/.test(texto)) return "fa-cloud";
+  if (/parcial|mayormente|partly|mostly/.test(texto)) return "fa-cloud-sun";
+  return "fa-sun";
+}
+
+/** Traduce las frases frecuentes de Weather.com para conservar la interfaz en español. */
+function normalizarFrase(frase) {
+  const texto = (frase || "").toLowerCase();
+  const equivalencias = [[/thunder/, "Tormentas"], [/drizzle/, "Llovizna"], [/rain|shower/, "Lluvia"], [/fog/, "Niebla"], [/haze/, "Neblina"], [/wind/, "Ventoso"], [/overcast/, "Cubierto"], [/mostly cloudy/, "Mayormente nublado"], [/partly cloudy/, "Parcialmente nublado"], [/cloudy/, "Nublado"], [/mostly sunny|mostly clear/, "Mayormente soleado"], [/sunny|clear|fair/, "Soleado"]];
+  for (let i = 0; i < equivalencias.length; i += 1) if (equivalencias[i][0].test(texto)) return equivalencias[i][1];
+  return frase || "";
+}
+
+/** Determina una condición profesional cuando la estación no incluye una frase meteorológica. */
+function estadoDeRespaldo(metric, humedad) {
+  if (metric.precipRate > 2) return "Lluvia";
+  if (metric.precipRate > 0) return "Llovizna";
+  if (metric.windSpeed >= 35) return "Ventoso";
+  if (humedad >= 96 && metric.windSpeed < 8) return "Niebla";
+  if (humedad >= 88) return "Neblina";
+  if (humedad >= 80) return "Cubierto";
+  if (humedad >= 68) return "Nublado";
+  if (humedad >= 58) return "Mayormente nublado";
+  if (humedad >= 45) return "Parcialmente nublado";
+  if (humedad >= 35) return "Mayormente soleado";
+  return "Soleado";
+}
+
+function estadoTiempo(obs) {
+  const fraseApi = obs.wxPhraseMedium || obs.wxPhraseLong || obs.wxPhraseShort;
+  const texto = normalizarFrase(fraseApi) || estadoDeRespaldo(obs.metric, obs.humidity);
+  return { texto: texto, icono: iconoClima(texto) };
+}
+
+/** Actualiza las condiciones medidas por la estación meteorológica propia. */
 function mostrarClima(obs) {
   const metric = obs.metric;
   const estado = estadoTiempo(obs);
   const sensacion = Number.isFinite(metric.windChill) ? metric.windChill : metric.heatIndex;
-
+  const rocio = Number.isFinite(metric.dewpt) ? metric.dewpt : puntoDeRocio(metric.temp, obs.humidity);
   document.querySelector(".temp").textContent = grados(metric.temp);
   document.querySelector(".status").textContent = estado.texto;
   document.getElementById("statusIcon").className = `fa-solid ${estado.icono}`;
-  valor("heroST", grados(sensacion));
-  valor("heroHumedad", textoPorDefecto(obs.humidity, "%"));
-  valor("cTemp", grados(metric.temp));
-  valor("cHumedad", textoPorDefecto(obs.humidity, "%"));
+  valor("heroST", grados(sensacion)); valor("heroHumedad", textoPorDefecto(obs.humidity, "%"));
+  valor("cTemp", grados(metric.temp)); valor("cHumedad", textoPorDefecto(obs.humidity, "%"));
   valor("cViento", Number.isFinite(metric.windSpeed) ? `${metric.windSpeed} km/h` : "--");
-  valor("cDireccion", direccion(obs.winddir));
-  valor("cRafagas", Number.isFinite(metric.windGust) ? `${metric.windGust} km/h` : "--");
+  valor("cDireccion", direccion(obs.winddir)); valor("cRafagas", Number.isFinite(metric.windGust) ? `${metric.windGust} km/h` : "--");
   valor("cLluvia", Number.isFinite(metric.precipTotal) ? `${metric.precipTotal} mm` : "--");
-  valor("cST", grados(sensacion));
-  valor("cPresion", Number.isFinite(metric.pressure) ? `${metric.pressure} hPa` : "--");
-  valor("cSolar", Number.isFinite(obs.solarRadiation) ? `${obs.solarRadiation} W/m²` : "--");
-
+  valor("cST", grados(sensacion)); valor("cPresion", Number.isFinite(metric.pressure) ? `${metric.pressure} hPa` : "--");
+  valor("cRocio", grados(rocio));
   const fecha = new Date(obs.obsTimeLocal);
   valor("actualizacion", `Actualizado: ${fecha.toLocaleDateString("es-AR")} · ${fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`);
 }
 
+function urlPronostico(tipo, duracion) { return `${FORECAST_URL}/${tipo}/${duracion}?geocode=${GEOCOORDENADAS}&units=m&language=es-AR&format=json&apiKey=${API_KEY}`; }
+function mensajePronostico(id) { document.getElementById(id).innerHTML = '<p class="forecast-message">El pronóstico no está disponible con la autorización actual de la API.</p>'; }
+
+function renderizarHorario(data) {
+  const contenedor = document.getElementById("hourlyForecast"); const horas = data.validTimeLocal || []; const temperaturas = data.temperature || []; const frases = data.wxPhraseMedium || data.wxPhraseLong || [];
+  contenedor.innerHTML = "";
+  horas.slice(0, 12).forEach(function (fecha, indice) {
+    const tarjeta = document.createElement("article"); const hora = new Date(fecha).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }); const frase = normalizarFrase(frases[indice]) || "Condiciones variables";
+    tarjeta.className = "hour-card";
+    tarjeta.innerHTML = `<time datetime="${fecha}">${hora}</time><i class="fa-solid ${iconoClima(frase)}" aria-hidden="true"></i><strong>${grados(temperaturas[indice])}</strong><span>${frase}</span>`;
+    contenedor.appendChild(tarjeta);
+  });
+  if (!horas.length) mensajePronostico("hourlyForecast");
+}
+
+function renderizarDiario(data) {
+  const contenedor = document.getElementById("dailyForecast"); const dias = data.dayOfWeek || []; const maximas = data.calendarDayTemperatureMax || data.temperatureMax || []; const minimas = data.calendarDayTemperatureMin || data.temperatureMin || [];
+  const partes = data.daypart && data.daypart[0] ? data.daypart[0] : {}; const frases = partes.wxPhraseLong || data.wxPhraseLong || [];
+  contenedor.innerHTML = "";
+  dias.slice(0, 5).forEach(function (dia, indice) {
+    const frase = normalizarFrase(frases[indice * 2] || frases[indice]) || "Condiciones variables"; const tarjeta = document.createElement("article");
+    tarjeta.className = "day-card";
+    tarjeta.innerHTML = `<time>${dia}</time><span class="day-condition"><i class="fa-solid ${iconoClima(frase)}" aria-hidden="true"></i>${frase}</span><span class="day-temperatures"><span>${grados(minimas[indice])}</span><strong>${grados(maximas[indice])}</strong></span>`;
+    contenedor.appendChild(tarjeta);
+  });
+  if (!dias.length) mensajePronostico("dailyForecast");
+}
+
+/** Carga pronósticos oficiales únicamente cuando la licencia autoriza sus endpoints. */
+async function cargarPronosticos() {
+  if (Date.now() - ultimaCargaPronostico < 1800000) return;
+  ultimaCargaPronostico = Date.now();
+  const obtenerJson = function (url) {
+    return fetch(url).then(function (respuesta) { return respuesta.ok ? respuesta.json() : null; }).catch(function () { return null; });
+  };
+  const resultados = await Promise.all([obtenerJson(urlPronostico("hourly", "1day")), obtenerJson(urlPronostico("daily", "5day"))]);
+  if (resultados[0]) renderizarHorario(resultados[0]); else mensajePronostico("hourlyForecast");
+  if (resultados[1]) renderizarDiario(resultados[1]); else mensajePronostico("dailyForecast");
+}
+
+function iniciarMapa() {
+  if (!window.L) return;
+  const mapa = window.L.map("weatherMap", { scrollWheelZoom: false }).setView([-34.655, -58.667], 12);
+  window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(mapa);
+  window.L.circleMarker([-34.655, -58.667], { radius: 8, color: "#0c3b66", fillColor: "#1976b9", fillOpacity: .9, weight: 2 }).addTo(mapa).bindPopup("Meteo Ituzaingó");
+}
+
 async function cargarClima() {
   try {
-    const respuesta = await fetch(API_URL);
-    if (!respuesta.ok) throw new Error(`Error HTTP ${respuesta.status}`);
-    const data = await respuesta.json();
-    const obs = data.observations && data.observations[0];
+    const respuesta = await fetch(API_URL); if (!respuesta.ok) throw new Error(`Error HTTP ${respuesta.status}`);
+    const data = await respuesta.json(); const obs = data.observations && data.observations[0];
     if (!obs || !obs.metric) throw new Error("La API no devolvió una observación válida");
     mostrarClima(obs);
   } catch (error) {
@@ -62,5 +141,5 @@ async function cargarClima() {
   }
 }
 
-cargarClima();
-setInterval(cargarClima, 150000);
+cargarClima(); cargarPronosticos(); iniciarMapa();
+setInterval(cargarClima, 150000); setInterval(cargarPronosticos, 1800000);
