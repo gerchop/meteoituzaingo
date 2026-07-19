@@ -110,7 +110,7 @@ Ráfagas
 
 Lluvia
 
-Radiación Solar
+Punto de rocío
 
 Fecha y hora de observación
 
@@ -339,6 +339,10 @@ Nunca modificar la API salvo autorización explícita.
 Mantener compatibilidad con GitHub Pages.
 
 Mantener compatibilidad con Blogger.
+
+No incorporar fuentes gratuitas limitadas a uso no comercial si el sitio incorpora publicidad o monetización.
+
+Las capacidades de Weather.com dependen de la autorización individual de cada endpoint y duración. Consultar `DATA_SOURCES.md` antes de integrar nuevos productos.
 
 ---
 

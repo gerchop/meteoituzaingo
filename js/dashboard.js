@@ -3,9 +3,12 @@ const API_URL = `https://api.weather.com/v2/pws/observations/current?stationId=I
 const GEOCOORDENADAS = "-34.655,-58.667";
 const FORECAST_URL = "https://api.weather.com/v3/wx/forecast";
 const DIRECCIONES = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
+const MAP_INITIAL_ZOOM = 12;
 let ultimaCargaPronostico = 0;
 let mapa;
 let marcadorEstacion;
+let ultimaObservacion;
+let ultimaSensacion;
 
 function direccion(grados) { return Number.isFinite(grados) ? DIRECCIONES[Math.round(grados / 22.5) % 16] : "--"; }
 function valor(id, contenido) { document.getElementById(id).textContent = contenido; }
@@ -68,6 +71,8 @@ function mostrarClima(obs) {
   const metric = obs.metric;
   const estado = estadoTiempo(obs);
   const sensacion = Number.isFinite(metric.windChill) ? metric.windChill : metric.heatIndex;
+  ultimaObservacion = obs;
+  ultimaSensacion = sensacion;
   const rocio = Number.isFinite(metric.dewpt) ? metric.dewpt : puntoDeRocio(metric.temp, obs.humidity);
   document.querySelector(".temp").textContent = grados(metric.temp);
   document.querySelector(".status").textContent = estado.texto;
@@ -133,7 +138,7 @@ async function cargarPronosticos() {
 
 function iniciarMapa() {
   if (!window.L) return;
-  mapa = window.L.map("weatherMap", { scrollWheelZoom: false }).setView([-34.655, -58.667], 12);
+  mapa = window.L.map("weatherMap", { scrollWheelZoom: false }).setView([-34.655, -58.667], MAP_INITIAL_ZOOM);
   window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(mapa);
   const iconoEstacion = window.L.divIcon({ className: "station-marker", html: '<i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i>', iconSize: [38, 38], iconAnchor: [19, 19] });
   marcadorEstacion = window.L.marker([-34.655, -58.667], { icon: iconoEstacion, title: "Estación Meteo Ituzaingó" }).addTo(mapa).bindPopup("Meteo Ituzaingó");
@@ -143,11 +148,12 @@ function iniciarMapa() {
       const boton = window.L.DomUtil.create("button", "map-recenter");
       boton.type = "button"; boton.title = "Centrar en la estación"; boton.setAttribute("aria-label", "Centrar en la estación");
       boton.innerHTML = '<i class="fa-solid fa-crosshairs" aria-hidden="true"></i>';
-      window.L.DomEvent.disableClickPropagation(boton); window.L.DomEvent.on(boton, "click", function () { mapa.setView([-34.655, -58.667], 12); });
+      window.L.DomEvent.disableClickPropagation(boton); window.L.DomEvent.on(boton, "click", function () { mapa.setView([-34.655, -58.667], MAP_INITIAL_ZOOM); });
       return boton;
     }
   });
   mapa.addControl(new ControlCentrar());
+  if (ultimaObservacion) actualizarMapa(ultimaObservacion, ultimaSensacion);
 }
 
 /** Mantiene el resumen del popup sincronizado con la última observación local. */

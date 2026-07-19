@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.9 - 2026-07-19
+
+- Se auditó Weather.com/Weather Underground y Weathercloud; se incorporó `DATA_SOURCES.md` con endpoints, autenticación, licencias, resultados de autorización y funcionalidades pendientes.
+- Se verificó que la clave actual autoriza las observaciones PWS actuales, pero devuelve `401` para históricos rápidos, históricos de 7 días, históricos por fecha e índice UV. No se habilitaron gráficos ni datos simulados.
+- El pronóstico conserva la integración oficial de Weather.com y comunica la limitación de licencia cuando los endpoints de pronóstico no están habilitados.
+- Se configuró el zoom inicial del mapa y se garantiza que el popup de la estación se sincronice aun si la observación llega antes de que Leaflet termine de inicializarse.
+- Se añadieron metadatos Open Graph, robots y datos estructurados `WeatherStation` para mejorar SEO técnico sin alterar la interfaz.
+- No se integraron radar, calidad del aire, alertas, astronomía ni capas satelitales: requieren productos/licencias no autorizados o una fuente compatible con monetización que no está disponible actualmente.
+
 ## v0.8 - 2026-07-19
 
 - Se amplió el renderizado de pronósticos de Weather.com para incluir probabilidad de lluvia y velocidad de viento por hora; el extendido ahora muestra probabilidad de precipitación junto a mínima, máxima, icono y descripción.
