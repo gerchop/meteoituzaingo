@@ -4,11 +4,14 @@ const GEOCOORDENADAS = "-34.655,-58.667";
 const FORECAST_URL = "https://api.weather.com/v3/wx/forecast";
 const DIRECCIONES = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
 let ultimaCargaPronostico = 0;
+let mapa;
+let marcadorEstacion;
 
 function direccion(grados) { return Number.isFinite(grados) ? DIRECCIONES[Math.round(grados / 22.5) % 16] : "--"; }
 function valor(id, contenido) { document.getElementById(id).textContent = contenido; }
 function grados(numero) { return Number.isFinite(numero) ? `${Math.round(numero)}°` : "--"; }
 function textoPorDefecto(numero, sufijo) { return numero === null || numero === undefined ? `--${sufijo}` : `${numero}${sufijo}`; }
+function valorHorario(valores, indice, sufijo) { return Number.isFinite(valores[indice]) ? `${Math.round(valores[indice])}${sufijo}` : "--"; }
 
 /** Calcula el punto de rocío en °C mediante la aproximación de Magnus. */
 function puntoDeRocio(temperatura, humedad) {
@@ -76,36 +79,44 @@ function mostrarClima(obs) {
   valor("cLluvia", Number.isFinite(metric.precipTotal) ? `${metric.precipTotal} mm` : "--");
   valor("cST", grados(sensacion)); valor("cPresion", Number.isFinite(metric.pressure) ? `${metric.pressure} hPa` : "--");
   valor("cRocio", grados(rocio));
+  actualizarMapa(obs, sensacion);
   const fecha = new Date(obs.obsTimeLocal);
   valor("actualizacion", `Actualizado: ${fecha.toLocaleDateString("es-AR")} · ${fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`);
 }
 
 function urlPronostico(tipo, duracion) { return `${FORECAST_URL}/${tipo}/${duracion}?geocode=${GEOCOORDENADAS}&units=m&language=es-AR&format=json&apiKey=${API_KEY}`; }
-function mensajePronostico(id) { document.getElementById(id).innerHTML = '<p class="forecast-message">El pronóstico no está disponible con la autorización actual de la API.</p>'; }
+function mensajePronostico(id) { document.getElementById(id).innerHTML = '<p class="forecast-message">El pronóstico de Weather.com no está disponible con la autorización actual de la API.</p>'; }
+function fuentePronostico(id, disponible) {
+  const fuente = document.getElementById(id);
+  fuente.hidden = !disponible;
+  fuente.textContent = disponible ? "Fuente: Weather.com" : "";
+}
 
 function renderizarHorario(data) {
   const contenedor = document.getElementById("hourlyForecast"); const horas = data.validTimeLocal || []; const temperaturas = data.temperature || []; const frases = data.wxPhraseMedium || data.wxPhraseLong || [];
+  const probabilidades = data.precipChance || data.precipitationProbability || []; const vientos = data.windSpeed || [];
   contenedor.innerHTML = "";
   horas.slice(0, 12).forEach(function (fecha, indice) {
     const tarjeta = document.createElement("article"); const hora = new Date(fecha).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }); const frase = normalizarFrase(frases[indice]) || "Condiciones variables";
     tarjeta.className = "hour-card";
-    tarjeta.innerHTML = `<time datetime="${fecha}">${hora}</time><i class="fa-solid ${iconoClima(frase)}" aria-hidden="true"></i><strong>${grados(temperaturas[indice])}</strong><span>${frase}</span>`;
+    tarjeta.innerHTML = `<time datetime="${fecha}">${hora}</time><i class="fa-solid ${iconoClima(frase)}" aria-hidden="true"></i><strong>${grados(temperaturas[indice])}</strong><span>${frase}</span><span class="hour-details"><span><i class="fa-solid fa-droplet" aria-hidden="true"></i>${valorHorario(probabilidades, indice, "%")}</span><span><i class="fa-solid fa-wind" aria-hidden="true"></i>${valorHorario(vientos, indice, " km/h")}</span></span>`;
     contenedor.appendChild(tarjeta);
   });
-  if (!horas.length) mensajePronostico("hourlyForecast");
+  if (!horas.length) { mensajePronostico("hourlyForecast"); fuentePronostico("hourlySource", false); } else fuentePronostico("hourlySource", true);
 }
 
 function renderizarDiario(data) {
   const contenedor = document.getElementById("dailyForecast"); const dias = data.dayOfWeek || []; const maximas = data.calendarDayTemperatureMax || data.temperatureMax || []; const minimas = data.calendarDayTemperatureMin || data.temperatureMin || [];
-  const partes = data.daypart && data.daypart[0] ? data.daypart[0] : {}; const frases = partes.wxPhraseLong || data.wxPhraseLong || [];
+  const partes = data.daypart && data.daypart[0] ? data.daypart[0] : {}; const frases = partes.wxPhraseLong || data.wxPhraseLong || []; const probabilidades = partes.precipChance || data.precipChance || data.precipitationProbabilityMax || [];
   contenedor.innerHTML = "";
   dias.slice(0, 5).forEach(function (dia, indice) {
     const frase = normalizarFrase(frases[indice * 2] || frases[indice]) || "Condiciones variables"; const tarjeta = document.createElement("article");
     tarjeta.className = "day-card";
-    tarjeta.innerHTML = `<time>${dia}</time><span class="day-condition"><i class="fa-solid ${iconoClima(frase)}" aria-hidden="true"></i>${frase}</span><span class="day-temperatures"><span>${grados(minimas[indice])}</span><strong>${grados(maximas[indice])}</strong></span>`;
+    const probabilidad = valorHorario(probabilidades, probabilidades.length > dias.length ? indice * 2 : indice, "%");
+    tarjeta.innerHTML = `<time>${dia}</time><span class="day-condition"><i class="fa-solid ${iconoClima(frase)}" aria-hidden="true"></i>${frase}</span><span><span class="day-temperatures"><span>${grados(minimas[indice])}</span><strong>${grados(maximas[indice])}</strong></span><span class="rain-chance"><i class="fa-solid fa-droplet" aria-hidden="true"></i>${probabilidad}</span></span>`;
     contenedor.appendChild(tarjeta);
   });
-  if (!dias.length) mensajePronostico("dailyForecast");
+  if (!dias.length) { mensajePronostico("dailyForecast"); fuentePronostico("dailySource", false); } else fuentePronostico("dailySource", true);
 }
 
 /** Carga pronósticos oficiales únicamente cuando la licencia autoriza sus endpoints. */
@@ -116,15 +127,34 @@ async function cargarPronosticos() {
     return fetch(url).then(function (respuesta) { return respuesta.ok ? respuesta.json() : null; }).catch(function () { return null; });
   };
   const resultados = await Promise.all([obtenerJson(urlPronostico("hourly", "1day")), obtenerJson(urlPronostico("daily", "5day"))]);
-  if (resultados[0]) renderizarHorario(resultados[0]); else mensajePronostico("hourlyForecast");
-  if (resultados[1]) renderizarDiario(resultados[1]); else mensajePronostico("dailyForecast");
+  if (resultados[0]) renderizarHorario(resultados[0]); else { mensajePronostico("hourlyForecast"); fuentePronostico("hourlySource", false); }
+  if (resultados[1]) renderizarDiario(resultados[1]); else { mensajePronostico("dailyForecast"); fuentePronostico("dailySource", false); }
 }
 
 function iniciarMapa() {
   if (!window.L) return;
-  const mapa = window.L.map("weatherMap", { scrollWheelZoom: false }).setView([-34.655, -58.667], 12);
+  mapa = window.L.map("weatherMap", { scrollWheelZoom: false }).setView([-34.655, -58.667], 12);
   window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(mapa);
-  window.L.circleMarker([-34.655, -58.667], { radius: 8, color: "#0c3b66", fillColor: "#1976b9", fillOpacity: .9, weight: 2 }).addTo(mapa).bindPopup("Meteo Ituzaingó");
+  const iconoEstacion = window.L.divIcon({ className: "station-marker", html: '<i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i>', iconSize: [38, 38], iconAnchor: [19, 19] });
+  marcadorEstacion = window.L.marker([-34.655, -58.667], { icon: iconoEstacion, title: "Estación Meteo Ituzaingó" }).addTo(mapa).bindPopup("Meteo Ituzaingó");
+  const ControlCentrar = window.L.Control.extend({
+    options: { position: "topright" },
+    onAdd: function () {
+      const boton = window.L.DomUtil.create("button", "map-recenter");
+      boton.type = "button"; boton.title = "Centrar en la estación"; boton.setAttribute("aria-label", "Centrar en la estación");
+      boton.innerHTML = '<i class="fa-solid fa-crosshairs" aria-hidden="true"></i>';
+      window.L.DomEvent.disableClickPropagation(boton); window.L.DomEvent.on(boton, "click", function () { mapa.setView([-34.655, -58.667], 12); });
+      return boton;
+    }
+  });
+  mapa.addControl(new ControlCentrar());
+}
+
+/** Mantiene el resumen del popup sincronizado con la última observación local. */
+function actualizarMapa(obs, sensacion) {
+  if (!marcadorEstacion) return;
+  const metric = obs.metric;
+  marcadorEstacion.bindPopup(`<strong>Meteo Ituzaingó</strong><br>Temperatura: ${grados(metric.temp)}<br>Sensación: ${grados(sensacion)}<br>Humedad: ${textoPorDefecto(obs.humidity, "%")}<br>Viento: ${textoPorDefecto(metric.windSpeed, " km/h")}`);
 }
 
 async function cargarClima() {

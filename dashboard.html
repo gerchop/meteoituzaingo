@@ -71,17 +71,19 @@
     <section class="forecast-section" aria-labelledby="hourly-title">
       <div class="section-heading"><div><p class="eyebrow">Próximas horas</p><h2 id="hourly-title">Pronóstico horario</h2></div></div>
       <div id="hourlyForecast" class="hourly-forecast" aria-live="polite"><p class="forecast-message">Preparando el pronóstico horario…</p></div>
+      <p id="hourlySource" class="forecast-source" hidden></p>
     </section>
 
     <section class="forecast-section extended-section" aria-labelledby="daily-title">
       <div class="section-heading"><div><p class="eyebrow">Próximos días</p><h2 id="daily-title">Pronóstico extendido</h2></div></div>
       <div id="dailyForecast" class="daily-forecast" aria-live="polite"><p class="forecast-message">Preparando el pronóstico extendido…</p></div>
+      <p id="dailySource" class="forecast-source" hidden></p>
     </section>
 
     <section class="forecast-section map-section" aria-labelledby="map-title">
       <div class="section-heading"><div><p class="eyebrow">Entorno local</p><h2 id="map-title">Mapa meteorológico</h2></div></div>
       <div id="weatherMap" class="weather-map" aria-label="Mapa de Ituzaingó, Buenos Aires"></div>
-      <div class="radar-note"><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i><p><strong>Radar meteorológico</strong><span>La estructura está preparada para incorporar una fuente pública de radar en la próxima versión.</span></p></div>
+      <div class="radar-note"><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i><p><strong>Radar meteorológico</strong><span>El radar oficial del SMN no ofrece una integración pública documentada. No se incorporan capas de terceros para preservar una futura monetización compatible.</span></p></div>
     </section>
   </main>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>

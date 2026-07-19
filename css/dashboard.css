@@ -40,14 +40,24 @@ h2 { margin-top:4px; font-size:1.18rem; letter-spacing:-.03em; }
 .hour-card time,.hour-card span { color:var(--muted); font-size:.73rem; }
 .hour-card i,.day-condition i { color:var(--blue); font-size:1.15rem; }
 .hour-card strong { font-size:1rem; }
+.hour-details { display:grid; gap:3px; color:var(--muted); font-size:.65rem; }
+.hour-details span { display:inline!important; margin:0!important; font-size:inherit!important; }
+.hour-details i { margin-right:3px; font-size:.65rem; }
 .daily-forecast { display:grid; gap:8px; }
 .day-card { display:grid; grid-template-columns:68px 1fr auto; align-items:center; gap:10px; padding:13px 14px; border:1px solid #e2ebf1; border-radius:14px; background:#fff; box-shadow:0 3px 12px rgba(27,64,90,.04); }
 .day-card time { font-size:.82rem; font-weight:700; }
 .day-condition { display:flex; align-items:center; gap:9px; color:var(--muted); font-size:.78rem; }
 .day-temperatures { display:flex; gap:8px; font-size:.84rem; }
 .day-temperatures strong { color:var(--blue); }
+.rain-chance { color:var(--blue); font-size:.7rem; white-space:nowrap; }
+.rain-chance i { margin-right:3px; }
 .forecast-message { width:100%; padding:18px; border:1px dashed #cbd9e2; border-radius:14px; color:var(--muted); font-size:.82rem; text-align:center; }
+.forecast-source { margin-top:9px; color:var(--muted); font-size:.68rem; text-align:right; }
 .weather-map { height:250px; overflow:hidden; border:1px solid #e2ebf1; border-radius:15px; background:#dceefa; }
+.station-marker { display:grid; width:38px!important; height:38px!important; place-items:center; border:3px solid #fff; border-radius:50%; background:var(--navy); color:#fff; box-shadow:0 3px 10px rgba(12,59,102,.35); }
+.station-marker i { font-size:.9rem; }
+.map-recenter { display:grid; width:34px; height:34px; place-items:center; border:0; background:#fff; color:var(--navy); cursor:pointer; font:inherit; box-shadow:0 1px 5px rgba(0,0,0,.22); }
+.map-recenter:hover,.map-recenter:focus { background:#edf5fa; }
 .radar-note { display:flex; gap:11px; align-items:flex-start; margin-top:11px; padding:13px; border-radius:13px; background:#edf5fa; color:var(--muted); }
 .radar-note i { margin-top:2px; color:var(--blue); }
 .radar-note p { display:grid; gap:3px; font-size:.75rem; line-height:1.4; }
