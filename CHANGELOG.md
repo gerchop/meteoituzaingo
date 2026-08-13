@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.9.5 - 2026-08-13
+
+- Se reconstruyó la inicialización de Leaflet: mosaico base optimizado, zoom nativo, botón de retorno, marcador accesible, popup moderno y ajuste de tamaño mediante `ResizeObserver` y `invalidateSize`.
+- Se eliminó CSS responsive duplicado sin cambiar la identidad visual.
+- Se mejoró el aviso de pronóstico para especificar que el bloqueo es la falta de autorización del endpoint de Weather.com.
+- Se auditó OpenWeather y se documentó como fuente complementaria potencial, sin integrar credenciales ni sustituir Weather.com como fuente de la estación.
+- Se descartó el radar de ClimaSurGBA: su licencia CC BY-NC-SA no permite el futuro uso comercial y su visor de Ezeiza informa imagen desactualizada.
+- Se creó `ARCHITECTURE.md` con una propuesta GitHub Pages + Azure Functions + Azure Table/Blob Storage para históricos propios.
+
 ## v0.9 - 2026-07-19
 
 - Se auditó Weather.com/Weather Underground y Weathercloud; se incorporó `DATA_SOURCES.md` con endpoints, autenticación, licencias, resultados de autorización y funcionalidades pendientes.

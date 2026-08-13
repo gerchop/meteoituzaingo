@@ -344,6 +344,8 @@ No incorporar fuentes gratuitas limitadas a uso no comercial si el sitio incorpo
 
 Las capacidades de Weather.com dependen de la autorización individual de cada endpoint y duración. Consultar `DATA_SOURCES.md` antes de integrar nuevos productos.
 
+Para históricos propios, seguir la arquitectura documentada en `ARCHITECTURE.md`: las credenciales deben residir en un backend y nunca en GitHub Pages, Blogger ni el repositorio.
+
 ---
 
 # Flujo de trabajo

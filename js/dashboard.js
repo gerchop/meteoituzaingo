@@ -90,7 +90,7 @@ function mostrarClima(obs) {
 }
 
 function urlPronostico(tipo, duracion) { return `${FORECAST_URL}/${tipo}/${duracion}?geocode=${GEOCOORDENADAS}&units=m&language=es-AR&format=json&apiKey=${API_KEY}`; }
-function mensajePronostico(id) { document.getElementById(id).innerHTML = '<p class="forecast-message">El pronóstico de Weather.com no está disponible con la autorización actual de la API.</p>'; }
+function mensajePronostico(id) { document.getElementById(id).innerHTML = '<p class="forecast-message">El pronóstico no puede mostrarse: la clave actual no tiene autorización para el endpoint de Weather.com.</p>'; }
 function fuentePronostico(id, disponible) {
   const fuente = document.getElementById(id);
   fuente.hidden = !disponible;
@@ -136,12 +136,15 @@ async function cargarPronosticos() {
   if (resultados[1]) renderizarDiario(resultados[1]); else { mensajePronostico("dailyForecast"); fuentePronostico("dailySource", false); }
 }
 
+/** Crea el mapa de ubicación y corrige el tamaño al mostrarse en Blogger o GitHub Pages. */
 function iniciarMapa() {
-  if (!window.L) return;
-  mapa = window.L.map("weatherMap", { scrollWheelZoom: false }).setView([-34.655, -58.667], MAP_INITIAL_ZOOM);
-  window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(mapa);
+  const contenedor = document.getElementById("weatherMap");
+  if (!window.L || !contenedor || mapa) return;
+  mapa = window.L.map(contenedor, { scrollWheelZoom: false, zoomControl: true, preferCanvas: true, attributionControl: true }).setView([-34.655, -58.667], MAP_INITIAL_ZOOM);
+  const base = window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, minZoom: 3, keepBuffer: 2, updateWhenIdle: true, attribution: "© OpenStreetMap contributors" });
+  base.addTo(mapa);
   const iconoEstacion = window.L.divIcon({ className: "station-marker", html: '<i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i>', iconSize: [38, 38], iconAnchor: [19, 19] });
-  marcadorEstacion = window.L.marker([-34.655, -58.667], { icon: iconoEstacion, title: "Estación Meteo Ituzaingó" }).addTo(mapa).bindPopup("Meteo Ituzaingó");
+  marcadorEstacion = window.L.marker([-34.655, -58.667], { icon: iconoEstacion, title: "Estación Meteo Ituzaingó", keyboard: true }).addTo(mapa);
   const ControlCentrar = window.L.Control.extend({
     options: { position: "topright" },
     onAdd: function () {
@@ -153,6 +156,10 @@ function iniciarMapa() {
     }
   });
   mapa.addControl(new ControlCentrar());
+  const ajustarMapa = function () { mapa.invalidateSize({ animate: false, pan: false }); };
+  window.requestAnimationFrame(ajustarMapa);
+  window.addEventListener("resize", ajustarMapa, { passive: true });
+  if (window.ResizeObserver) new ResizeObserver(ajustarMapa).observe(contenedor);
   if (ultimaObservacion) actualizarMapa(ultimaObservacion, ultimaSensacion);
 }
 
@@ -160,7 +167,7 @@ function iniciarMapa() {
 function actualizarMapa(obs, sensacion) {
   if (!marcadorEstacion) return;
   const metric = obs.metric;
-  marcadorEstacion.bindPopup(`<strong>Meteo Ituzaingó</strong><br>Temperatura: ${grados(metric.temp)}<br>Sensación: ${grados(sensacion)}<br>Humedad: ${textoPorDefecto(obs.humidity, "%")}<br>Viento: ${textoPorDefecto(metric.windSpeed, " km/h")}`);
+  marcadorEstacion.bindPopup(`<div class="station-popup"><strong>Meteo Ituzaingó</strong><span>Estación meteorológica local</span><span>Temperatura: ${grados(metric.temp)} · Sensación: ${grados(sensacion)}</span><span>Humedad: ${textoPorDefecto(obs.humidity, "%")} · Viento: ${textoPorDefecto(metric.windSpeed, " km/h")}</span></div>`, { maxWidth: 250 });
 }
 
 async function cargarClima() {

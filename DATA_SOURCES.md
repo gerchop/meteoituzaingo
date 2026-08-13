@@ -30,6 +30,21 @@ Todos los endpoints de TWC se consultan por `GET` y usan `apiKey` como parámetr
 | Ubicación y dispositivos públicos | API v0 lista dispositivos públicos | Según endpoint | No integrado | Puede exponer datos de terceros; no usarlo para sustituir datos propios. |
 | Pronósticos y mapas | No documentados como producto de la API de estación auditada | No aplicable | No disponible para esta integración | Sin fuente o licencia comercial confirmada. |
 
+## OpenWeather (auditoría v0.9.5)
+
+| Servicio | Endpoint / método | Autenticación | Plan y estado | Licencia, límites y uso comercial |
+| --- | --- | --- | --- | --- |
+| Condiciones actuales | `GET /data/2.5/weather` con `lat`, `lon`, `appid` | API key en query | Plan Free disponible; no integrado | El plan publicado indica 60 llamadas/minuto y hasta 1.000.000/mes para sus productos Free. Confirmar aceptación de licencia de la cuenta antes de producción. |
+| Pronóstico de 5 días | `GET /data/2.5/forecast` con `lat`, `lon`, `appid` | API key en query | Plan Free disponible; no integrado | Entrega intervalos de 3 horas, por lo que no resuelve el requisito de pronóstico horario completo. |
+| One Call | `GET /data/3.0/onecall` con `lat`, `lon`, `units=metric`, `lang=es`, `appid` | API key en query | Requiere suscripción One Call by Call; no integrada | Incluye 48 h horarias, 8 días, alertas y requiere cuenta/clave propia. La documentación indica 1.000 llamadas/día sin cargo en esa suscripción y consumo adicional de pago; validar precio y licencia al contratar. |
+| Calidad del aire | `GET /data/2.5/air_pollution`, `/forecast`, `/history` | API key en query | Plan Free publicado; no integrado | Datos actuales, pronóstico 4 días e históricos desde 2020. |
+| Índice UV | No existe endpoint UV independiente en el plan Free auditado | Depende del producto | Pendiente | One Call puede incluir `uvi`, sujeto a su suscripción. |
+| Históricos meteorológicos | One Call por timestamp y `day_summary` | API key en query | One Call by Call; no integrado | Archivo desde 1979 según documentación, sujeto a producto/costo. |
+| Alertas | Campo `alerts` de One Call | API key en query | One Call by Call; no integrado | Depende de que exista emisor gubernamental para la ubicación. |
+| Mapas/radar | Teselas Weather Maps y Global Precipitation Maps | API key en query | Mapas actuales figuran en Free; radar/precipitación histórico tiene producto propio | No integrar sin confirmar licencia comercial, atribución y cuota de la cuenta. |
+
+OpenWeather es un complemento potencial, no un reemplazo: Weather.com sigue siendo la única fuente de observaciones de la estación propia. No se incorporó una clave de OpenWeather al repositorio ni se activó un fallback porque no se proporcionó una cuenta, una clave ni aceptación verificable de su licencia comercial. Para una integración futura, la clave debe guardarse como secreto de Azure Function y la web debe consultar un endpoint propio (`/api/forecast`), nunca un `appid` embebido.
+
 ## Fuentes descartadas por licencia
 
 | Fuente | Motivo |
@@ -37,6 +52,7 @@ Todos los endpoints de TWC se consultan por `GET` y usan `apiKey` como parámetr
 | Open-Meteo gratuito | Su licencia gratuita es solo para uso no comercial; un sitio con Google AdSense requiere plan comercial. |
 | RainViewer gratuito | Permite uso personal, educativo y de pequeña comunidad, pero no es adecuado como dependencia para un sitio monetizado sin acuerdo comercial. |
 | Teselas satelitales públicas de Esri | Las condiciones diferencian uso comercial y no comercial; no se agregan sin licencia o permiso verificable. |
+| Radar de ClimaSurGBA | El sitio muestra licencia CC BY-NC-SA y su página de Ezeiza indica imagen desactualizada. No puede integrarse en un sitio futuro con AdSense ni aporta un radar fiable. |
 
 ## Arquitectura pendiente para v1.0
 
