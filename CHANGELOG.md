@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.10 - 2026-08-15
+
+- Se integró Meteored para los pronósticos horario y extendido de Ituzaingó: muestra datos reales, 12 horas iniciales y 5 días, con caché local gobernada por `expiracion`.
+- Se añadió un radar visible de Ezeiza mediante `radarProvider`, con actualización independiente cada 10 minutos, cache busting y botón de actualización manual.
+- Se incorporó la sección de imagen satelital y su `satelliteProvider`; se informa la indisponibilidad en GitHub Pages/Blogger HTTPS porque la fuente CX2SA solo respondió por HTTP.
+- Se reconstruyó el mapa Leaflet con centro y zoom configurables, teselas OpenStreetMap sin límites locales, botón «Volver», popup con datos reales y redimensionamiento ante cambios de tamaño u orientación.
+- Se eliminó el polling de pronósticos no autorizado de Weather.com; Meteored se consulta solo cuando vence su caché.
+- Se documentaron las fuentes provisionales, la estrategia de caché y las limitaciones de licencia y contenido mixto.
+
 ## v0.9.5 - 2026-08-13
 
 - Se reconstruyó la inicialización de Leaflet: mosaico base optimizado, zoom nativo, botón de retorno, marcador accesible, popup moderno y ajuste de tamaño mediante `ResizeObserver` y `invalidateSize`.

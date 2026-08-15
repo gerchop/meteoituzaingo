@@ -346,6 +346,8 @@ Las capacidades de Weather.com dependen de la autorización individual de cada e
 
 Para históricos propios, seguir la arquitectura documentada en `ARCHITECTURE.md`: las credenciales deben residir en un backend y nunca en GitHub Pages, Blogger ni el repositorio.
 
+Las fuentes visuales provisionales deben estar encapsuladas en providers, actualizar únicamente su recurso y documentar licencia, vigencia y compatibilidad HTTPS en `DATA_SOURCES.md`.
+
 ---
 
 # Flujo de trabajo

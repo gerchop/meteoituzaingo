@@ -91,7 +91,18 @@
     <section class="forecast-section map-section" aria-labelledby="map-title">
       <div class="section-heading"><div><p class="eyebrow">Entorno local</p><h2 id="map-title">Mapa meteorológico</h2></div></div>
       <div id="weatherMap" class="weather-map" aria-label="Mapa de Ituzaingó, Buenos Aires"></div>
-      <div class="radar-note"><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i><p><strong>Radar meteorológico</strong><span>Sin capa interactiva autorizada para uso comercial. El radar de ClimaSurGBA está bajo licencia CC BY-NC-SA y además informa datos desactualizados; por eso no se integra.</span></p></div>
+    </section>
+
+    <section class="forecast-section media-section" aria-labelledby="radar-title">
+      <div class="section-heading"><div><p class="eyebrow">Precipitación</p><h2 id="radar-title">Radar meteorológico</h2></div><button id="refreshRadar" class="media-refresh" type="button"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Actualizar</button></div>
+      <div class="media-frame"><img id="radarImage" alt="Radar meteorológico de Ezeiza" loading="lazy"></div>
+      <p id="radarMeta" class="media-meta">Fuente provisional: ClimaSurGBA.</p>
+    </section>
+
+    <section class="forecast-section media-section" aria-labelledby="satellite-title">
+      <div class="section-heading"><div><p class="eyebrow">Observación regional</p><h2 id="satellite-title">Imagen satelital</h2></div><button id="refreshSatellite" class="media-refresh" type="button" disabled><i class="fa-solid fa-rotate" aria-hidden="true"></i> Actualizar</button></div>
+      <div class="media-frame"><img id="satelliteImage" alt="Imagen satelital regional de CX2SA" loading="lazy" hidden><div id="satellitePlaceholder" class="media-unavailable"><i class="fa-solid fa-satellite-dish" aria-hidden="true"></i><p id="satelliteMessage">Imagen satelital no disponible en conexiones HTTPS.</p></div></div>
+      <p id="satelliteMeta" class="media-meta">Fuente: CX2SA. Su imagen directa solo responde por HTTP y se bloquea como contenido mixto en GitHub Pages/Blogger.</p>
     </section>
   </main>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>

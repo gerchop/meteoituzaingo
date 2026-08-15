@@ -45,6 +45,23 @@ Todos los endpoints de TWC se consultan por `GET` y usan `apiKey` como parámetr
 
 OpenWeather es un complemento potencial, no un reemplazo: Weather.com sigue siendo la única fuente de observaciones de la estación propia. No se incorporó una clave de OpenWeather al repositorio ni se activó un fallback porque no se proporcionó una cuenta, una clave ni aceptación verificable de su licencia comercial. Para una integración futura, la clave debe guardarse como secreto de Azure Function y la web debe consultar un endpoint propio (`/api/forecast`), nunca un `appid` embebido.
 
+## Meteored (v0.10)
+
+| Servicio | Endpoint previsto | Estado | Estrategia |
+| --- | --- | --- | --- |
+| Localización | `GET /api/location/v1/search/txt/{text}` | Disponible y probado con `X-API-Key` | Ituzaingó, Buenos Aires resolvió al hash `02fb9feb8e7f9462733d7279a5479236`. |
+| Pronóstico horario | `GET /api/forecast/v1/hourly/{hash}` | Disponible y probado | Respuesta `ok: true`, 24 horas y CORS `*`; usa temperatura, sensación, símbolo, lluvia, humedad, viento y dirección. |
+| Pronóstico diario | `GET /api/forecast/v1/daily/{hash}` | Disponible y probado | Respuesta `ok: true`, 5 días; usa mínima, máxima, símbolo, humedad, lluvia y viento. |
+
+Meteored se usa solo para pronósticos; Weather.com sigue siendo la fuente de observaciones actuales. La autenticación requerida es el encabezado `X-API-Key`; el preflight respondió `200` y permite ese encabezado, con `Access-Control-Allow-Origin: *`. Las respuestas incluyen `expiracion` (milisegundos epoch) y se guardan por separado en `localStorage` hasta ese vencimiento, por lo que no hay polling ni consultas al actualizar las observaciones. El plan informado limita a 50 peticiones diarias: una carga normal usa como máximo una consulta horaria y una diaria por vencimiento. La clave no se registra en esta documentación ni en mensajes de error.
+
+## Fuentes provisionales visibles (v0.10)
+
+| Fuente | Uso | Integración | Frecuencia | Limitación |
+| --- | --- | --- | --- | --- |
+| ClimaSurGBA | Radar Ezeiza | Imagen HTTPS `https://climasurgba.com.ar/radar/ezeiza0.png` mediante `radarProvider`; cache busting solo de la imagen | 10 minutos y botón manual | Provisional por solicitud del usuario. El sitio declara CC BY-NC-SA y puede estar desactualizado; no es apta como solución comercial definitiva. |
+| CX2SA | Imagen satelital | Imagen directa `http://www.cx2sa.com/nr/satimg3.jpg` mediante `satelliteProvider` | 10 minutos si el sitio se sirve por HTTP | La URL respondió por HTTP pero no por HTTPS. GitHub Pages/Blogger HTTPS la bloquean como contenido mixto; no se carga para evitar errores y no se utiliza proxy. |
+
 ## Fuentes descartadas por licencia
 
 | Fuente | Motivo |
@@ -52,7 +69,7 @@ OpenWeather es un complemento potencial, no un reemplazo: Weather.com sigue sien
 | Open-Meteo gratuito | Su licencia gratuita es solo para uso no comercial; un sitio con Google AdSense requiere plan comercial. |
 | RainViewer gratuito | Permite uso personal, educativo y de pequeña comunidad, pero no es adecuado como dependencia para un sitio monetizado sin acuerdo comercial. |
 | Teselas satelitales públicas de Esri | Las condiciones diferencian uso comercial y no comercial; no se agregan sin licencia o permiso verificable. |
-| Radar de ClimaSurGBA | El sitio muestra licencia CC BY-NC-SA y su página de Ezeiza indica imagen desactualizada. No puede integrarse en un sitio futuro con AdSense ni aporta un radar fiable. |
+| Radar de ClimaSurGBA como solución definitiva | El sitio muestra licencia CC BY-NC-SA y su página de Ezeiza indica imagen desactualizada. Se muestra únicamente de forma provisional por petición explícita del usuario; debe sustituirse antes de monetizar. |
 
 ## Arquitectura pendiente para v1.0
 
