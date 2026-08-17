@@ -55,12 +55,25 @@ OpenWeather es un complemento potencial, no un reemplazo: Weather.com sigue sien
 
 Meteored se usa solo para pronósticos; Weather.com sigue siendo la fuente de observaciones actuales. La autenticación requerida es el encabezado `X-API-Key`; el preflight respondió `200` y permite ese encabezado, con `Access-Control-Allow-Origin: *`. Las respuestas incluyen `expiracion` (milisegundos epoch) y se guardan por separado en `localStorage` hasta ese vencimiento, por lo que no hay polling ni consultas al actualizar las observaciones. El plan informado limita a 50 peticiones diarias: una carga normal usa como máximo una consulta horaria y una diaria por vencimiento. La clave no se registra en esta documentación ni en mensajes de error.
 
-## Fuentes provisionales visibles (v0.10)
+## Fuentes visuales (v0.11)
 
 | Fuente | Uso | Integración | Frecuencia | Limitación |
 | --- | --- | --- | --- | --- |
 | ClimaSurGBA | Radar Ezeiza | Imagen HTTPS `https://climasurgba.com.ar/radar/ezeiza0.png` mediante `radarProvider`; cache busting solo de la imagen | 10 minutos y botón manual | Provisional por solicitud del usuario. El sitio declara CC BY-NC-SA y puede estar desactualizado; no es apta como solución comercial definitiva. |
-| CX2SA | Imagen satelital | Imagen directa `http://www.cx2sa.com/nr/satimg3.jpg` mediante `satelliteProvider` | 10 minutos si el sitio se sirve por HTTP | La URL respondió por HTTP pero no por HTTPS. GitHub Pages/Blogger HTTPS la bloquean como contenido mixto; no se carga para evitar errores y no se utiliza proxy. |
+| CONAE | Animación satelital GOES-19 para Argentina | `POST https://catalogos4.conae.gov.ar/goesr_l2/animaciones/recuperarListaImagenes.aspx` con `tipo`, `cant=6` y `frec=30`; cada respuesta entrega las URLs HTTPS de JPG y `ultFecha` | 30 minutos, botón manual y cambio de producto | Fuente oficial pública. La animación depende de la disponibilidad del catálogo y no se carga ningún recurso si el endpoint falla. Mantener atribución CONAE visible y confirmar condiciones de redistribución antes de monetizar. |
+| CX2SA | Imagen satelital | **DESCARTADO COMO FUENTE ACTIVA** | No aplica | Solo respondió mediante HTTP. Es incompatible con GitHub Pages/Blogger HTTPS por contenido mixto; se conserva únicamente como antecedente técnico. |
+
+### CONAE GOES-19
+
+- Página auditada: `https://catalogos4.conae.gov.ar/goesr_l2/animaciones/animacionGOESU.aspx`.
+- Productos publicados: `ArgIrol` (Infra Rojo de Onda Larga), `ArgVisb2` (Visible Banda 2), `ArgRgbmn` (RGB Microfísica Nocturna) y `ArgVanm` (Niveles Medios de Vapor de Agua).
+- Mecanismo: el sitio oficial usa `recuperarListaImagenes.aspx`, que devuelve JSON con `items.imagenes` y `items.ultFecha`. La aplicación solicita la secuencia mínima de seis cuadros, no realiza scraping ni sondeos masivos.
+- Los nombres de los archivos incluyen fecha y hora de adquisición; `ultFecha` se etiqueta como UTC tal como lo informa el visor oficial. Las URLs de imagen son HTTPS, por lo que no hay contenido mixto en GitHub Pages/Blogger.
+- La respuesta y la página auditada publicaron `Access-Control-Allow-Origin: *`; el módulo controla errores de red y muestra el fallback local.
+
+## Mapa Leaflet
+
+**ELIMINADO EN v0.11.** Se retiró la sección, Leaflet y toda su inicialización porque los problemas persistentes de mosaicos, zoom y redimensionamiento no justificaban su coste de mantenimiento frente al valor aportado.
 
 ## Fuentes descartadas por licencia
 

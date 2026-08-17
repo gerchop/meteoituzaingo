@@ -13,7 +13,6 @@
   <title>Meteo Ituzaingó | Tiempo actual</title>
   <link rel="preconnect" href="https://cdnjs.cloudflare.com">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQWRL4QMXgY9KQ0b8fB6f/9c0iP0w5w=" crossorigin="">
   <link rel="stylesheet" href="css/dashboard.css">
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"WeatherStation","name":"Meteo Ituzaingó","address":{"@type":"PostalAddress","addressLocality":"Ituzaingó","addressRegion":"Buenos Aires","addressCountry":"AR"},"geo":{"@type":"GeoCoordinates","latitude":-34.655,"longitude":-58.667}}
@@ -88,24 +87,23 @@
       <p id="dailySource" class="forecast-source" hidden></p>
     </section>
 
-    <section class="forecast-section map-section" aria-labelledby="map-title">
-      <div class="section-heading"><div><p class="eyebrow">Entorno local</p><h2 id="map-title">Mapa meteorológico</h2></div></div>
-      <div id="weatherMap" class="weather-map" aria-label="Mapa de Ituzaingó, Buenos Aires"></div>
-    </section>
-
     <section class="forecast-section media-section" aria-labelledby="radar-title">
       <div class="section-heading"><div><p class="eyebrow">Precipitación</p><h2 id="radar-title">Radar meteorológico</h2></div><button id="refreshRadar" class="media-refresh" type="button"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Actualizar</button></div>
       <div class="media-frame"><img id="radarImage" alt="Radar meteorológico de Ezeiza" loading="lazy"></div>
       <p id="radarMeta" class="media-meta">Fuente provisional: ClimaSurGBA.</p>
     </section>
 
-    <section class="forecast-section media-section" aria-labelledby="satellite-title">
-      <div class="section-heading"><div><p class="eyebrow">Observación regional</p><h2 id="satellite-title">Imagen satelital</h2></div><button id="refreshSatellite" class="media-refresh" type="button" disabled><i class="fa-solid fa-rotate" aria-hidden="true"></i> Actualizar</button></div>
-      <div class="media-frame"><img id="satelliteImage" alt="Imagen satelital regional de CX2SA" loading="lazy" hidden><div id="satellitePlaceholder" class="media-unavailable"><i class="fa-solid fa-satellite-dish" aria-hidden="true"></i><p id="satelliteMessage">Imagen satelital no disponible en conexiones HTTPS.</p></div></div>
-      <p id="satelliteMeta" class="media-meta">Fuente: CX2SA. Su imagen directa solo responde por HTTP y se bloquea como contenido mixto en GitHub Pages/Blogger.</p>
+    <section class="forecast-section media-section satellite-section" aria-labelledby="satellite-title">
+      <div class="section-heading"><div><p class="eyebrow">Observación regional</p><h2 id="satellite-title">Imagen satelital</h2><p class="section-subtitle">GOES-19 — Argentina</p></div><button id="refreshSatellite" class="media-refresh" type="button"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Actualizar satélite</button></div>
+      <div class="satellite-controls">
+        <label for="satelliteProduct">Producto satelital <select id="satelliteProduct"><option value="ArgIrol">Infrarrojo</option><option value="ArgVisb2">Visible</option><option value="ArgRgbmn">Microfísica nocturna</option><option value="ArgVanm">Vapor de agua</option></select></label>
+        <div class="animation-controls" aria-label="Controles de animación satelital"><button id="satellitePlay" class="media-refresh" type="button"><i class="fa-solid fa-pause" aria-hidden="true"></i> Pausar</button><button id="satellitePrevious" class="media-refresh icon-button" type="button" aria-label="Imagen anterior" title="Imagen anterior"><i class="fa-solid fa-backward-step" aria-hidden="true"></i></button><button id="satelliteNext" class="media-refresh icon-button" type="button" aria-label="Imagen siguiente" title="Imagen siguiente"><i class="fa-solid fa-forward-step" aria-hidden="true"></i></button></div>
+      </div>
+      <div class="media-frame satellite-frame"><img id="satelliteImage" alt="Animación satelital GOES-19 de Argentina — Infrarrojo de onda larga" loading="lazy"><div id="satellitePlaceholder" class="media-unavailable" hidden><i class="fa-solid fa-satellite-dish" aria-hidden="true"></i><p id="satelliteMessage">Imagen satelital temporalmente no disponible.</p></div></div>
+      <p id="satelliteMeta" class="media-meta">Última imagen: consultando datos de CONAE…</p>
+      <p class="media-attribution">Fuente: CONAE — Comisión Nacional de Actividades Espaciales.</p>
     </section>
   </main>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="js/dashboard.js"></script>
 </body>
 </html>

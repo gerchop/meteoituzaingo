@@ -6,15 +6,14 @@ const METEORED_HASH = "02fb9feb8e7f9462733d7279a5479236";
 const METEORED_URL = "https://api.meteored.com/api/forecast/v1";
 const METEORED_CACHE_PREFIX = "meteoituzaingo.meteored.v1.";
 const DIRECCIONES = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
-const MAP_INITIAL_ZOOM = 12;
-const MAP_CENTER = [-34.655, -58.667];
 const IMAGE_REFRESH_MS = 600000;
 const radarProvider = { nombre: "ClimaSurGBA", url: "https://climasurgba.com.ar/radar/ezeiza0.png", intervalo: IMAGE_REFRESH_MS };
-const satelliteProvider = { nombre: "CX2SA", url: "http://www.cx2sa.com/nr/satimg3.jpg", intervalo: IMAGE_REFRESH_MS };
-let mapa;
-let marcadorEstacion;
-let ultimaObservacion;
-let ultimaSensacion;
+const CONAE_ANIMATION_URL = "https://catalogos4.conae.gov.ar/goesr_l2/animaciones/recuperarListaImagenes.aspx";
+const CONAE_BASE_URL = "https://catalogos4.conae.gov.ar/goesr_l2/animaciones/";
+const CONAE_REFRESH_MS = 1800000;
+const CONAE_FRAME_MS = 500;
+const CONAE_PRODUCTS = { ArgIrol: "Infrarrojo de onda larga", ArgVisb2: "Visible Banda 2", ArgRgbmn: "RGB Microfísica nocturna", ArgVanm: "Niveles medios de vapor de agua" };
+let satelite = { imagenes: [], indice: 0, reproduciendo: true, temporizador: null };
 
 function direccion(grados) { return Number.isFinite(grados) ? DIRECCIONES[Math.round(grados / 22.5) % 16] : "--"; }
 function valor(id, contenido) { document.getElementById(id).textContent = contenido; }
@@ -76,8 +75,6 @@ function mostrarClima(obs) {
   const metric = obs.metric;
   const estado = estadoTiempo(obs);
   const sensacion = Number.isFinite(metric.windChill) ? metric.windChill : metric.heatIndex;
-  ultimaObservacion = obs;
-  ultimaSensacion = sensacion;
   const rocio = Number.isFinite(metric.dewpt) ? metric.dewpt : puntoDeRocio(metric.temp, obs.humidity);
   document.querySelector(".temp").textContent = grados(metric.temp);
   document.querySelector(".status").textContent = estado.texto;
@@ -89,7 +86,6 @@ function mostrarClima(obs) {
   valor("cLluvia", Number.isFinite(metric.precipTotal) ? `${metric.precipTotal} mm` : "--");
   valor("cST", grados(sensacion)); valor("cPresion", Number.isFinite(metric.pressure) ? `${metric.pressure} hPa` : "--");
   valor("cRocio", grados(rocio));
-  actualizarMapa(obs, sensacion);
   const fecha = new Date(obs.obsTimeLocal);
   valor("actualizacion", `Actualizado: ${fecha.toLocaleDateString("es-AR")} · ${fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`);
 }
@@ -162,34 +158,6 @@ async function cargarPronosticos() {
   try { renderizarDiario(await obtenerPronosticoMeteored("daily")); } catch (error) { console.error("No se pudo cargar el pronóstico extendido:", error); mensajePronostico("dailyForecast", "No se pudo actualizar el pronóstico extendido de Meteored."); fuentePronostico("dailySource", false); }
 }
 
-/** Crea el mapa de ubicación y corrige el tamaño al mostrarse en Blogger o GitHub Pages. */
-function iniciarMapa() {
-  const contenedor = document.getElementById("weatherMap");
-  if (!window.L || !contenedor || mapa) return;
-  mapa = window.L.map(contenedor, { scrollWheelZoom: false, zoomControl: true, attributionControl: true, minZoom: 3, maxZoom: 19 }).setView(MAP_CENTER, MAP_INITIAL_ZOOM);
-  const base = window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, minZoom: 3, keepBuffer: 3, updateWhenIdle: false, attribution: "© OpenStreetMap contributors" });
-  base.addTo(mapa);
-  const iconoEstacion = window.L.divIcon({ className: "station-marker", html: '<i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i>', iconSize: [38, 38], iconAnchor: [19, 19] });
-  marcadorEstacion = window.L.marker(MAP_CENTER, { icon: iconoEstacion, title: "Estación Meteo Ituzaingó", keyboard: true }).addTo(mapa);
-  const ControlCentrar = window.L.Control.extend({
-    options: { position: "topright" },
-    onAdd: function () {
-      const boton = window.L.DomUtil.create("button", "map-recenter");
-      boton.type = "button"; boton.title = "Volver a Ituzaingó"; boton.setAttribute("aria-label", "Volver a Ituzaingó");
-      boton.innerHTML = '<i class="fa-solid fa-crosshairs" aria-hidden="true"></i><span>Volver</span>';
-      window.L.DomEvent.disableClickPropagation(boton); window.L.DomEvent.on(boton, "click", function () { mapa.setView(MAP_CENTER, MAP_INITIAL_ZOOM, { animate: true }); });
-      return boton;
-    }
-  });
-  mapa.addControl(new ControlCentrar());
-  const ajustarMapa = function () { mapa.invalidateSize({ animate: false, pan: false }); };
-  window.requestAnimationFrame(ajustarMapa);
-  window.addEventListener("resize", ajustarMapa, { passive: true });
-  window.addEventListener("orientationchange", ajustarMapa, { passive: true });
-  if (window.ResizeObserver) new ResizeObserver(ajustarMapa).observe(contenedor);
-  if (ultimaObservacion) actualizarMapa(ultimaObservacion, ultimaSensacion);
-}
-
 function horaActualizacion() { return new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }); }
 
 /** Actualiza solo una imagen externa y evita caché obsoleta sin recargar el dashboard. */
@@ -207,23 +175,81 @@ function iniciarImagenesExternas() {
   document.getElementById("refreshRadar").addEventListener("click", function () { actualizarImagen(radarProvider, "radarImage", "radarMeta"); });
   setInterval(function () { actualizarImagen(radarProvider, "radarImage", "radarMeta"); }, radarProvider.intervalo);
 
-  if (window.location.protocol === "http:") {
-    document.getElementById("satelliteImage").hidden = false;
-    document.getElementById("satellitePlaceholder").hidden = true;
-    document.getElementById("refreshSatellite").disabled = false;
-    document.getElementById("refreshSatellite").addEventListener("click", function () { actualizarImagen(satelliteProvider, "satelliteImage", "satelliteMeta"); });
-    actualizarImagen(satelliteProvider, "satelliteImage", "satelliteMeta");
-    setInterval(function () { actualizarImagen(satelliteProvider, "satelliteImage", "satelliteMeta"); }, satelliteProvider.intervalo);
-  }
 }
 
-/** Mantiene el resumen del popup sincronizado con la última observación local. */
-function actualizarMapa(obs, sensacion) {
-  if (!marcadorEstacion) return;
-  const metric = obs.metric;
-  const fecha = new Date(obs.obsTimeLocal);
-  const actualizacion = Number.isNaN(fecha.getTime()) ? "No disponible" : fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-  marcadorEstacion.bindPopup(`<div class="station-popup"><strong>Meteo Ituzaingó</strong><span>Estación meteorológica local</span><span>Temperatura: ${grados(metric.temp)} · Sensación: ${grados(sensacion)}</span><span>Humedad: ${textoPorDefecto(obs.humidity, "%")} · Viento: ${textoPorDefecto(metric.windSpeed, " km/h")}</span><span>Actualizado: ${actualizacion}</span></div>`, { maxWidth: 250 });
+function productoSatelitalActual() { return document.getElementById("satelliteProduct").value; }
+
+function mostrarCuadroSatelital() {
+  const imagen = document.getElementById("satelliteImage");
+  const meta = document.getElementById("satelliteMeta");
+  const cuadro = satelite.imagenes[satelite.indice];
+  if (!cuadro) return;
+  imagen.alt = `Animación satelital GOES-19 de Argentina — ${CONAE_PRODUCTS[productoSatelitalActual()] || "producto satelital"}`;
+  imagen.src = cuadro.url;
+  meta.textContent = `Última imagen: ${satelite.ultimaFecha} UTC · Cuadro ${satelite.indice + 1} de ${satelite.imagenes.length}.`;
+}
+
+function cambiarCuadroSatelital(paso) {
+  if (!satelite.imagenes.length) return;
+  satelite.indice = (satelite.indice + paso + satelite.imagenes.length) % satelite.imagenes.length;
+  mostrarCuadroSatelital();
+}
+
+function actualizarBotonReproduccion() {
+  const boton = document.getElementById("satellitePlay");
+  boton.innerHTML = satelite.reproduciendo ? '<i class="fa-solid fa-pause" aria-hidden="true"></i> Pausar' : '<i class="fa-solid fa-play" aria-hidden="true"></i> Reproducir';
+}
+
+function configurarAnimacionSatelital() {
+  window.clearInterval(satelite.temporizador);
+  satelite.temporizador = satelite.reproduciendo ? window.setInterval(function () { cambiarCuadroSatelital(1); }, CONAE_FRAME_MS) : null;
+  actualizarBotonReproduccion();
+}
+
+/** Obtiene la secuencia oficial de CONAE; la petición simple evita preflight y no recarga el sitio. */
+async function actualizarSatelite() {
+  const boton = document.getElementById("refreshSatellite");
+  const imagen = document.getElementById("satelliteImage");
+  const aviso = document.getElementById("satellitePlaceholder");
+  const producto = productoSatelitalActual();
+  boton.disabled = true;
+  try {
+    const cuerpo = new FormData();
+    cuerpo.append("tipo", producto); cuerpo.append("cant", "6"); cuerpo.append("frec", "30");
+    const respuesta = await fetch(CONAE_ANIMATION_URL, { method: "POST", body: cuerpo, cache: "no-store" });
+    if (!respuesta.ok) throw new Error(`CONAE respondió ${respuesta.status}`);
+    const datos = await respuesta.json();
+    const imagenes = datos && datos.items && Array.isArray(datos.items.imagenes) ? datos.items.imagenes : [];
+    if (!imagenes.length) throw new Error("CONAE no devolvió imágenes");
+    satelite.imagenes = imagenes.map(function (item) { return { url: new URL(item.image, CONAE_BASE_URL).href }; });
+    satelite.indice = 0;
+    satelite.ultimaFecha = datos.items.ultFecha || "no informada por CONAE";
+    aviso.hidden = true; imagen.hidden = false;
+    mostrarCuadroSatelital(); configurarAnimacionSatelital();
+  } catch (error) {
+    console.error("No se pudo actualizar el satélite:", error);
+    window.clearInterval(satelite.temporizador); satelite.temporizador = null;
+    imagen.hidden = true; aviso.hidden = false;
+    document.getElementById("satelliteMessage").textContent = "Imagen satelital temporalmente no disponible.";
+    document.getElementById("satelliteMeta").textContent = "No fue posible obtener la secuencia de CONAE. El resto del dashboard continúa disponible.";
+  } finally { boton.disabled = false; }
+}
+
+function iniciarSatelite() {
+  const imagen = document.getElementById("satelliteImage");
+  imagen.onerror = function () {
+    imagen.hidden = true;
+    document.getElementById("satellitePlaceholder").hidden = false;
+    document.getElementById("satelliteMessage").textContent = "Imagen satelital temporalmente no disponible.";
+    document.getElementById("satelliteMeta").textContent = "CONAE entregó la secuencia, pero una imagen no pudo cargarse. Reintentá actualizar el satélite.";
+  };
+  document.getElementById("refreshSatellite").addEventListener("click", actualizarSatelite);
+  document.getElementById("satelliteProduct").addEventListener("change", actualizarSatelite);
+  document.getElementById("satellitePrevious").addEventListener("click", function () { cambiarCuadroSatelital(-1); });
+  document.getElementById("satelliteNext").addEventListener("click", function () { cambiarCuadroSatelital(1); });
+  document.getElementById("satellitePlay").addEventListener("click", function () { satelite.reproduciendo = !satelite.reproduciendo; configurarAnimacionSatelital(); });
+  actualizarSatelite();
+  window.setInterval(actualizarSatelite, CONAE_REFRESH_MS);
 }
 
 async function cargarClima() {
@@ -240,5 +266,5 @@ async function cargarClima() {
   }
 }
 
-cargarClima(); cargarPronosticos(); iniciarMapa(); iniciarImagenesExternas();
+cargarClima(); cargarPronosticos(); iniciarImagenesExternas(); iniciarSatelite();
 setInterval(cargarClima, 150000);

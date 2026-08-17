@@ -1,44 +1,49 @@
-# Informe de implementación v0.10
+# Informe de implementación v0.11
 
 ## Objetivos solicitados
 
-- Pronóstico horario real desde Meteored.
-- Radar de Ezeiza, imagen satelital y mapa Leaflet funcional.
-- Documentación de fuentes, límites y pruebas.
+- Conservar observaciones Weather.com, pronósticos Meteored y radar de Ezeiza.
+- Eliminar el mapa Leaflet por completo.
+- Reemplazar la fuente satelital HTTP por una animación HTTPS de CONAE GOES-19.
 
 ## Implementado
 
-- Radar de Ezeiza visible desde ClimaSurGBA con actualización aislada, configurable a 10 minutos y botón manual.
-- Sección satelital con provider y estado accesible de indisponibilidad HTTPS.
-- Mapa Leaflet reconstruido con centro/zoom configurables, desplazamiento libre, control de zoom, botón «Volver», marcador y popup actualizado con observaciones reales.
+- Se conserva el radar de Ezeiza visible desde ClimaSurGBA con actualización aislada, configurable a 10 minutos y botón manual.
+- Se eliminó el HTML del mapa, el CDN CSS/JS de Leaflet, la inicialización, marcadores, popup, control «Volver», listeners de redimensión y estilos exclusivos. No queda espacio reservado para el mapa.
+- Se creó un visor satelital CONAE que consulta una sola secuencia de seis imágenes GOES-19 por producto. Inicia con Argentina — Infrarrojo de Onda Larga y permite Visible Banda 2, RGB Microfísica Nocturna y Vapor de Agua.
+- Se implementaron reproducción automática a 500 ms por cuadro, pausar/reproducir, cuadro anterior/siguiente, selector de producto y actualización manual. La consulta automática es independiente y se ejecuta cada 30 minutos.
+- El visor muestra `ultFecha` provista por CONAE como UTC, atribución visible y fallback sin errores no controlados si el catálogo o una imagen no responden.
 - Pronóstico Meteored real: hash de Ituzaingó validado, 24 horas y 5 días; se muestran 12 horas iniciales, temperaturas, sensación, símbolo, lluvia, humedad, viento y dirección cuando están disponibles.
 - Caché de Meteored por respuesta y `expiracion` en `localStorage`; se eliminó el polling de Weather.com no autorizado.
 
-## No implementado
+## Limitaciones
 
-- Imagen satelital de CX2SA en el sitio publicado por HTTPS.
+- CONAE sirve las imágenes desde un catálogo público. No se puede garantizar su continuidad, tiempos de publicación ni derechos de redistribución comercial; antes de monetizar se debe confirmar la licencia aplicable con CONAE.
+- La verificación automatizada confirma el endpoint, el JSON, la ruta HTTPS y el CORS declarado. La comprobación visual final en la publicación de GitHub Pages y dentro de Blogger queda a cargo del despliegue.
 
 ## Motivos y evidencia
 
-- Meteored respondió `200` a localización, pronóstico horario y diario. El hash de Ituzaingó, Buenos Aires se resolvió correctamente. La prueba de preflight CORS respondió `200`, permite `X-API-Key` y devuelve origen `*`.
-- La petición controlada confirmó `200 image/png` para el radar HTTPS de ClimaSurGBA. La imagen CX2SA respondió `200 image/jpeg` por HTTP, pero no respondió por HTTPS. Un navegador dentro de GitHub Pages/Blogger HTTPS bloquea la carga HTTP como contenido mixto.
-- La página del radar de ClimaSurGBA informa imagen desactualizada y muestra licencia CC BY-NC-SA. La integración es explícitamente provisional y debe retirarse antes de monetizar.
+- La página oficial `animacionGOESU.aspx` publicó GOES-19, los cuatro productos solicitados y «Última imagen» en UTC. Su JavaScript utiliza Galleria y solicita `recuperarListaImagenes.aspx` con `tipo`, `cant` y `frec`.
+- La prueba controlada `POST` de Infrarrojo (`ArgIrol`, 6, 30) devolvió JSON con seis JPG HTTPS de Argentina y `ultFecha` real. La inspección de cabeceras devolvió `Access-Control-Allow-Origin: *`; se usa una petición `FormData` simple, sin headers personalizados.
+- La cabecera de la página no incluyó `X-Frame-Options`, pero no se usa iframe: la aplicación consume exclusivamente el endpoint público y sus JPG HTTPS.
+- CX2SA quedó descartado como fuente activa porque la URL solo respondía mediante HTTP; no hay mixed content en el nuevo visor.
 
 ## Archivos modificados
 
 - `dashboard.html`, `css/dashboard.css`, `js/dashboard.js`
-- `DATA_SOURCES.md`, `CHANGELOG.md`, `AI_INSTRUCTIONS.md`
+- `DATA_SOURCES.md`, `CHANGELOG.md`, `IMPLEMENTATION_REPORT.md`
 - `IMPLEMENTATION_REPORT.md`
 
 ## Dependencias nuevas
 
-Ninguna. Se conserva Leaflet y Font Awesome cargados previamente.
+Ninguna. Se conserva Font Awesome; Leaflet y su CDN fueron eliminados.
 
 ## Endpoints y recursos utilizados
 
 - Weather.com PWS actual: se conserva sin cambios.
 - Radar provisional: `https://climasurgba.com.ar/radar/ezeiza0.png`.
-- Satélite auditado: `http://www.cx2sa.com/nr/satimg3.jpg` (no cargado bajo HTTPS).
+- Página oficial de CONAE: `https://catalogos4.conae.gov.ar/goesr_l2/animaciones/animacionGOESU.aspx`.
+- Secuencia CONAE: `https://catalogos4.conae.gov.ar/goesr_l2/animaciones/recuperarListaImagenes.aspx`.
 - Meteored previstos: `/api/location/v1/search/txt/{text}`, `/api/forecast/v1/hourly/{hash}` y `/api/forecast/v1/daily/{hash}`.
 
 ## Pruebas realizadas
@@ -48,17 +53,18 @@ Ninguna. Se conserva Leaflet y Font Awesome cargados previamente.
 | Sintaxis JavaScript | Correcta: `node --check js/dashboard.js` finalizó sin errores. |
 | Formato del diff | Correcto: `git diff --check` finalizó sin errores. |
 | Radar HTTPS | Confirmado: `200 image/png`. |
-| Satélite HTTPS | No disponible. |
-| Satélite HTTP | Confirmado: `200 image/jpeg`; incompatible con una página HTTPS. |
+| Endpoint CONAE | Confirmado: `POST 200`, JSON con seis cuadros reales de GOES-19 Infrarrojo para Argentina. |
+| Imágenes CONAE | URLs HTTPS entregadas por el catálogo; sin contenido mixto. |
+| CORS CONAE | La página y endpoint declararon `Access-Control-Allow-Origin: *`; OPTIONS respondió 404, por lo que la implementación emplea `FormData` como solicitud CORS simple, sin preflight. |
 | Meteored localización | Confirmado: `200`, `ok: true`, hash de Ituzaingó resuelto. |
 | Meteored horario | Confirmado: `200`, `ok: true`, 24 horas y campos reales procesados. |
 | Meteored diario | Confirmado: `200`, `ok: true`, 5 días y campos reales procesados. |
 | Meteored CORS | Confirmado: OPTIONS `200`, permite `X-API-Key` y origen `*`. |
-| Mapa en navegador/iframe final | Pendiente de comprobación visual en GitHub Pages y Blogger; el código incluye redimensionamiento en carga, cambio de tamaño y orientación. |
+| Mapa / Leaflet | Eliminado; se verificará que no quede ningún recurso o referencia en el control estático. |
 
-## Recomendaciones para v0.11
+## Recomendaciones para v1.0
 
 1. Proporcionar la API key de Meteored mediante un secreto de backend o una configuración controlada, y ejecutar solo las dos consultas de prueba solicitadas.
 2. Reemplazar ClimaSurGBA por un proveedor de radar con licencia comercial y HTTPS antes de activar anuncios.
-3. Sustituir CX2SA por una imagen satelital HTTPS con permiso de redistribución, sin proxy público.
-4. Probar visualmente Leaflet en la URL final de GitHub Pages y dentro del iframe de Blogger.
+3. Confirmar por escrito las condiciones de redistribución y uso comercial de las imágenes GOES-19 de CONAE antes de activar anuncios.
+4. Probar visualmente la animación CONAE publicada en GitHub Pages y dentro del iframe de Blogger.

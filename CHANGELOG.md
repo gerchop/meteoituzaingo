@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.11 - 2026-08-17
+
+- Se eliminó completamente el mapa meteorológico, Leaflet, sus recursos CDN, controles, listeners y estilos exclusivos para retirar una función con problemas persistentes sin afectar el dashboard.
+- Se sustituyó la fuente satelital activa CX2SA por el visor oficial HTTPS de CONAE GOES-19.
+- Se incorporó una animación real de seis imágenes de Argentina, inicialmente en Infrarrojo de Onda Larga, con producto seleccionable (Infrarrojo, Visible Banda 2, RGB Microfísica nocturna y Vapor de agua).
+- Se añadieron controles de reproducir/pausar, cuadro anterior/siguiente y actualización independiente; la secuencia se renueva cada 30 minutos, según la frecuencia del producto seleccionado en CONAE.
+- Se muestra el timestamp UTC provisto por CONAE, atribución visible y un estado de disponibilidad controlado sin interferir con radar, observaciones ni pronósticos.
+- Se ajustó el visor satelital para móvil, tablet y escritorio sin cambiar la identidad visual existente.
+
 ## v0.10 - 2026-08-15
 
 - Se integró Meteored para los pronósticos horario y extendido de Ituzaingó: muestra datos reales, 12 horas iniciales y 5 días, con caché local gobernada por `expiracion`.
