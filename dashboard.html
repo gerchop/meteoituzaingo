@@ -10,6 +10,9 @@
   <meta property="og:locale" content="es_AR">
   <meta property="og:title" content="Meteo Ituzaingó | Tiempo actual">
   <meta property="og:description" content="Datos meteorológicos actuales de la estación local de Ituzaingó, Buenos Aires.">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Meteo Ituzaingó | Tiempo, pronóstico y radar">
+  <meta name="twitter:description" content="Tiempo actual, pronóstico local, radar Ezeiza e imágenes satelitales para Ituzaingó.">
   <title>Meteo Ituzaingó | Tiempo actual</title>
   <link rel="preconnect" href="https://cdnjs.cloudflare.com">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
@@ -37,6 +40,7 @@
               <span class="status">Cargando condiciones</span>
             </div>
           </div>
+          <div id="heroTrends" class="hero-trends" aria-live="polite"><span>Recopilando tendencias locales…</span></div>
         </div>
         <div class="hero-summary" aria-label="Resumen de condiciones">
           <div>
@@ -68,11 +72,23 @@
         <article class="card"><i class="fa-solid fa-wind card-icon" aria-hidden="true"></i><h3>Viento</h3><span id="cViento">--</span></article>
         <article class="card"><i class="fa-solid fa-compass card-icon" aria-hidden="true"></i><h3>Dirección</h3><span id="cDireccion">--</span></article>
         <article class="card"><i class="fa-solid fa-wind card-icon" aria-hidden="true"></i><h3>Ráfagas</h3><span id="cRafagas">--</span></article>
-        <article class="card"><i class="fa-solid fa-cloud-rain card-icon" aria-hidden="true"></i><h3>Lluvia acumulada</h3><span id="cLluvia">--</span></article>
+        <article class="card"><i class="fa-solid fa-cloud-rain card-icon" aria-hidden="true"></i><h3>Precipitación</h3><span id="cLluvia">--</span></article>
         <article class="card"><i class="fa-solid fa-person-rays card-icon" aria-hidden="true"></i><h3>Sensación térmica</h3><span id="cST">--</span></article>
         <article class="card"><i class="fa-solid fa-gauge-high card-icon" aria-hidden="true"></i><h3>Presión</h3><span id="cPresion">--</span></article>
         <article class="card"><i class="fa-solid fa-droplet card-icon" aria-hidden="true"></i><h3>Punto de rocío</h3><span id="cRocio">--</span></article>
+        <article class="card comfort-card"><i class="fa-solid fa-face-smile card-icon" aria-hidden="true"></i><h3>Confort</h3><span id="cComfort">--</span><small id="cComfortDetail">Indicador orientativo</small></article>
       </div>
+    </section>
+
+    <section id="highlightSection" class="conditions highlights-section" aria-labelledby="highlights-title" hidden>
+      <div class="section-heading"><div><p class="eyebrow">Observación local</p><h2 id="highlights-title">Condiciones destacadas</h2></div></div>
+      <div id="highlightList" class="highlight-list" aria-live="polite"></div>
+    </section>
+
+    <section id="recentRecordsSection" class="conditions recent-records" aria-labelledby="records-title" hidden>
+      <div class="section-heading"><div><p class="eyebrow">Registro local</p><h2 id="records-title">Registros recientes</h2></div></div>
+      <div id="recentRecords" class="records-grid" aria-live="polite"></div>
+      <p class="local-data-note">Datos locales registrados por este dispositivo; no constituyen históricos oficiales.</p>
     </section>
 
     <section class="forecast-section" aria-labelledby="hourly-title">

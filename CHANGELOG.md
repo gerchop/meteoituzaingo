@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.0 - 2026-08-17
+
+- Se incorporó un registro temporal local de observaciones de la estación, con expiración a 24 horas y un máximo de 96 muestras por dispositivo.
+- Se añadieron tendencias de temperatura y presión en la cabecera; se muestran únicamente con una muestra válida a aproximadamente 30 o 60 minutos.
+- Se incorporó el indicador de confort, Humidex, índice de calor y wind chill cuando las condiciones observadas permiten aplicar cada fórmula.
+- Se añadieron registros recientes locales (máximos/mínimos de temperatura, humedad, presión y ráfagas), correctamente identificados como datos del dispositivo.
+- La precipitación ahora diferencia intensidad actual y acumulado; viento incluye velocidad, rumbo cardinal y grados.
+- Se creó una sección condicional de condiciones destacadas basada exclusivamente en observaciones locales y umbrales configurables.
+- El pronóstico diario ahora traduce el código `symbol` de Meteored a un estado meteorológico profesional, sustituyendo la leyenda genérica «Pronóstico Meteored» sin aumentar consultas.
+- Se reforzaron metadatos Twitter, foco visible y protección contra overflow horizontal, sin alterar la identidad visual.
+- Se documentó la arquitectura futura de históricos, la preparación para monetización y la analítica futura sin incorporar backend, anuncios ni tracking.
+
 ## v0.11 - 2026-08-17
 
 - Se eliminó completamente el mapa meteorológico, Leaflet, sus recursos CDN, controles, listeners y estilos exclusivos para retirar una función con problemas persistentes sin afectar el dashboard.

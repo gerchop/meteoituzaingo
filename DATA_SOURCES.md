@@ -55,6 +55,8 @@ OpenWeather es un complemento potencial, no un reemplazo: Weather.com sigue sien
 
 Meteored se usa solo para pronósticos; Weather.com sigue siendo la fuente de observaciones actuales. La autenticación requerida es el encabezado `X-API-Key`; el preflight respondió `200` y permite ese encabezado, con `Access-Control-Allow-Origin: *`. Las respuestas incluyen `expiracion` (milisegundos epoch) y se guardan por separado en `localStorage` hasta ese vencimiento, por lo que no hay polling ni consultas al actualizar las observaciones. El plan informado limita a 50 peticiones diarias: una carga normal usa como máximo una consulta horaria y una diaria por vencimiento. La clave no se registra en esta documentación ni en mensajes de error.
 
+En v1.0, el campo real `symbol` de cada objeto `days[]` se traduce mediante el catálogo de símbolos publicado por Meteored; no se infiere desde temperatura ni se consulta un endpoint adicional. La atribución «Fuente: Meteored» permanece separada de esa descripción.
+
 ## Fuentes visuales (v0.11)
 
 | Fuente | Uso | Integración | Frecuencia | Limitación |

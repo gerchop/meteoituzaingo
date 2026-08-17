@@ -1,70 +1,74 @@
-# Informe de implementación v0.11
+# Informe de implementación v1.0
 
-## Objetivos solicitados
+## Resultado
 
-- Conservar observaciones Weather.com, pronósticos Meteored y radar de Ezeiza.
-- Eliminar el mapa Leaflet por completo.
-- Reemplazar la fuente satelital HTTP por una animación HTTPS de CONAE GOES-19.
+v1.0 conserva Weather.com para observaciones, Meteored para pronósticos con su caché por `expiracion`, radar ClimaSurGBA y animación CONAE GOES-19. No se reintrodujo Leaflet, no se agregaron APIs, anuncios, tracking ni backend. Los cambios visibles se concentran en la observación actual y no incrementan el consumo de Meteored.
 
-## Implementado
+## Archivos modificados y creados
 
-- Se conserva el radar de Ezeiza visible desde ClimaSurGBA con actualización aislada, configurable a 10 minutos y botón manual.
-- Se eliminó el HTML del mapa, el CDN CSS/JS de Leaflet, la inicialización, marcadores, popup, control «Volver», listeners de redimensión y estilos exclusivos. No queda espacio reservado para el mapa.
-- Se creó un visor satelital CONAE que consulta una sola secuencia de seis imágenes GOES-19 por producto. Inicia con Argentina — Infrarrojo de Onda Larga y permite Visible Banda 2, RGB Microfísica Nocturna y Vapor de Agua.
-- Se implementaron reproducción automática a 500 ms por cuadro, pausar/reproducir, cuadro anterior/siguiente, selector de producto y actualización manual. La consulta automática es independiente y se ejecuta cada 30 minutos.
-- El visor muestra `ultFecha` provista por CONAE como UTC, atribución visible y fallback sin errores no controlados si el catálogo o una imagen no responden.
-- Pronóstico Meteored real: hash de Ituzaingó validado, 24 horas y 5 días; se muestran 12 horas iniciales, temperaturas, sensación, símbolo, lluvia, humedad, viento y dirección cuando están disponibles.
-- Caché de Meteored por respuesta y `expiracion` en `localStorage`; se eliminó el polling de Weather.com no autorizado.
+- Modificados: `dashboard.html`, `css/dashboard.css`, `js/dashboard.js`, `CHANGELOG.md`, `DATA_SOURCES.md`, `AI_INSTRUCTIONS.md`, `IMPLEMENTATION_REPORT.md`.
+- Creados: `HISTORICAL_ARCHITECTURE.md`, `MONETIZATION.md`, `ANALYTICS.md`.
 
-## Limitaciones
+## Funcionalidades implementadas
 
-- CONAE sirve las imágenes desde un catálogo público. No se puede garantizar su continuidad, tiempos de publicación ni derechos de redistribución comercial; antes de monetizar se debe confirmar la licencia aplicable con CONAE.
-- La verificación automatizada confirma el endpoint, el JSON, la ruta HTTPS y el CORS declarado. La comprobación visual final en la publicación de GitHub Pages y dentro de Blogger queda a cargo del despliegue.
+- Historial temporal en `localStorage` con temperatura, presión, humedad, viento, ráfaga, precipitación, intensidad y timestamp de la observación.
+- Tendencias de temperatura, presión y viento calculadas contra la muestra válida más cercana a 60 o 30 minutos. La cabecera muestra temperatura y presión; la presión se reutiliza para condiciones destacadas.
+- Tarjeta de confort con clasificación orientativa y detalles de Humidex, índice de calor o wind chill únicamente cuando aplican.
+- Registros recientes del dispositivo: máximos/mínimos de temperatura, humedad y presión, más ráfaga máxima. La sección se mantiene oculta hasta reunir al menos dos muestras completas.
+- Precipitación con intensidad actual y acumulado; viento con velocidad, rumbo cardinal y grados.
+- Condiciones destacadas condicionales: lluvia intensa, viento/ráfagas fuertes, temperatura alta/baja, humedad elevada y presión descendiendo. No se denominan alertas oficiales.
+- Pronóstico extendido: cada tarjeta usa el `symbol` del mismo objeto Meteored `days[]` que suministra su fecha, temperaturas, lluvia y viento. Se eliminó «Pronóstico Meteored» como estado.
+- SEO/accesibilidad: Twitter Cards, foco visible en controles y prevención de overflow horizontal global.
 
-## Motivos y evidencia
+## Fórmulas y criterios
 
-- La página oficial `animacionGOESU.aspx` publicó GOES-19, los cuatro productos solicitados y «Última imagen» en UTC. Su JavaScript utiliza Galleria y solicita `recuperarListaImagenes.aspx` con `tipo`, `cant` y `frec`.
-- La prueba controlada `POST` de Infrarrojo (`ArgIrol`, 6, 30) devolvió JSON con seis JPG HTTPS de Argentina y `ultFecha` real. La inspección de cabeceras devolvió `Access-Control-Allow-Origin: *`; se usa una petición `FormData` simple, sin headers personalizados.
-- La cabecera de la página no incluyó `X-Frame-Options`, pero no se usa iframe: la aplicación consume exclusivamente el endpoint público y sus JPG HTTPS.
-- CX2SA quedó descartado como fuente activa porque la URL solo respondía mediante HTTP; no hay mixed content en el nuevo visor.
+| Indicador | Regla |
+| --- | --- |
+| Punto de rocío | Dato de Weather.com o aproximación de Magnus ya existente. |
+| Índice de calor | Regresión NOAA en °F convertida a °C; sólo con temperatura ≥ 26,7 °C y humedad ≥ 40 %. |
+| Wind chill | Dato Weather.com si existe; si no, fórmula métrica con temperatura ≤ 10 °C y viento > 4,8 km/h. |
+| Humidex | Temperatura y punto de rocío mediante presión de vapor; se muestra desde 20. |
+| Confort | Muy caluroso ≥ 38 de índice de calor; caluroso ≥ 30; frío por wind chill ≤ 0 o temperatura ≤ 5; fresco ≤ 12; muy húmedo ≥ 85 %; húmedo ≥ 70 %; algo húmedo ≥ 60 %; caso restante confortable. |
+| Lluvia | Débil: >0 a 2,5 mm/h; moderada: >2,5 a 7,6 mm/h; fuerte: >7,6 mm/h. |
 
-## Archivos modificados
+## Umbrales centralizados
 
-- `dashboard.html`, `css/dashboard.css`, `js/dashboard.js`
-- `DATA_SOURCES.md`, `CHANGELOG.md`, `IMPLEMENTATION_REPORT.md`
-- `IMPLEMENTATION_REPORT.md`
+`CONFIG` en `js/dashboard.js` centraliza intervalos de observación/radar/satélite, límite y duración local, tolerancia de tendencias, estabilidad de temperatura/presión/viento, lluvia, viento fuerte (35 km/h), ráfaga fuerte (45 km/h), temperatura alta (35 °C), temperatura baja (2 °C), humedad elevada (90 %) y descenso relevante de presión (-2 hPa).
 
-## Dependencias nuevas
+## Estructura local
 
-Ninguna. Se conserva Font Awesome; Leaflet y su CDN fueron eliminados.
+Clave: `meteoituzaingo.observaciones.local.v1`.
 
-## Endpoints y recursos utilizados
+Cada muestra contiene `timestamp`, `temperatura`, `presion`, `humedad`, `viento`, `rafaga`, `precipitacion` e `intensidad`. Se descartan registros de más de 24 horas, se evita duplicar timestamp y se conservan como máximo 96 muestras. Es memoria local del navegador, no un histórico oficial de la estación.
 
-- Weather.com PWS actual: se conserva sin cambios.
-- Radar provisional: `https://climasurgba.com.ar/radar/ezeiza0.png`.
-- Página oficial de CONAE: `https://catalogos4.conae.gov.ar/goesr_l2/animaciones/animacionGOESU.aspx`.
-- Secuencia CONAE: `https://catalogos4.conae.gov.ar/goesr_l2/animaciones/recuperarListaImagenes.aspx`.
-- Meteored previstos: `/api/location/v1/search/txt/{text}`, `/api/forecast/v1/hourly/{hash}` y `/api/forecast/v1/daily/{hash}`.
+## Meteored
+
+No se ejecutaron endpoints nuevos. La descripción diaria sale del campo real `symbol`: el catálogo oficial de Meteored contempla, entre otros, 1 despejado, 4 parcialmente nublado, 5 cubierto, 8 neblina, 9 niebla, 12/13 lluvia débil, 14/15 lluvia, 28/29 lluvia fuerte y 34/35 tormentas. El mapeo completo 1–41 queda centralizado en `METEORED_SIMBOLOS` y usa el mismo `dia` que muestra mínima, máxima y probabilidad de precipitación.
+
+## No implementado
+
+- Backend ni persistencia de históricos oficiales.
+- Gráficos históricos: requieren la API propia documentada.
+- Anuncios, AdSense, Google Analytics y Microsoft Clarity: sólo se dejó documentación/preparación, sin espacios vacíos ni scripts.
 
 ## Pruebas realizadas
 
 | Prueba | Resultado |
 | --- | --- |
-| Sintaxis JavaScript | Correcta: `node --check js/dashboard.js` finalizó sin errores. |
-| Formato del diff | Correcto: `git diff --check` finalizó sin errores. |
-| Radar HTTPS | Confirmado: `200 image/png`. |
-| Endpoint CONAE | Confirmado: `POST 200`, JSON con seis cuadros reales de GOES-19 Infrarrojo para Argentina. |
-| Imágenes CONAE | URLs HTTPS entregadas por el catálogo; sin contenido mixto. |
-| CORS CONAE | La página y endpoint declararon `Access-Control-Allow-Origin: *`; OPTIONS respondió 404, por lo que la implementación emplea `FormData` como solicitud CORS simple, sin preflight. |
-| Meteored localización | Confirmado: `200`, `ok: true`, hash de Ituzaingó resuelto. |
-| Meteored horario | Confirmado: `200`, `ok: true`, 24 horas y campos reales procesados. |
-| Meteored diario | Confirmado: `200`, `ok: true`, 5 días y campos reales procesados. |
-| Meteored CORS | Confirmado: OPTIONS `200`, permite `X-API-Key` y origen `*`. |
-| Mapa / Leaflet | Eliminado; se verificará que no quede ningún recurso o referencia en el control estático. |
+| Sintaxis | `node --check js/dashboard.js` sin errores. |
+| Diff | `git diff --check` sin errores. |
+| Referencias obsoletas | Control estático sin Leaflet, mapa meteorológico ni CX2SA activo en el código. |
+| Meteored | No se alteraron endpoints, caché, hash ni cadencia; la descripción consume el `symbol` ya recibido. |
+| Radar y satélite | Sus providers, botones e intervalos se conservaron; sin modificaciones funcionales. |
+| LocalStorage | Lectura protegida con `try/catch`, expiración, límite y omisión de timestamps inválidos. |
+| Simulación local | Dos observaciones separadas una hora renderizaron tendencias, confort y registros recientes sin errores. |
+| Responsive estático | Grillas fluídas, controles con wrap y `overflow-x` global protegido; el scroll horizontal queda sólo en el pronóstico horario. |
 
-## Recomendaciones para v1.0
+La prueba visual final debe hacerse en la URL publicada de GitHub Pages y dentro de Blogger para los anchos 360, 390 y 430 px, tablet y escritorio.
 
-1. Proporcionar la API key de Meteored mediante un secreto de backend o una configuración controlada, y ejecutar solo las dos consultas de prueba solicitadas.
-2. Reemplazar ClimaSurGBA por un proveedor de radar con licencia comercial y HTTPS antes de activar anuncios.
-3. Confirmar por escrito las condiciones de redistribución y uso comercial de las imágenes GOES-19 de CONAE antes de activar anuncios.
-4. Probar visualmente la animación CONAE publicada en GitHub Pages y dentro del iframe de Blogger.
+## Problemas y recomendaciones v1.1
+
+- Las tendencias no aparecen hasta obtener muestras separadas por un intervalo válido: es intencional para evitar valores falsos.
+- Confirmar permisos de redistribución comercial de CONAE y reemplazar el radar provisional antes de monetizar.
+- Implementar `HISTORICAL_ARCHITECTURE.md` con secretos en Azure Functions; sólo entonces agregar gráficos de 24 h, 7 d, 30 d y año.
+- Configurar `canonical` cuando se decida la URL pública definitiva, para no declarar una URL incorrecta en GitHub Pages/Blogger.

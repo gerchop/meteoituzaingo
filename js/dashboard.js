@@ -6,19 +6,49 @@ const METEORED_HASH = "02fb9feb8e7f9462733d7279a5479236";
 const METEORED_URL = "https://api.meteored.com/api/forecast/v1";
 const METEORED_CACHE_PREFIX = "meteoituzaingo.meteored.v1.";
 const DIRECCIONES = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
-const IMAGE_REFRESH_MS = 600000;
-const radarProvider = { nombre: "ClimaSurGBA", url: "https://climasurgba.com.ar/radar/ezeiza0.png", intervalo: IMAGE_REFRESH_MS };
+const CONFIG = {
+  observacionesMs: 150000,
+  radarMs: 600000,
+  sateliteMs: 1800000,
+  cuadroSateliteMs: 500,
+  historialMaximo: 96,
+  historialDuracionMs: 86400000,
+  tendenciaMinutos: [60, 30],
+  tendenciaToleranciaMs: 900000,
+  temperaturaEstable: 0.3,
+  presionEstable: 0.5,
+  vientoEstable: 3,
+  vientoFuerte: 35,
+  rafagaFuerte: 45,
+  temperaturaAlta: 35,
+  temperaturaBaja: 2,
+  humedadElevada: 90,
+  lluviaDebilMax: 2.5,
+  lluviaModeradaMax: 7.6,
+  lluviaFuerte: 7.6,
+  presionDescensoDestacado: -2
+};
+const LOCAL_HISTORY_KEY = "meteoituzaingo.observaciones.local.v1";
+const radarProvider = { nombre: "ClimaSurGBA", url: "https://climasurgba.com.ar/radar/ezeiza0.png", intervalo: CONFIG.radarMs };
 const CONAE_ANIMATION_URL = "https://catalogos4.conae.gov.ar/goesr_l2/animaciones/recuperarListaImagenes.aspx";
 const CONAE_BASE_URL = "https://catalogos4.conae.gov.ar/goesr_l2/animaciones/";
-const CONAE_REFRESH_MS = 1800000;
-const CONAE_FRAME_MS = 500;
 const CONAE_PRODUCTS = { ArgIrol: "Infrarrojo de onda larga", ArgVisb2: "Visible Banda 2", ArgRgbmn: "RGB Microfísica nocturna", ArgVanm: "Niveles medios de vapor de agua" };
+const METEORED_SIMBOLOS = {
+  1: ["Despejado", "fa-sun"], 2: ["Nubes altas", "fa-cloud-sun"], 3: ["Nubes y claros", "fa-cloud-sun"], 4: ["Parcialmente nublado", "fa-cloud-sun"], 5: ["Cubierto", "fa-cloud"],
+  6: ["Calima", "fa-smog"], 7: ["Calima", "fa-smog"], 8: ["Neblina", "fa-smog"], 9: ["Niebla", "fa-smog"], 10: ["Tormenta seca", "fa-cloud-bolt"], 11: ["Tormenta seca", "fa-cloud-bolt"],
+  12: ["Lluvia débil", "fa-cloud-rain"], 13: ["Lluvia débil", "fa-cloud-rain"], 14: ["Lluvia", "fa-cloud-showers-heavy"], 15: ["Lluvia", "fa-cloud-showers-heavy"], 16: ["Lluvia", "fa-cloud-rain"], 17: ["Lluvia", "fa-cloud-rain"],
+  18: ["Lluvia engelante", "fa-cloud-rain"], 19: ["Lluvia engelante", "fa-cloud-rain"], 20: ["Aguanieve", "fa-cloud-rain"], 21: ["Aguanieve", "fa-cloud-rain"], 22: ["Aguanieve", "fa-cloud-rain"], 23: ["Aguanieve", "fa-cloud-rain"],
+  24: ["Nieve", "fa-snowflake"], 25: ["Nieve", "fa-snowflake"], 26: ["Nieve", "fa-snowflake"], 27: ["Nieve", "fa-snowflake"], 28: ["Lluvia fuerte", "fa-cloud-showers-heavy"], 29: ["Lluvia fuerte", "fa-cloud-showers-heavy"],
+  30: ["Lluvia y nieve", "fa-cloud-rain"], 31: ["Lluvia y nieve", "fa-cloud-rain"], 32: ["Nevada intensa", "fa-snowflake"], 33: ["Nevada intensa", "fa-snowflake"], 34: ["Tormentas", "fa-cloud-bolt"], 35: ["Tormentas", "fa-cloud-bolt"],
+  36: ["Granizo", "fa-cloud-bolt"], 37: ["Granizo", "fa-cloud-bolt"], 38: ["Tormentas con granizo", "fa-cloud-bolt"], 39: ["Tormentas con granizo", "fa-cloud-bolt"], 40: ["Tormenta de arena", "fa-wind"], 41: ["Ventisca", "fa-wind"]
+};
 let satelite = { imagenes: [], indice: 0, reproduciendo: true, temporizador: null };
 
 function direccion(grados) { return Number.isFinite(grados) ? DIRECCIONES[Math.round(grados / 22.5) % 16] : "--"; }
 function valor(id, contenido) { document.getElementById(id).textContent = contenido; }
 function grados(numero) { return Number.isFinite(numero) ? `${Math.round(numero)}°` : "--"; }
 function textoPorDefecto(numero, sufijo) { return numero === null || numero === undefined ? `--${sufijo}` : `${numero}${sufijo}`; }
+function numeroValido(numero) { return Number.isFinite(numero); }
 
 /** Calcula el punto de rocío en °C mediante la aproximación de Magnus. */
 function puntoDeRocio(temperatura, humedad) {
@@ -70,22 +100,151 @@ function estadoTiempo(obs) {
   return { texto: texto, icono: iconoClima(texto) };
 }
 
+/** Fórmulas locales: se muestran únicamente dentro de sus rangos meteorológicos de aplicación. */
+function indiceCalor(temperatura, humedad) {
+  if (!numeroValido(temperatura) || !numeroValido(humedad) || temperatura < 26.7 || humedad < 40) return null;
+  const fahrenheit = (temperatura * 9) / 5 + 32;
+  const indiceF = -42.379 + 2.04901523 * fahrenheit + 10.14333127 * humedad - 0.22475541 * fahrenheit * humedad - 0.00683783 * fahrenheit ** 2 - 0.05481717 * humedad ** 2 + 0.00122874 * fahrenheit ** 2 * humedad + 0.00085282 * fahrenheit * humedad ** 2 - 0.00000199 * fahrenheit ** 2 * humedad ** 2;
+  return (indiceF - 32) * 5 / 9;
+}
+
+function calcularWindChill(temperatura, viento) {
+  if (!numeroValido(temperatura) || !numeroValido(viento) || temperatura > 10 || viento <= 4.8) return null;
+  return 13.12 + 0.6215 * temperatura - 11.37 * viento ** 0.16 + 0.3965 * temperatura * viento ** 0.16;
+}
+
+function humidex(temperatura, rocio) {
+  if (!numeroValido(temperatura) || !numeroValido(rocio)) return null;
+  const vapor = 6.11 * Math.exp(5417.753 * (1 / 273.16 - 1 / (273.15 + rocio)));
+  return temperatura + (5 / 9) * (vapor - 10);
+}
+
+function clasificarConfort(temperatura, humedad, indice, enfriamiento) {
+  if (numeroValido(indice) && indice >= 38) return "Muy caluroso";
+  if (numeroValido(indice) && indice >= 30) return "Caluroso";
+  if (numeroValido(enfriamiento) && enfriamiento <= 0) return "Frío";
+  if (numeroValido(temperatura) && temperatura <= 5) return "Frío";
+  if (numeroValido(temperatura) && temperatura <= 12) return "Fresco";
+  if (numeroValido(humedad) && humedad >= 85) return "Muy húmedo";
+  if (numeroValido(humedad) && humedad >= 70) return "Húmedo";
+  if (numeroValido(humedad) && humedad >= 60) return "Algo húmedo";
+  return "Confortable";
+}
+
+function intensidadLluvia(tasa) {
+  if (!numeroValido(tasa) || tasa <= 0) return "Sin lluvia en curso";
+  if (tasa <= CONFIG.lluviaDebilMax) return "Lluvia en curso · Débil";
+  if (tasa <= CONFIG.lluviaModeradaMax) return "Lluvia en curso · Moderada";
+  return "Lluvia en curso · Fuerte";
+}
+
+function leerHistorialLocal() {
+  try {
+    const historial = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY));
+    return Array.isArray(historial) ? historial.filter(function (muestra) { return muestra && numeroValido(muestra.timestamp); }) : [];
+  } catch (error) { return []; }
+}
+
+function guardarObservacionLocal(obs) {
+  const metric = obs.metric;
+  const timestamp = Date.parse(obs.obsTimeLocal || obs.obsTimeUtc || "");
+  if (!numeroValido(timestamp)) return leerHistorialLocal();
+  const muestra = { timestamp: timestamp, temperatura: metric.temp, presion: metric.pressure, humedad: obs.humidity, viento: metric.windSpeed, rafaga: metric.windGust, precipitacion: metric.precipTotal, intensidad: metric.precipRate };
+  const limite = Date.now() - CONFIG.historialDuracionMs;
+  const historial = leerHistorialLocal().filter(function (item) { return item.timestamp >= limite; });
+  if (!historial.length || historial[historial.length - 1].timestamp !== muestra.timestamp) historial.push(muestra);
+  const recortado = historial.slice(-CONFIG.historialMaximo);
+  try { localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(recortado)); } catch (error) { console.warn("No se pudo guardar el registro local", error); }
+  return recortado;
+}
+
+function calcularTendencia(historial, campo, actual, umbral) {
+  if (!numeroValido(actual) || historial.length < 2) return null;
+  const ahora = historial[historial.length - 1].timestamp;
+  for (let i = 0; i < CONFIG.tendenciaMinutos.length; i += 1) {
+    const minutos = CONFIG.tendenciaMinutos[i]; const objetivo = ahora - minutos * 60000;
+    const candidatos = historial.filter(function (muestra) { return numeroValido(muestra[campo]) && Math.abs(muestra.timestamp - objetivo) <= CONFIG.tendenciaToleranciaMs; });
+    if (!candidatos.length) continue;
+    const previo = candidatos.reduce(function (mejor, muestra) { return Math.abs(muestra.timestamp - objetivo) < Math.abs(mejor.timestamp - objetivo) ? muestra : mejor; });
+    const variacion = actual - previo[campo];
+    return { variacion: variacion, minutos: minutos, direccion: variacion > umbral ? "subiendo" : variacion < -umbral ? "bajando" : "estable" };
+  }
+  return null;
+}
+
+function textoTendencia(nombre, tendencia, unidad) {
+  if (!tendencia) return `${nombre}: recopilando datos`;
+  const flecha = tendencia.direccion === "subiendo" ? "↑" : tendencia.direccion === "bajando" ? "↓" : "→";
+  const variacion = tendencia.direccion === "estable" ? "estable" : `${tendencia.variacion > 0 ? "+" : ""}${tendencia.variacion.toFixed(1)} ${unidad}`;
+  return `${nombre} ${flecha} ${variacion} / ${tendencia.minutos} min`;
+}
+
+function actualizarTendenciasYRegistros(obs, historial) {
+  const metric = obs.metric;
+  const temperatura = calcularTendencia(historial, "temperatura", metric.temp, CONFIG.temperaturaEstable);
+  const presion = calcularTendencia(historial, "presion", metric.pressure, CONFIG.presionEstable);
+  const viento = calcularTendencia(historial, "viento", metric.windSpeed, CONFIG.vientoEstable);
+  document.getElementById("heroTrends").innerHTML = `<span>${textoTendencia("Temperatura", temperatura, "°C")}</span><span>${textoTendencia("Presión", presion, "hPa")}</span><span>${textoTendencia("Viento", viento, "km/h")}</span>`;
+  mostrarRegistrosRecientes(historial);
+  mostrarCondicionesDestacadas(obs, presion);
+}
+
+function mostrarRegistrosRecientes(historial) {
+  const seccion = document.getElementById("recentRecordsSection"); const contenedor = document.getElementById("recentRecords");
+  if (historial.length < 2) { seccion.hidden = true; return; }
+  const valores = function (campo) { return historial.map(function (muestra) { return muestra[campo]; }).filter(numeroValido); };
+  const campos = ["temperatura", "rafaga", "humedad", "presion"];
+  if (campos.some(function (campo) { return valores(campo).length < 2; })) { seccion.hidden = true; return; }
+  const maximo = function (campo) { return Math.max.apply(null, valores(campo)); };
+  const minimo = function (campo) { return Math.min.apply(null, valores(campo)); };
+  const datos = [["Temperatura máxima", grados(maximo("temperatura"))], ["Temperatura mínima", grados(minimo("temperatura"))], ["Ráfaga máxima", `${Math.round(maximo("rafaga"))} km/h`], ["Humedad máxima", `${Math.round(maximo("humedad"))}%`], ["Humedad mínima", `${Math.round(minimo("humedad"))}%`], ["Presión máxima", `${Math.round(maximo("presion"))} hPa`], ["Presión mínima", `${Math.round(minimo("presion"))} hPa`]];
+  contenedor.innerHTML = datos.map(function (dato) { return `<article class="record-item"><span>${dato[0]}</span><strong>${dato[1]}</strong></article>`; }).join("");
+  seccion.hidden = false;
+}
+
+function mostrarCondicionesDestacadas(obs, tendenciaPresion) {
+  const metric = obs.metric; const condiciones = [];
+  if (numeroValido(metric.precipRate) && metric.precipRate > CONFIG.lluviaFuerte) condiciones.push(["fa-cloud-showers-heavy", "Lluvia intensa", `${metric.precipRate} mm/h registrados`]);
+  if (numeroValido(metric.windGust) && metric.windGust >= CONFIG.rafagaFuerte) condiciones.push(["fa-wind", "Ráfagas fuertes", `${metric.windGust} km/h registrados`]);
+  if (numeroValido(metric.windSpeed) && metric.windSpeed >= CONFIG.vientoFuerte) condiciones.push(["fa-wind", "Viento fuerte", `${metric.windSpeed} km/h registrados`]);
+  if (numeroValido(metric.temp) && metric.temp >= CONFIG.temperaturaAlta) condiciones.push(["fa-temperature-arrow-up", "Temperatura elevada", `${grados(metric.temp)} registrados`]);
+  if (numeroValido(metric.temp) && metric.temp <= CONFIG.temperaturaBaja) condiciones.push(["fa-temperature-arrow-down", "Temperatura baja", `${grados(metric.temp)} registrados`]);
+  if (numeroValido(obs.humidity) && obs.humidity >= CONFIG.humedadElevada) condiciones.push(["fa-droplet", "Humedad elevada", `${obs.humidity}% registrados`]);
+  if (tendenciaPresion && tendenciaPresion.variacion <= CONFIG.presionDescensoDestacado) condiciones.push(["fa-arrow-trend-down", "Presión descendiendo", `${tendenciaPresion.variacion.toFixed(1)} hPa / ${tendenciaPresion.minutos} min`]);
+  const seccion = document.getElementById("highlightSection");
+  if (!condiciones.length) { seccion.hidden = true; return; }
+  document.getElementById("highlightList").innerHTML = condiciones.map(function (condicion) { return `<article class="highlight-item"><i class="fa-solid ${condicion[0]}" aria-hidden="true"></i><strong>${condicion[1]}</strong><span>${condicion[2]}</span></article>`; }).join("");
+  seccion.hidden = false;
+}
+
 /** Actualiza las condiciones medidas por la estación meteorológica propia. */
 function mostrarClima(obs) {
   const metric = obs.metric;
   const estado = estadoTiempo(obs);
-  const sensacion = Number.isFinite(metric.windChill) ? metric.windChill : metric.heatIndex;
   const rocio = Number.isFinite(metric.dewpt) ? metric.dewpt : puntoDeRocio(metric.temp, obs.humidity);
+  const calor = indiceCalor(metric.temp, obs.humidity);
+  const enfriamiento = Number.isFinite(metric.windChill) ? metric.windChill : calcularWindChill(metric.temp, metric.windSpeed);
+  const sensacion = Number.isFinite(metric.windChill) ? metric.windChill : Number.isFinite(metric.heatIndex) ? metric.heatIndex : Number.isFinite(calor) ? calor : metric.temp;
+  const indiceHumidex = humidex(metric.temp, rocio);
+  const confort = clasificarConfort(metric.temp, obs.humidity, calor, enfriamiento);
   document.querySelector(".temp").textContent = grados(metric.temp);
   document.querySelector(".status").textContent = estado.texto;
   document.getElementById("statusIcon").className = `fa-solid ${estado.icono}`;
   valor("heroST", grados(sensacion)); valor("heroHumedad", textoPorDefecto(obs.humidity, "%"));
   valor("cTemp", grados(metric.temp)); valor("cHumedad", textoPorDefecto(obs.humidity, "%"));
-  valor("cViento", Number.isFinite(metric.windSpeed) ? `${metric.windSpeed} km/h` : "--");
-  valor("cDireccion", direccion(obs.winddir)); valor("cRafagas", Number.isFinite(metric.windGust) ? `${metric.windGust} km/h` : "--");
-  valor("cLluvia", Number.isFinite(metric.precipTotal) ? `${metric.precipTotal} mm` : "--");
+  valor("cViento", Number.isFinite(metric.windSpeed) ? `${metric.windSpeed} km/h ${direccion(obs.winddir)}` : "--");
+  valor("cDireccion", Number.isFinite(obs.winddir) ? `${direccion(obs.winddir)} · ${Math.round(obs.winddir)}°` : "--"); valor("cRafagas", Number.isFinite(metric.windGust) ? `${metric.windGust} km/h` : "--");
+  const acumulado = Number.isFinite(metric.precipTotal) ? `${metric.precipTotal} mm acum.` : "Acumulado no informado";
+  valor("cLluvia", Number.isFinite(metric.precipRate) ? `${intensidadLluvia(metric.precipRate)} · ${metric.precipRate} mm/h · ${acumulado}` : acumulado);
   valor("cST", grados(sensacion)); valor("cPresion", Number.isFinite(metric.pressure) ? `${metric.pressure} hPa` : "--");
   valor("cRocio", grados(rocio));
+  valor("cComfort", confort);
+  const detallesConfort = [];
+  if (Number.isFinite(indiceHumidex) && indiceHumidex >= 20) detallesConfort.push(`Humidex ${Math.round(indiceHumidex)}`);
+  if (Number.isFinite(calor)) detallesConfort.push(`Índice de calor ${Math.round(calor)}°`);
+  if (Number.isFinite(enfriamiento) && metric.temp <= 10 && metric.windSpeed > 4.8) detallesConfort.push(`Wind chill ${Math.round(enfriamiento)}°`);
+  valor("cComfortDetail", detallesConfort.join(" · ") || "Indicador orientativo");
+  actualizarTendenciasYRegistros(obs, guardarObservacionLocal(obs));
   const fecha = new Date(obs.obsTimeLocal);
   valor("actualizacion", `Actualizado: ${fecha.toLocaleDateString("es-AR")} · ${fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`);
 }
@@ -97,13 +256,8 @@ function fuentePronostico(id, disponible) {
   fuente.textContent = disponible ? "Fuente: Weather.com" : "";
 }
 
-function iconoMeteored(simbolo) {
-  if (simbolo >= 10 && simbolo <= 15) return "fa-cloud-rain";
-  if (simbolo >= 16 && simbolo <= 18) return "fa-cloud-bolt";
-  if (simbolo >= 7 && simbolo <= 9) return "fa-cloud";
-  if (simbolo >= 3 && simbolo <= 6) return "fa-cloud-sun";
-  return "fa-sun";
-}
+function datosSimboloMeteored(simbolo) { return METEORED_SIMBOLOS[simbolo] || ["Estado no informado", "fa-cloud"]; }
+function iconoMeteored(simbolo) { return datosSimboloMeteored(simbolo)[1]; }
 
 function fechaMeteored(timestamp, opciones) { return new Date(timestamp).toLocaleString("es-AR", opciones); }
 
@@ -126,8 +280,9 @@ function renderizarDiario(data) {
   contenedor.innerHTML = "";
   dias.slice(0, 5).forEach(function (dia) {
     const tarjeta = document.createElement("article"); const fecha = fechaMeteored(dia.start, { weekday: "short", day: "numeric" });
+    const estado = datosSimboloMeteored(dia.symbol);
     tarjeta.className = "day-card";
-    tarjeta.innerHTML = `<time>${fecha}</time><span class="day-condition"><i class="fa-solid ${iconoMeteored(dia.symbol)}" aria-hidden="true"></i><span>Pronóstico Meteored</span></span><span><span class="day-temperatures"><span>${grados(dia.temperature_min)}</span><strong>${grados(dia.temperature_max)}</strong></span><span class="rain-chance"><i class="fa-solid fa-droplet" aria-hidden="true"></i>${textoPorDefecto(dia.rain_probability, "%")} · <i class="fa-solid fa-wind" aria-hidden="true"></i>${textoPorDefecto(dia.wind_speed, " km/h")}</span></span>`;
+    tarjeta.innerHTML = `<time>${fecha}</time><span class="day-condition"><i class="fa-solid ${estado[1]}" aria-hidden="true"></i><span>${estado[0]}</span></span><span><span class="day-temperatures"><span>${grados(dia.temperature_min)}</span><strong>${grados(dia.temperature_max)}</strong></span><span class="rain-chance"><i class="fa-solid fa-droplet" aria-hidden="true"></i>${textoPorDefecto(dia.rain_probability, "%")} · <i class="fa-solid fa-wind" aria-hidden="true"></i>${textoPorDefecto(dia.wind_speed, " km/h")}</span></span>`;
     contenedor.appendChild(tarjeta);
   });
   if (!dias.length) { mensajePronostico("dailyForecast", "Meteored no devolvió días de pronóstico para esta ubicación."); fuentePronostico("dailySource", false); } else { fuentePronostico("dailySource", true); document.getElementById("dailySource").textContent = "Fuente: Meteored"; }
@@ -202,7 +357,7 @@ function actualizarBotonReproduccion() {
 
 function configurarAnimacionSatelital() {
   window.clearInterval(satelite.temporizador);
-  satelite.temporizador = satelite.reproduciendo ? window.setInterval(function () { cambiarCuadroSatelital(1); }, CONAE_FRAME_MS) : null;
+  satelite.temporizador = satelite.reproduciendo ? window.setInterval(function () { cambiarCuadroSatelital(1); }, CONFIG.cuadroSateliteMs) : null;
   actualizarBotonReproduccion();
 }
 
@@ -249,7 +404,7 @@ function iniciarSatelite() {
   document.getElementById("satelliteNext").addEventListener("click", function () { cambiarCuadroSatelital(1); });
   document.getElementById("satellitePlay").addEventListener("click", function () { satelite.reproduciendo = !satelite.reproduciendo; configurarAnimacionSatelital(); });
   actualizarSatelite();
-  window.setInterval(actualizarSatelite, CONAE_REFRESH_MS);
+  window.setInterval(actualizarSatelite, CONFIG.sateliteMs);
 }
 
 async function cargarClima() {
@@ -267,4 +422,4 @@ async function cargarClima() {
 }
 
 cargarClima(); cargarPronosticos(); iniciarImagenesExternas(); iniciarSatelite();
-setInterval(cargarClima, 150000);
+setInterval(cargarClima, CONFIG.observacionesMs);

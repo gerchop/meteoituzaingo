@@ -326,6 +326,8 @@ Optimizado para SEO.
 
 Optimizado para monetización.
 
+Tendencias e indicadores locales basados únicamente en observaciones recientes del dispositivo; no representan históricos oficiales. Para históricos persistentes, seguir `HISTORICAL_ARCHITECTURE.md`.
+
 ---
 
 # Restricciones
