@@ -1,0 +1,14 @@
+{
+  "name": "meteoituzaingo-history",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:migrate:remote": "wrangler d1 migrations apply meteoituzaingo-history --remote",
+    "db:query:remote": "wrangler d1 execute meteoituzaingo-history --remote --command"
+  },
+  "devDependencies": {
+    "wrangler": "^4.124.0"
+  }
+}

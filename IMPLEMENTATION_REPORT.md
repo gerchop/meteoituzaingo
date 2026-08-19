@@ -1,74 +1,66 @@
-# Informe de implementación v1.0
+# Informe de implementación v1.1
 
 ## Resultado
 
-v1.0 conserva Weather.com para observaciones, Meteored para pronósticos con su caché por `expiracion`, radar ClimaSurGBA y animación CONAE GOES-19. No se reintrodujo Leaflet, no se agregaron APIs, anuncios, tracking ni backend. Los cambios visibles se concentran en la observación actual y no incrementan el consumo de Meteored.
+Se implementó y probó el flujo real de históricos permanentes:
 
-## Archivos modificados y creados
+```text
+Weather.com PWS → Cloudflare Worker → Cloudflare D1 → API JSON → Dashboard
+```
 
-- Modificados: `dashboard.html`, `css/dashboard.css`, `js/dashboard.js`, `CHANGELOG.md`, `DATA_SOURCES.md`, `AI_INSTRUCTIONS.md`, `IMPLEMENTATION_REPORT.md`.
-- Creados: `HISTORICAL_ARCHITECTURE.md`, `MONETIZATION.md`, `ANALYTICS.md`.
+Las condiciones actuales del dashboard permanecen independientes de D1. Meteored, radar ClimaSurGBA, satélite CONAE, tendencias locales y el diseño v1.0 se conservaron.
 
-## Funcionalidades implementadas
+## Recursos Cloudflare
 
-- Historial temporal en `localStorage` con temperatura, presión, humedad, viento, ráfaga, precipitación, intensidad y timestamp de la observación.
-- Tendencias de temperatura, presión y viento calculadas contra la muestra válida más cercana a 60 o 30 minutos. La cabecera muestra temperatura y presión; la presión se reutiliza para condiciones destacadas.
-- Tarjeta de confort con clasificación orientativa y detalles de Humidex, índice de calor o wind chill únicamente cuando aplican.
-- Registros recientes del dispositivo: máximos/mínimos de temperatura, humedad y presión, más ráfaga máxima. La sección se mantiene oculta hasta reunir al menos dos muestras completas.
-- Precipitación con intensidad actual y acumulado; viento con velocidad, rumbo cardinal y grados.
-- Condiciones destacadas condicionales: lluvia intensa, viento/ráfagas fuertes, temperatura alta/baja, humedad elevada y presión descendiendo. No se denominan alertas oficiales.
-- Pronóstico extendido: cada tarjeta usa el `symbol` del mismo objeto Meteored `days[]` que suministra su fecha, temperaturas, lluvia y viento. Se eliminó «Pronóstico Meteored» como estado.
-- SEO/accesibilidad: Twitter Cards, foco visible en controles y prevención de overflow horizontal global.
+- Worker: `meteoituzaingo-history`.
+- URL API: `https://meteoituzaingo-history.meteoituzaingo.workers.dev`.
+- D1: `meteoituzaingo-history`.
+- Database ID: `7cec06bd-da5d-4f6d-b04a-10df0e995579`.
+- Binding: `HISTORY_DB`.
+- Cron: `*/10 * * * *` (cada 10 minutos).
+- Migración: `cloudflare/migrations/0001_create_weather_observations.sql`.
 
-## Fórmulas y criterios
+## Backend implementado
 
-| Indicador | Regla |
-| --- | --- |
-| Punto de rocío | Dato de Weather.com o aproximación de Magnus ya existente. |
-| Índice de calor | Regresión NOAA en °F convertida a °C; sólo con temperatura ≥ 26,7 °C y humedad ≥ 40 %. |
-| Wind chill | Dato Weather.com si existe; si no, fórmula métrica con temperatura ≤ 10 °C y viento > 4,8 km/h. |
-| Humidex | Temperatura y punto de rocío mediante presión de vapor; se muestra desde 20. |
-| Confort | Muy caluroso ≥ 38 de índice de calor; caluroso ≥ 30; frío por wind chill ≤ 0 o temperatura ≤ 5; fresco ≤ 12; muy húmedo ≥ 85 %; húmedo ≥ 70 %; algo húmedo ≥ 60 %; caso restante confortable. |
-| Lluvia | Débil: >0 a 2,5 mm/h; moderada: >2,5 a 7,6 mm/h; fuerte: >7,6 mm/h. |
+- `captureWeatherObservation()` consulta Weather.com con `WEATHER_API_KEY`, normaliza exclusivamente los campos necesarios y los inserta en D1.
+- Tabla `weather_observations` con `observed_at` UTC, `created_at` UTC, campos métricos, `UNIQUE(observed_at)` e índice `idx_weather_observations_observed_at`.
+- Inserción `INSERT OR IGNORE` para capturas idempotentes.
+- Endpoints públicos: `/api/current`, `/api/history?hours=24`, `/api/history?days=7`, `/api/history?days=30`, `/api/stats/today` y `/api/stats/daily?date=YYYY-MM-DD`.
+- Períodos de 7/30 días agregados por hora; 24 horas devuelve muestras disponibles ordenadas ascendentemente.
+- `POST /api/admin/capture` existe protegido mediante `ADMIN_TOKEN`; no se utilizó ni expuso el token durante las pruebas.
+- CORS responde exclusivamente a orígenes configurados. GitHub Pages está autorizado por defecto; Blogger directo se configura con su origen HTTPS exacto.
 
-## Umbrales centralizados
+## Secretos
 
-`CONFIG` en `js/dashboard.js` centraliza intervalos de observación/radar/satélite, límite y duración local, tolerancia de tendencias, estabilidad de temperatura/presión/viento, lluvia, viento fuerte (35 km/h), ráfaga fuerte (45 km/h), temperatura alta (35 °C), temperatura baja (2 °C), humedad elevada (90 %) y descenso relevante de presión (-2 hPa).
+`WEATHER_API_KEY` y `ADMIN_TOKEN` fueron cargados como Cloudflare Worker Secrets. No hay valores, tokens, `.env` ni `.dev.vars` en Git. La estación se configura con `WEATHER_STATION_ID=IITUZAIN9`.
 
-## Estructura local
+## Frontend
 
-Clave: `meteoituzaingo.observaciones.local.v1`.
+- Nueva sección «Temperatura registrada» con Chart.js, datos de D1 y selector 24 horas / 7 días / 30 días.
+- Horas convertidas a `America/Argentina/Buenos_Aires`, tooltip con fecha, hora y temperatura.
+- Si aún hay pocos datos se grafica sólo lo disponible; si la API falla se muestra «Históricos temporalmente no disponibles» sin romper el resto del sitio.
+- La URL se centraliza en `HISTORY_API_BASE_URL`; el histórico sólo se solicita al abrir o cambiar el período, nunca en el intervalo de actualización de Weather.com.
 
-Cada muestra contiene `timestamp`, `temperatura`, `presion`, `humedad`, `viento`, `rafaga`, `precipitacion` e `intensidad`. Se descartan registros de más de 24 horas, se evita duplicar timestamp y se conservan como máximo 96 muestras. Es memoria local del navegador, no un histórico oficial de la estación.
-
-## Meteored
-
-No se ejecutaron endpoints nuevos. La descripción diaria sale del campo real `symbol`: el catálogo oficial de Meteored contempla, entre otros, 1 despejado, 4 parcialmente nublado, 5 cubierto, 8 neblina, 9 niebla, 12/13 lluvia débil, 14/15 lluvia, 28/29 lluvia fuerte y 34/35 tormentas. El mapeo completo 1–41 queda centralizado en `METEORED_SIMBOLOS` y usa el mismo `dia` que muestra mínima, máxima y probabilidad de precipitación.
-
-## No implementado
-
-- Backend ni persistencia de históricos oficiales.
-- Gráficos históricos: requieren la API propia documentada.
-- Anuncios, AdSense, Google Analytics y Microsoft Clarity: sólo se dejó documentación/preparación, sin espacios vacíos ni scripts.
-
-## Pruebas realizadas
+## Pruebas reales realizadas
 
 | Prueba | Resultado |
 | --- | --- |
+| `wrangler whoami` | Cuenta autenticada confirmada antes de crear recursos. |
+| D1 y migración | D1 creada una única vez; tabla, `UNIQUE` e índice verificados remotamente. |
+| Cron / captura | El cron almacenó una observación real: `2026-08-19T19:39:27.000Z`, temperatura 17,2 °C, humedad 52 %, presión 1012,63 hPa. |
+| Duplicado | Reintento de insertar la misma observación real dejó el total en una fila. |
+| API | `current`, `history` 24 h, 7 d y 30 d, estadísticas actuales/diarias respondieron `200` con datos D1 reales. |
+| Validación | `/api/history?hours=999` respondió `400` controlado. |
+| CORS | La petición desde `https://gerchop.github.io` recibió el origen permitido, sin comodín. |
 | Sintaxis | `node --check js/dashboard.js` sin errores. |
-| Diff | `git diff --check` sin errores. |
-| Referencias obsoletas | Control estático sin Leaflet, mapa meteorológico ni CX2SA activo en el código. |
-| Meteored | No se alteraron endpoints, caché, hash ni cadencia; la descripción consume el `symbol` ya recibido. |
-| Radar y satélite | Sus providers, botones e intervalos se conservaron; sin modificaciones funcionales. |
-| LocalStorage | Lectura protegida con `try/catch`, expiración, límite y omisión de timestamps inválidos. |
-| Simulación local | Dos observaciones separadas una hora renderizaron tendencias, confort y registros recientes sin errores. |
-| Responsive estático | Grillas fluídas, controles con wrap y `overflow-x` global protegido; el scroll horizontal queda sólo en el pronóstico horario. |
 
-La prueba visual final debe hacerse en la URL publicada de GitHub Pages y dentro de Blogger para los anchos 360, 390 y 430 px, tablet y escritorio.
+## Costos, retención y límites
 
-## Problemas y recomendaciones v1.1
+La arquitectura usa Workers Free + D1 Free. Con 144 capturas/día hay hasta 52.560 filas/año, muy por debajo de las cuotas iniciales documentadas en `CLOUDFLARE_COSTS.md`. No se habilitó facturación ni plan pago. v1.1 conserva datos; la futura retención combinará crudo reciente y agregados sin implementarla todavía.
 
-- Las tendencias no aparecen hasta obtener muestras separadas por un intervalo válido: es intencional para evitar valores falsos.
-- Confirmar permisos de redistribución comercial de CONAE y reemplazar el radar provisional antes de monetizar.
-- Implementar `HISTORICAL_ARCHITECTURE.md` con secretos en Azure Functions; sólo entonces agregar gráficos de 24 h, 7 d, 30 d y año.
-- Configurar `canonical` cuando se decida la URL pública definitiva, para no declarar una URL incorrecta en GitHub Pages/Blogger.
+## Limitaciones y recomendaciones v1.2
+
+- La base recién comenzó: el gráfico mostrará sólo el período realmente capturado.
+- Verificar visualmente el gráfico tras publicar GitHub Pages y al embeberlo en Blogger en 360, 390, 430 px, tablet y escritorio.
+- Añadir los gráficos de humedad, presión, viento y precipitación después de acumular datos suficientes.
+- Revisar cuotas de Cloudflare antes de aumentar frecuencia, tráfico o retención, y confirmar las licencias de las fuentes visuales antes de monetizar.

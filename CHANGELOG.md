@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.1 - 2026-08-19
+
+- Se implementó el histórico permanente real mediante Cloudflare Worker + D1, sin sustituir las observaciones actuales de Weather.com en el dashboard.
+- Se creó la captura programada cada 10 minutos con inserción idempotente, timestamps UTC, migración versionada e índice temporal.
+- Se incorporó la API propia `/api/current`, `/api/history`, `/api/stats/today` y `/api/stats/daily`, con parámetros validados y CORS configurado para GitHub Pages.
+- Se añadió la sección responsive «Temperatura registrada» con gráfico de datos reales, selector 24 horas / 7 días / 30 días, conversión horaria a Argentina y fallback controlado.
+- Se mantiene la cuota inicial de Cloudflare Workers Free + D1 Free; no se activaron servicios pagos ni se añadieron secretos al repositorio.
+
 ## v1.0 - 2026-08-17
 
 - Se incorporó un registro temporal local de observaciones de la estación, con expiración a 24 horas y un máximo de 96 muestras por dispositivo.

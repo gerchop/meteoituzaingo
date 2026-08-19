@@ -67,6 +67,14 @@ h2 { margin-top:4px; font-size:1.18rem; letter-spacing:-.03em; }
 .rain-chance i { margin-right:3px; }
 .forecast-message { width:100%; padding:18px; border:1px dashed #cbd9e2; border-radius:14px; color:var(--muted); font-size:.82rem; text-align:center; }
 .forecast-source { margin-top:9px; color:var(--muted); font-size:.68rem; text-align:right; }
+.historical-section { padding-top:2px; }
+.history-controls { display:flex; flex-wrap:wrap; gap:7px; margin:-7px 0 13px; }
+.history-period { min-height:34px; padding:0 11px; border:1px solid #cbd9e2; border-radius:9px; background:#fff; color:var(--navy); cursor:pointer; font:600 .72rem Inter,Arial,sans-serif; }
+.history-period:hover,.history-period:focus,.history-period.is-active { border-color:var(--blue); background:#edf5fa; }
+.history-period:focus-visible { outline:3px solid rgba(25,118,185,.35); outline-offset:2px; }
+.history-chart-wrap { position:relative; min-height:230px; padding:10px 8px 2px; border:1px solid #e2ebf1; border-radius:15px; background:#fff; box-shadow:0 3px 12px rgba(27,64,90,.04); }
+.history-chart-wrap canvas { display:block; max-width:100%; }
+.history-chart-wrap .forecast-message { align-self:center; }
 .media-section { padding-bottom:28px; }
 .media-frame { display:grid; min-height:170px; place-items:center; overflow:hidden; border:1px solid #e2ebf1; border-radius:15px; background:#edf5fa; }
 .media-frame img { display:block; width:100%; height:auto; min-height:170px; object-fit:contain; background:#edf5fa; }

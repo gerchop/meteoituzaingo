@@ -20,6 +20,15 @@ Auditoría realizada el 2026-07-19 para Meteo Ituzaingó. Los estados de autoriz
 
 Todos los endpoints de TWC se consultan por `GET` y usan `apiKey` como parámetro de consulta. La licencia comercial, cuotas y atribución dependen del contrato asociado a la clave; no se debe asumir acceso a un producto solo porque exista en la documentación.
 
+## Cloudflare Workers + D1 (v1.1)
+
+| Fuente | Uso | Estado | Restricciones |
+| --- | --- | --- | --- |
+| Cloudflare Worker `meteoituzaingo-history` | Captura programada de la PWS y API histórica | Activo; cron cada 10 minutos | `WEATHER_API_KEY` y `ADMIN_TOKEN` son Worker Secrets; CORS con orígenes explícitos. |
+| Cloudflare D1 `meteoituzaingo-history` | Históricos permanentes de observaciones propias | Activa; tabla `weather_observations` | Conserva UTC, `UNIQUE(observed_at)` e índice temporal. Sujeto a cuotas Workers Free/D1 Free documentadas en `CLOUDFLARE_COSTS.md`. |
+
+Weather.com tiene ahora un segundo uso autorizado: abastecer al Worker programado con las mismas observaciones actuales de la estación `IITUZAIN9`. Meteored continúa reservado exclusivamente para pronósticos.
+
 ## Weathercloud
 
 | Servicio | Endpoint / método | Autenticación | Estado | Restricciones y uso comercial |

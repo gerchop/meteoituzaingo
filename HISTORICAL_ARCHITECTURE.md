@@ -1,61 +1,43 @@
-# Arquitectura futura de históricos
+# Arquitectura de históricos permanentes
 
-## Recomendación
-
-Usar **Azure Functions (Flex Consumption) + Azure Table Storage + API HTTP propia**. Es el punto de partida recomendado para Meteo Ituzaingó: separa secretos del sitio estático, se adapta a GitHub Pages y Blogger, y permite consultas por rango sin introducir una base de datos compleja.
+## Implementada en v1.1
 
 ```text
 Weather.com PWS
-      │  (credencial sólo en Key Vault / configuración de Function)
+      │  WEATHER_API_KEY (Worker Secret)
       ▼
-Azure Function programada (cada 5 min)
+Cloudflare Worker programado cada 10 min
       ▼
-Azure Table Storage: Observaciones
-      │
+Cloudflare D1: weather_observations
       ▼
-Azure Function HTTP /api/history
-      │  (JSON cacheable, CORS limitado al dominio publicado)
+API JSON pública con CORS limitado
       ▼
-GitHub Pages → iframe o enlace desde Blogger
+GitHub Pages → Blogger
 ```
 
-La Function programada usa un temporizador. Azure Functions soporta tareas programadas y los triggers de temporizador dependen del almacenamiento de Azure en producción. [Documentación de timer triggers](https://learn.microsoft.com/en-us/azure/azure-functions/functions-bindings-timer?pivots=programming-language-python&tabs=python-v2%2Cin-process%2Cnodejs-v4)
+El dashboard en tiempo real continúa consultando Weather.com directamente. El Worker/D1 es independiente: si la API histórica falla, no afecta las observaciones actuales, Meteored, radar ni satélite.
 
-## Modelo de datos
+## Persistencia y consultas
 
-Tabla `Observations`:
+- D1 guarda timestamps ISO 8601 UTC en `observed_at` y `created_at`.
+- `observed_at` es único e `INSERT OR IGNORE` vuelve la captura idempotente.
+- La tabla tiene índice temporal para consultas ordenadas.
+- `/api/history?hours=24` devuelve muestras crudas ordenadas ascendentemente.
+- `/api/history?days=7` y `days=30` agregan por hora para limitar transferencia y lectura.
+- Estadísticas diarias calculan límites UTC derivados del día `America/Argentina/Buenos_Aires`; la lluvia utiliza el máximo de `precip_total`, no una suma de acumulados.
 
-- `PartitionKey`: `YYYYMM` (consulta mensual y retención sencilla).
-- `RowKey`: timestamp UTC ISO invertido o epoch con relleno (orden temporal).
-- Campos: `timestampUtc`, `temperatureC`, `humidityPct`, `pressureHpa`, `windKph`, `gustKph`, `windDirectionDeg`, `precipTotalMm`, `precipRateMmH`, `stationId`, `sourceVersion`.
+## Seguridad
 
-La API expone sólo rangos permitidos: `24h`, `7d`, `30d` y `year`. Para el año se consultan particiones mensuales y se devuelven agregados horarios o diarios; no se envían todas las muestras crudas al navegador.
+- `WEATHER_API_KEY` y `ADMIN_TOKEN` viven exclusivamente en Cloudflare Worker Secrets.
+- El endpoint de captura manual requiere `Authorization: Bearer <ADMIN_TOKEN>`.
+- La API pública no revela secretos, payloads originales ni errores internos.
+- D1 usa statements preparados para todos los parámetros recibidos.
+- CORS permite orígenes configurados explícitamente; no usa comodín.
 
-## Operación y seguridad
+## Retención y evolución
 
-- `WEATHER_COM_API_KEY` y cualquier clave futura se guardan como secretos de la Function o Key Vault, nunca en GitHub Pages, Blogger, JavaScript ni el repositorio.
-- La Function HTTP valida parámetros, limita tamaño/rango, aplica rate limiting y devuelve `Cache-Control`.
-- Configurar CORS sólo para el dominio de GitHub Pages y el dominio de Blogger publicados.
-- Registrar fallos, retrasos de timer y edad de la última observación. Hacer reintentos acotados para no multiplicar el consumo de Weather.com.
-- Exportar copias mensuales compactadas a Blob Storage para recuperación y análisis de bajo costo.
+v1.1 conserva datos sin borrar. En una fase posterior se podrá mantener datos crudos recientes y resúmenes horarios/diarios para períodos largos. Los próximos gráficos previstos son humedad, presión, viento y precipitación; sólo temperatura se muestra en v1.1.
 
-## Comparativa
+## Alternativa inicial descartada
 
-| Alternativa | Costo relativo | Complejidad | Consultas y gráficos | Recomendación |
-| --- | --- | --- | --- | --- |
-| Azure Functions + Table Storage | Bajo para una PWS | Baja | Muy buena por rango/partición; agregados en Function | **Elegida** |
-| Azure Functions + Blob JSON | Muy bajo | Baja al inicio, media al crecer | Buena para snapshots/archivos; peor para filtros arbitrarios | Complemento para exportación |
-| Cosmos DB Serverless | Variable por operación y almacenamiento | Media | Excelente para consultas flexibles y crecimiento | Evaluar si crecen usuarios/consultas |
-
-Cosmos DB Serverless factura por operaciones y almacenamiento sin mínimo de operaciones, por lo que es apropiado para tráfico intermitente, pero añade coste y modelado innecesarios en la primera etapa. [Detalles oficiales](https://azure.microsoft.com/en-us/pricing/details/cosmos-db/serverless/)
-
-Los importes cambian por región, moneda, plan y tráfico: antes de aprovisionar se debe calcular el costo mensual con la calculadora oficial de Azure. Para una estación única con captura cada cinco minutos, Table Storage y Functions suelen ser la alternativa de menor complejidad/costo; Blob es útil como archivo. No se fija una cifra en este documento para no presentar precios desactualizados como compromiso.
-
-## Evolución de la interfaz
-
-1. Añadir `/api/history?range=24h&metrics=temperature,pressure,humidity,wind,precipitation`.
-2. Cargar la librería de gráficos ligera sólo al abrir la sección de históricos.
-3. Mostrar temperatura, presión, humedad, viento y precipitación de 24 h; luego 7 d, 30 d y año con agregación progresiva.
-4. Identificar claramente los gráficos como observaciones de la estación propia y su intervalo de captura.
-
-La memoria local de v1.0 no reemplaza esta arquitectura: sólo conserva muestras locales de este dispositivo, con expiración automática.
+Azure Functions + Table Storage quedó como alternativa documental. Se eligieron Cloudflare Workers + D1 porque la cuenta ya estaba configurada, ofrece cron, D1 y Workers Free para esta primera escala, y evita incorporar una segunda plataforma en producción.

@@ -328,6 +328,10 @@ Optimizado para monetización.
 
 Tendencias e indicadores locales basados únicamente en observaciones recientes del dispositivo; no representan históricos oficiales. Para históricos persistentes, seguir `HISTORICAL_ARCHITECTURE.md`.
 
+## v1.1
+
+Los históricos permanentes se capturan mediante Cloudflare Workers + D1. El frontend no debe almacenar secretos, depender de la API histórica para las condiciones actuales ni aumentar consultas Meteored. Consultar `CLOUDFLARE_SETUP.md` y `CLOUDFLARE_COSTS.md` antes de modificar Worker, D1, cron o cuotas.
+
 ---
 
 # Restricciones

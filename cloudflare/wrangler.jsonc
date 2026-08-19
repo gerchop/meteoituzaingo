@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "meteoituzaingo-history",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-18",
+  "workers_dev": true,
+  "vars": {
+    "WEATHER_STATION_ID": "IITUZAIN9",
+    "ALLOWED_ORIGINS": "https://gerchop.github.io"
+  },
+  "triggers": {
+    "crons": ["*/10 * * * *"]
+  },
+  "d1_databases": [
+    {
+      "binding": "HISTORY_DB",
+      "database_name": "meteoituzaingo-history",
+      "database_id": "7cec06bd-da5d-4f6d-b04a-10df0e995579",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+}

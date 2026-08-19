@@ -5,6 +5,7 @@ const METEORED_API_KEY = "588d0c77954be983ce8b369a5a0e41f10c8d52b790573a92e21ce0
 const METEORED_HASH = "02fb9feb8e7f9462733d7279a5479236";
 const METEORED_URL = "https://api.meteored.com/api/forecast/v1";
 const METEORED_CACHE_PREFIX = "meteoituzaingo.meteored.v1.";
+const HISTORY_API_BASE_URL = "https://meteoituzaingo-history.meteoituzaingo.workers.dev";
 const DIRECCIONES = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
 const CONFIG = {
   observacionesMs: 150000,
@@ -43,6 +44,7 @@ const METEORED_SIMBOLOS = {
   36: ["Granizo", "fa-cloud-bolt"], 37: ["Granizo", "fa-cloud-bolt"], 38: ["Tormentas con granizo", "fa-cloud-bolt"], 39: ["Tormentas con granizo", "fa-cloud-bolt"], 40: ["Tormenta de arena", "fa-wind"], 41: ["Ventisca", "fa-wind"]
 };
 let satelite = { imagenes: [], indice: 0, reproduciendo: true, temporizador: null };
+let graficoHistorico;
 
 function direccion(grados) { return Number.isFinite(grados) ? DIRECCIONES[Math.round(grados / 22.5) % 16] : "--"; }
 function valor(id, contenido) { document.getElementById(id).textContent = contenido; }
@@ -407,6 +409,56 @@ function iniciarSatelite() {
   window.setInterval(actualizarSatelite, CONFIG.sateliteMs);
 }
 
+function formatoHistorico(timestamp, incluirFecha) {
+  return new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: incluirFecha ? "2-digit" : undefined, month: incluirFecha ? "2-digit" : undefined, hour: "2-digit", minute: "2-digit" }).format(new Date(timestamp));
+}
+
+function actualizarBotonesHistorico(periodo) {
+  document.querySelectorAll(".history-period").forEach(function (boton) {
+    const activo = boton.dataset.historyPeriod === periodo;
+    boton.classList.toggle("is-active", activo); boton.setAttribute("aria-pressed", String(activo));
+  });
+}
+
+function mostrarGraficoHistorico(datos, periodo) {
+  const canvas = document.getElementById("historyChart"); const mensaje = document.getElementById("historyMessage");
+  if (!datos.length) { canvas.hidden = true; mensaje.hidden = false; mensaje.textContent = "El histórico comenzó a registrarse recientemente. Se mostrarán los datos disponibles."; return; }
+  if (!window.Chart) { canvas.hidden = true; mensaje.hidden = false; mensaje.textContent = "No fue posible cargar el gráfico histórico."; return; }
+  const incluirFecha = periodo !== "hours=24";
+  const puntos = datos.filter(function (dato) { return Number.isFinite(dato.temperature) && dato.observedAt; });
+  if (!puntos.length) { canvas.hidden = true; mensaje.hidden = false; mensaje.textContent = "No hay temperaturas válidas para graficar."; return; }
+  canvas.hidden = false; mensaje.hidden = true;
+  if (graficoHistorico) graficoHistorico.destroy();
+  graficoHistorico = new window.Chart(canvas, {
+    type: "line",
+    data: { labels: puntos.map(function (dato) { return formatoHistorico(dato.observedAt, incluirFecha); }), datasets: [{ label: "Temperatura", data: puntos.map(function (dato) { return dato.temperature; }), borderColor: "#1976b9", backgroundColor: "rgba(25,118,185,.12)", borderWidth: 2, pointRadius: puntos.length > 48 ? 0 : 2, pointHoverRadius: 4, tension: .28, fill: true }] },
+    options: { responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: "index" }, plugins: { legend: { display: false }, tooltip: { callbacks: { title: function (contexto) { return formatoHistorico(puntos[contexto[0].dataIndex].observedAt, true); }, label: function (contexto) { return ` ${contexto.parsed.y.toFixed(1)} °C`; } } } }, scales: { x: { ticks: { maxTicksLimit: 6, color: "#617381", font: { size: 10 } }, grid: { display: false } }, y: { title: { display: true, text: "°C", color: "#617381" }, ticks: { color: "#617381" }, grid: { color: "rgba(97,115,129,.12)" } } } }
+  });
+}
+
+async function cargarHistorico(periodo = "hours=24") {
+  actualizarBotonesHistorico(periodo);
+  const mensaje = document.getElementById("historyMessage"); const meta = document.getElementById("historyMeta");
+  mensaje.hidden = false; mensaje.textContent = "Cargando histórico disponible…";
+  try {
+    const respuesta = await fetch(`${HISTORY_API_BASE_URL}/api/history?${periodo}`, { cache: "no-store" });
+    if (!respuesta.ok) throw new Error(`Históricos respondió ${respuesta.status}`);
+    const cuerpo = await respuesta.json();
+    if (!cuerpo.ok || !Array.isArray(cuerpo.data)) throw new Error("Respuesta histórica inválida");
+    mostrarGraficoHistorico(cuerpo.data, periodo);
+    meta.textContent = cuerpo.data.length ? `Fuente: registros permanentes de Meteo Ituzaingó · inicio disponible: ${formatoHistorico(cuerpo.data[0].observedAt, true)}.` : "Fuente: registros permanentes de Meteo Ituzaingó.";
+  } catch (error) {
+    console.error("No se pudo cargar el histórico:", error);
+    if (graficoHistorico) { graficoHistorico.destroy(); graficoHistorico = null; }
+    document.getElementById("historyChart").hidden = true; mensaje.hidden = false; mensaje.textContent = "Históricos temporalmente no disponibles."; meta.textContent = "La información actual del dashboard continúa disponible.";
+  }
+}
+
+function iniciarHistoricos() {
+  document.querySelectorAll(".history-period").forEach(function (boton) { boton.addEventListener("click", function () { cargarHistorico(boton.dataset.historyPeriod); }); });
+  cargarHistorico();
+}
+
 async function cargarClima() {
   try {
     const respuesta = await fetch(API_URL); if (!respuesta.ok) throw new Error(`Error HTTP ${respuesta.status}`);
@@ -421,5 +473,5 @@ async function cargarClima() {
   }
 }
 
-cargarClima(); cargarPronosticos(); iniciarImagenesExternas(); iniciarSatelite();
+cargarClima(); cargarPronosticos(); iniciarImagenesExternas(); iniciarSatelite(); iniciarHistoricos();
 setInterval(cargarClima, CONFIG.observacionesMs);
