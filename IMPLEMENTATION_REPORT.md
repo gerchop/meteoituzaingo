@@ -1,3 +1,37 @@
+# Informe de implementación v1.2.1
+
+## Correcciones
+
+### Histórico de Home
+
+La Home tenía una implementación distinta a la de `historicos.html`. Tras retirar el selector de períodos de Home en v1.2, quedaron dos referencias a la variable `periodo`, que ya no existe: una al construir las etiquetas del gráfico y otra al armar la URL. El `ReferenceError` se capturaba en el `catch` y se mostraba erróneamente «Históricos temporalmente no disponibles», aunque Cloudflare y D1 respondían correctamente.
+
+Se creó `js/history-api.js`, usado por ambas páginas. La Home ahora llama explícitamente `fetchHistory("hours=24")`; Históricos usa el mismo método para sus tres períodos. No se modificaron Worker, D1, cron, registros ni frecuencia de captura.
+
+### Tooltips
+
+El callback `afterBody` estaba en la configuración común de Chart.js, por lo que añadía dirección a cada gráfico. Ahora sólo se habilita al crear `windChart`; construye una única línea con rumbo y grados cuando están disponibles. Temperatura, humedad, presión y precipitación ya no reciben ese callback.
+
+### Formato horario
+
+`js/datetime-utils.js` centraliza `formatTime`, `formatDate`, `formatDateTime` y `formatShortDateTime` con locale `es-AR`, zona `America/Argentina/Buenos_Aires` y `hour12: false`. Se aplicó en actualización actual, Meteored horario, radar, históricos, ejes y tooltips. Los timestamps de D1 continúan en UTC y se convierten sólo al presentar.
+
+## Archivos corregidos
+
+- `dashboard.html`, `js/dashboard.js`: carga del módulo común, Home de 24 h y horarios de presentación.
+- `historicos.html`, `js/history.js`: módulos comunes, etiquetas de 24 h y tooltips específicos por gráfico.
+- `js/history-api.js`: cliente histórico compartido y validación uniforme de respuestas.
+- `js/datetime-utils.js`: formato temporal único para el frontend.
+
+## Pruebas realizadas
+
+- `node --check` sobre los módulos nuevos y los scripts de dashboard/históricos, sin errores.
+- `git diff --check`, sin errores de espacios.
+- Auditoría de scripts: no quedan usos de `toLocaleTimeString`/`toLocaleString` ni formateadores históricos que omitan `America/Argentina/Buenos_Aires`; Meteored conserva su formateador localizado con `hour12: false`.
+- Se verificará en GitHub Pages publicado la Home, los tres períodos y los tooltips tras enviar el commit remoto.
+
+---
+
 # Informe de implementación v1.2
 
 ## Resultado

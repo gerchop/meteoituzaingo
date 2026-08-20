@@ -1,1 +1,37 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Históricos meteorológicos de Meteo Ituzaingó."><title>Históricos | Meteo Ituzaingó</title><link rel="preconnect" href="https://cdnjs.cloudflare.com"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css"><link rel="stylesheet" href="css/dashboard.css"></head><body><main id="meteo-dashboard" class="history-page"><section class="weather-hero"><div class="hero-topline"><p class="eyebrow"><i class="fa-solid fa-chart-line"></i> Meteo Ituzaingó</p><a class="back-link" href="dashboard.html"><i class="fa-solid fa-arrow-left"></i> Volver al tiempo actual</a></div><div class="history-hero"><h1>Históricos meteorológicos</h1><p>Datos registrados por la estación IITUZAIN9</p></div></section><section class="conditions"><div class="section-heading"><div><p class="eyebrow">Período</p><h2 id="periodTitle">Últimas 24 horas</h2></div></div><div id="historyPeriods" class="history-controls" role="group" aria-label="Seleccionar período"><button class="history-period is-active" data-period="hours=24" aria-pressed="true">24 horas</button><button class="history-period" data-period="days=7" aria-pressed="false">7 días</button><button class="history-period" data-period="days=30" aria-pressed="false">30 días</button></div><p id="historyStatus" class="history-status">Cargando históricos…</p><div id="periodSummary" class="summary-grid" hidden></div><p id="historyStart" class="local-data-note"></p></section><section class="history-panels"><article class="history-panel"><h2>Temperatura</h2><div><canvas id="temperatureChart" aria-label="Gráfico histórico de temperatura"></canvas></div></article><article class="history-panel"><h2>Humedad</h2><div><canvas id="humidityChart" aria-label="Gráfico histórico de humedad"></canvas></div></article><article class="history-panel"><h2>Presión atmosférica</h2><div><canvas id="pressureChart" aria-label="Gráfico histórico de presión"></canvas></div></article><article class="history-panel"><h2>Viento y ráfagas</h2><div><canvas id="windChart" aria-label="Gráfico histórico de viento y ráfagas"></canvas></div></article><article class="history-panel"><h2>Intensidad de precipitación</h2><div><canvas id="rainChart" aria-label="Gráfico histórico de precipitación"></canvas></div></article></section></main><script src="js/history-config.js" defer></script><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script><script src="js/history.js" defer></script></body></html>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Históricos meteorológicos de Meteo Ituzaingó.">
+  <title>Históricos | Meteo Ituzaingó</title>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+  <main id="meteo-dashboard" class="history-page">
+    <section class="weather-hero">
+      <div class="hero-topline"><p class="eyebrow"><i class="fa-solid fa-chart-line"></i> Meteo Ituzaingó</p><a class="back-link" href="dashboard.html"><i class="fa-solid fa-arrow-left"></i> Volver al tiempo actual</a></div>
+      <div class="history-hero"><h1>Históricos meteorológicos</h1><p>Datos registrados por la estación IITUZAIN9</p></div>
+    </section>
+    <section class="conditions">
+      <div class="section-heading"><div><p class="eyebrow">Período</p><h2 id="periodTitle">Últimas 24 horas</h2></div></div>
+      <div id="historyPeriods" class="history-controls" role="group" aria-label="Seleccionar período"><button class="history-period is-active" data-period="hours=24" aria-pressed="true">24 horas</button><button class="history-period" data-period="days=7" aria-pressed="false">7 días</button><button class="history-period" data-period="days=30" aria-pressed="false">30 días</button></div>
+      <p id="historyStatus" class="history-status">Cargando históricos…</p><div id="periodSummary" class="summary-grid" hidden></div><p id="historyStart" class="local-data-note"></p>
+    </section>
+    <section class="history-panels">
+      <article class="history-panel"><h2>Temperatura</h2><div><canvas id="temperatureChart" aria-label="Gráfico histórico de temperatura"></canvas></div></article>
+      <article class="history-panel"><h2>Humedad</h2><div><canvas id="humidityChart" aria-label="Gráfico histórico de humedad"></canvas></div></article>
+      <article class="history-panel"><h2>Presión atmosférica</h2><div><canvas id="pressureChart" aria-label="Gráfico histórico de presión"></canvas></div></article>
+      <article class="history-panel"><h2>Viento y ráfagas</h2><div><canvas id="windChart" aria-label="Gráfico histórico de viento y ráfagas"></canvas></div></article>
+      <article class="history-panel"><h2>Intensidad de precipitación</h2><div><canvas id="rainChart" aria-label="Gráfico histórico de precipitación"></canvas></div></article>
+    </section>
+  </main>
+  <script src="js/history-config.js" defer></script>
+  <script src="js/datetime-utils.js" defer></script>
+  <script src="js/history-api.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
+  <script src="js/history.js" defer></script>
+</body>
+</html>

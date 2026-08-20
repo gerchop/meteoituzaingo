@@ -5,7 +5,8 @@ const METEORED_API_KEY = "588d0c77954be983ce8b369a5a0e41f10c8d52b790573a92e21ce0
 const METEORED_HASH = "02fb9feb8e7f9462733d7279a5479236";
 const METEORED_URL = "https://api.meteored.com/api/forecast/v1";
 const METEORED_CACHE_PREFIX = "meteoituzaingo.meteored.v1.";
-const HISTORY_API_BASE_URL = window.MeteoHistoryConfig.API_BASE_URL;
+const HistoryApi = window.MeteoHistoryApi;
+const DateTime = window.MeteoDateTime;
 const DIRECCIONES = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
 const CONFIG = {
   observacionesMs: 150000,
@@ -247,8 +248,7 @@ function mostrarClima(obs) {
   if (Number.isFinite(enfriamiento) && metric.temp <= 10 && metric.windSpeed > 4.8) detallesConfort.push(`Wind chill ${Math.round(enfriamiento)}°`);
   valor("cComfortDetail", detallesConfort.join(" · ") || "Indicador orientativo");
   actualizarTendenciasYRegistros(obs, guardarObservacionLocal(obs));
-  const fecha = new Date(obs.obsTimeLocal);
-  valor("actualizacion", `Actualizado: ${fecha.toLocaleDateString("es-AR")} · ${fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`);
+  valor("actualizacion", `Actualizado: ${DateTime.formatDateTime(obs.obsTimeLocal || obs.obsTimeUtc)}`);
 }
 
 function mensajePronostico(id, mensaje) { document.getElementById(id).innerHTML = `<p class="forecast-message">${mensaje}</p>`; }
@@ -261,7 +261,9 @@ function fuentePronostico(id, disponible) {
 function datosSimboloMeteored(simbolo) { return METEORED_SIMBOLOS[simbolo] || ["Estado no informado", "fa-cloud"]; }
 function iconoMeteored(simbolo) { return datosSimboloMeteored(simbolo)[1]; }
 
-function fechaMeteored(timestamp, opciones) { return new Date(timestamp).toLocaleString("es-AR", opciones); }
+function fechaMeteored(timestamp, opciones) {
+  return new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", ...opciones, hour12: false }).format(new Date(timestamp));
+}
 
 /** Renderiza las siguientes 12 horas usando exclusivamente la respuesta real de Meteored. */
 function renderizarHorario(data) {
@@ -315,7 +317,7 @@ async function cargarPronosticos() {
   try { renderizarDiario(await obtenerPronosticoMeteored("daily")); } catch (error) { console.error("No se pudo cargar el pronóstico extendido:", error); mensajePronostico("dailyForecast", "No se pudo actualizar el pronóstico extendido de Meteored."); fuentePronostico("dailySource", false); }
 }
 
-function horaActualizacion() { return new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }); }
+function horaActualizacion() { return DateTime.formatTime(new Date()); }
 
 /** Actualiza solo una imagen externa y evita caché obsoleta sin recargar el dashboard. */
 function actualizarImagen(provider, imageId, metaId) {
@@ -409,15 +411,13 @@ function iniciarSatelite() {
   window.setInterval(actualizarSatelite, CONFIG.sateliteMs);
 }
 
-function formatoHistorico(timestamp, incluirFecha) {
-  return new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: incluirFecha ? "2-digit" : undefined, month: incluirFecha ? "2-digit" : undefined, hour: "2-digit", minute: "2-digit" }).format(new Date(timestamp));
-}
+function formatoHistorico(timestamp, incluirFecha) { return incluirFecha ? DateTime.formatDateTime(timestamp) : DateTime.formatTime(timestamp); }
 
 function mostrarGraficoHistorico(datos) {
   const canvas = document.getElementById("historyChart"); const mensaje = document.getElementById("historyMessage");
   if (!datos.length) { canvas.hidden = true; mensaje.hidden = false; mensaje.textContent = "El histórico comenzó a registrarse recientemente. Se mostrarán los datos disponibles."; return; }
   if (!window.Chart) { canvas.hidden = true; mensaje.hidden = false; mensaje.textContent = "No fue posible cargar el gráfico histórico."; return; }
-  const incluirFecha = periodo !== "hours=24";
+  const incluirFecha = false;
   const puntos = datos.filter(function (dato) { return Number.isFinite(dato.temperature) && dato.observedAt; });
   if (!puntos.length) { canvas.hidden = true; mensaje.hidden = false; mensaje.textContent = "No hay temperaturas válidas para graficar."; return; }
   canvas.hidden = false; mensaje.hidden = true;
@@ -433,12 +433,9 @@ async function cargarHistorico() {
   const mensaje = document.getElementById("historyMessage"); const meta = document.getElementById("historyMeta");
   mensaje.hidden = false; mensaje.textContent = "Cargando histórico disponible…";
   try {
-    const respuesta = await fetch(`${HISTORY_API_BASE_URL}/api/history?${periodo}`, { cache: "no-store" });
-    if (!respuesta.ok) throw new Error(`Históricos respondió ${respuesta.status}`);
-    const cuerpo = await respuesta.json();
-    if (!cuerpo.ok || !Array.isArray(cuerpo.data)) throw new Error("Respuesta histórica inválida");
-    mostrarGraficoHistorico(cuerpo.data);
-    meta.textContent = cuerpo.data.length ? `Fuente: registros permanentes de Meteo Ituzaingó · inicio disponible: ${formatoHistorico(cuerpo.data[0].observedAt, true)}.` : "Fuente: registros permanentes de Meteo Ituzaingó.";
+    const datos = await HistoryApi.fetchHistory("hours=24");
+    mostrarGraficoHistorico(datos);
+    meta.textContent = datos.length ? `Fuente: registros permanentes de Meteo Ituzaingó · inicio disponible: ${formatoHistorico(datos[0].observedAt, true)}.` : "Fuente: registros permanentes de Meteo Ituzaingó.";
   } catch (error) {
     console.error("No se pudo cargar el histórico:", error);
     if (graficoHistorico) { graficoHistorico.destroy(); graficoHistorico = null; }

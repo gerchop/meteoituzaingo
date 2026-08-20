@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.2.1 - 2026-08-20
+
+- Se corrigió la carga de «Temperatura registrada» en Home: ahora solicita explícitamente las últimas 24 horas mediante el mismo cliente de API utilizado por Históricos.
+- Se unificó el acceso a la API histórica en `js/history-api.js` y se eliminó la referencia residual a un período inexistente que convertía un error interno en un falso aviso de indisponibilidad.
+- Se corrigieron los tooltips: la dirección del viento se muestra una sola vez y exclusivamente en el gráfico de viento y ráfagas.
+- Se centralizó el formato de fecha y hora en `js/datetime-utils.js`, con `es-AR`, `America/Argentina/Buenos_Aires` y reloj de 24 horas en Home, pronóstico, radar, satélite e históricos.
+
 ## v1.2 - 2026-08-20
 
 - Se incorporó `historicos.html`, una página dedicada con gráficos reales de temperatura, humedad, presión, viento/ráfagas e intensidad de precipitación.
