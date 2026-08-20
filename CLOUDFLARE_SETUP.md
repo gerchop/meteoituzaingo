@@ -42,6 +42,7 @@ La API pública expone datos de D1:
 - `GET /api/history?hours=24`
 - `GET /api/history?days=7`
 - `GET /api/history?days=30`
+- `GET /api/history/info`
 - `GET /api/stats/today`
 - `GET /api/stats/daily?date=YYYY-MM-DD`
 

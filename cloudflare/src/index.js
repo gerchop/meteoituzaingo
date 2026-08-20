@@ -54,6 +54,11 @@ async function getHistory(request, env, url) {
   return jsonResponse(request, env, { ok: true, range: `${range.kind}:${range.value}`, aggregated: range.kind === "days", data: result.results.map(serializeObservation) });
 }
 
+async function getHistoryInfo(request, env) {
+  const row = await env.HISTORY_DB.prepare("SELECT MIN(observed_at) AS first_observation, MAX(observed_at) AS last_observation, COUNT(*) AS total_observations FROM weather_observations").first();
+  return jsonResponse(request, env, { ok: true, data: row && row.total_observations ? { firstObservation: row.first_observation, lastObservation: row.last_observation, totalObservations: row.total_observations } : null });
+}
+
 async function getDailyStats(request, env, date) {
   if (!isValidArgentinaDate(date)) return badRequest(request, env, "La fecha debe tener formato YYYY-MM-DD.");
   const start = utcStartForArgentinaDate(date); const end = utcStartForArgentinaDate(new Date(Date.parse(start) + 86400000).toISOString().slice(0, 10));
@@ -76,6 +81,7 @@ async function route(request, env) {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request, env) });
   if (request.method === "GET" && url.pathname === "/api/current") return getCurrent(request, env);
   if (request.method === "GET" && url.pathname === "/api/history") return getHistory(request, env, url);
+  if (request.method === "GET" && url.pathname === "/api/history/info") return getHistoryInfo(request, env);
   if (request.method === "GET" && url.pathname === "/api/stats/today") return getDailyStats(request, env, argentinaDate());
   if (request.method === "GET" && url.pathname === "/api/stats/daily") return getDailyStats(request, env, url.searchParams.get("date") || "");
   if (request.method === "POST" && url.pathname === "/api/admin/capture") {

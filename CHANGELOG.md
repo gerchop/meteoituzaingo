@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.2 - 2026-08-20
+
+- Se incorporó `historicos.html`, una página dedicada con gráficos reales de temperatura, humedad, presión, viento/ráfagas e intensidad de precipitación.
+- Se añadió navegación de retorno al tiempo actual y una previsualización compacta de temperatura de 24 horas con enlace a todos los históricos desde la home.
+- Se reutiliza una consulta por período (24 h, 7 d, 30 d), con caché en memoria de diez minutos y agregación horaria existente para períodos largos.
+- Se agregó `/api/history/info` para informar la fecha real de inicio del histórico y su cantidad de observaciones.
+- El acumulado de lluvia se calcula únicamente como diferencias entre lecturas consecutivas de `precip_total`; no se suman acumulados repetidos.
+
 ## v1.1 - 2026-08-19
 
 - Se implementó el histórico permanente real mediante Cloudflare Worker + D1, sin sustituir las observaciones actuales de Weather.com en el dashboard.

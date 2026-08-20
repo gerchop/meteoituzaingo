@@ -5,7 +5,7 @@ const METEORED_API_KEY = "588d0c77954be983ce8b369a5a0e41f10c8d52b790573a92e21ce0
 const METEORED_HASH = "02fb9feb8e7f9462733d7279a5479236";
 const METEORED_URL = "https://api.meteored.com/api/forecast/v1";
 const METEORED_CACHE_PREFIX = "meteoituzaingo.meteored.v1.";
-const HISTORY_API_BASE_URL = "https://meteoituzaingo-history.meteoituzaingo.workers.dev";
+const HISTORY_API_BASE_URL = window.MeteoHistoryConfig.API_BASE_URL;
 const DIRECCIONES = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
 const CONFIG = {
   observacionesMs: 150000,
@@ -413,14 +413,7 @@ function formatoHistorico(timestamp, incluirFecha) {
   return new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: incluirFecha ? "2-digit" : undefined, month: incluirFecha ? "2-digit" : undefined, hour: "2-digit", minute: "2-digit" }).format(new Date(timestamp));
 }
 
-function actualizarBotonesHistorico(periodo) {
-  document.querySelectorAll(".history-period").forEach(function (boton) {
-    const activo = boton.dataset.historyPeriod === periodo;
-    boton.classList.toggle("is-active", activo); boton.setAttribute("aria-pressed", String(activo));
-  });
-}
-
-function mostrarGraficoHistorico(datos, periodo) {
+function mostrarGraficoHistorico(datos) {
   const canvas = document.getElementById("historyChart"); const mensaje = document.getElementById("historyMessage");
   if (!datos.length) { canvas.hidden = true; mensaje.hidden = false; mensaje.textContent = "El histórico comenzó a registrarse recientemente. Se mostrarán los datos disponibles."; return; }
   if (!window.Chart) { canvas.hidden = true; mensaje.hidden = false; mensaje.textContent = "No fue posible cargar el gráfico histórico."; return; }
@@ -436,8 +429,7 @@ function mostrarGraficoHistorico(datos, periodo) {
   });
 }
 
-async function cargarHistorico(periodo = "hours=24") {
-  actualizarBotonesHistorico(periodo);
+async function cargarHistorico() {
   const mensaje = document.getElementById("historyMessage"); const meta = document.getElementById("historyMeta");
   mensaje.hidden = false; mensaje.textContent = "Cargando histórico disponible…";
   try {
@@ -445,7 +437,7 @@ async function cargarHistorico(periodo = "hours=24") {
     if (!respuesta.ok) throw new Error(`Históricos respondió ${respuesta.status}`);
     const cuerpo = await respuesta.json();
     if (!cuerpo.ok || !Array.isArray(cuerpo.data)) throw new Error("Respuesta histórica inválida");
-    mostrarGraficoHistorico(cuerpo.data, periodo);
+    mostrarGraficoHistorico(cuerpo.data);
     meta.textContent = cuerpo.data.length ? `Fuente: registros permanentes de Meteo Ituzaingó · inicio disponible: ${formatoHistorico(cuerpo.data[0].observedAt, true)}.` : "Fuente: registros permanentes de Meteo Ituzaingó.";
   } catch (error) {
     console.error("No se pudo cargar el histórico:", error);
@@ -455,7 +447,6 @@ async function cargarHistorico(periodo = "hours=24") {
 }
 
 function iniciarHistoricos() {
-  document.querySelectorAll(".history-period").forEach(function (boton) { boton.addEventListener("click", function () { cargarHistorico(boton.dataset.historyPeriod); }); });
   cargarHistorico();
 }
 

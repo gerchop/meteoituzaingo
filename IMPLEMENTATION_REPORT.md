@@ -1,66 +1,63 @@
-# Informe de implementación v1.1
+# Informe de implementación v1.2
 
 ## Resultado
 
-Se implementó y probó el flujo real de históricos permanentes:
+v1.2 amplía los históricos permanentes de v1.1 sin cambiar las fuentes de observación actuales ni la infraestructura existente:
 
 ```text
-Weather.com PWS → Cloudflare Worker → Cloudflare D1 → API JSON → Dashboard
+Weather.com PWS → Cloudflare Worker → Cloudflare D1 → API JSON → Dashboard / históricos
 ```
 
-Las condiciones actuales del dashboard permanecen independientes de D1. Meteored, radar ClimaSurGBA, satélite CONAE, tendencias locales y el diseño v1.0 se conservaron.
+El dashboard conserva su diseño y muestra solamente la vista compacta de temperatura de 24 horas. La exploración avanzada se trasladó a `historicos.html`.
 
-## Recursos Cloudflare
+## Recursos Cloudflare conservados
 
 - Worker: `meteoituzaingo-history`.
-- URL API: `https://meteoituzaingo-history.meteoituzaingo.workers.dev`.
+- URL: `https://meteoituzaingo-history.meteoituzaingo.workers.dev`.
 - D1: `meteoituzaingo-history`.
-- Database ID: `7cec06bd-da5d-4f6d-b04a-10df0e995579`.
 - Binding: `HISTORY_DB`.
-- Cron: `*/10 * * * *` (cada 10 minutos).
-- Migración: `cloudflare/migrations/0001_create_weather_observations.sql`.
+- Cron: `*/10 * * * *`.
+- No se creó ni recreó ninguna base, Worker, secreto o tarea programada.
 
-## Backend implementado
+El Worker fue desplegado con la versión `36dd1781-a0c7-4cac-a753-176a28a84bd6`.
 
-- `captureWeatherObservation()` consulta Weather.com con `WEATHER_API_KEY`, normaliza exclusivamente los campos necesarios y los inserta en D1.
-- Tabla `weather_observations` con `observed_at` UTC, `created_at` UTC, campos métricos, `UNIQUE(observed_at)` e índice `idx_weather_observations_observed_at`.
-- Inserción `INSERT OR IGNORE` para capturas idempotentes.
-- Endpoints públicos: `/api/current`, `/api/history?hours=24`, `/api/history?days=7`, `/api/history?days=30`, `/api/stats/today` y `/api/stats/daily?date=YYYY-MM-DD`.
-- Períodos de 7/30 días agregados por hora; 24 horas devuelve muestras disponibles ordenadas ascendentemente.
-- `POST /api/admin/capture` existe protegido mediante `ADMIN_TOKEN`; no se utilizó ni expuso el token durante las pruebas.
-- CORS responde exclusivamente a orígenes configurados. GitHub Pages está autorizado por defecto; Blogger directo se configura con su origen HTTPS exacto.
+## Backend
 
-## Secretos
-
-`WEATHER_API_KEY` y `ADMIN_TOKEN` fueron cargados como Cloudflare Worker Secrets. No hay valores, tokens, `.env` ni `.dev.vars` en Git. La estación se configura con `WEATHER_STATION_ID=IITUZAIN9`.
+- Se añadió `GET /api/history/info`, que devuelve la primera y última observación disponibles y el total de registros. No consulta Weather.com ni modifica D1.
+- `GET /api/history?hours=24` mantiene las muestras disponibles; los períodos de 7 y 30 días mantienen la agregación horaria existente.
+- La API conserva CORS restringido a los orígenes configurados y no expone secretos.
 
 ## Frontend
 
-- Nueva sección «Temperatura registrada» con Chart.js, datos de D1 y selector 24 horas / 7 días / 30 días.
-- Horas convertidas a `America/Argentina/Buenos_Aires`, tooltip con fecha, hora y temperatura.
-- Si aún hay pocos datos se grafica sólo lo disponible; si la API falla se muestra «Históricos temporalmente no disponibles» sin romper el resto del sitio.
-- La URL se centraliza en `HISTORY_API_BASE_URL`; el histórico sólo se solicita al abrir o cambiar el período, nunca en el intervalo de actualización de Weather.com.
+- `historicos.html` ofrece períodos de 24 horas, 7 días y 30 días con gráficos de temperatura, humedad, presión, viento y ráfagas, e intensidad de precipitación.
+- Cada período realiza una sola solicitud de datos y se reutiliza para todos los gráficos. La respuesta se mantiene en caché de memoria durante diez minutos.
+- `js/history-config.js` centraliza la URL del Worker y los colores compartidos para no duplicar configuración entre la home y la página avanzada.
+- Los tooltips muestran fecha y hora en `America/Argentina/Buenos_Aires`; incluyen dirección del viento cuando el registro la contiene.
+- El resumen del período informa máxima y mínima, humedad máxima, ráfaga máxima, lluvia y variación de presión sólo cuando existen datos suficientes.
+- La lluvia se calcula mediante diferencias entre lecturas consecutivas de `precip_total`; no se suman valores acumulados repetidos.
+- Si no hay registros o la API falla, se vacían los gráficos y se muestra un estado controlado sin afectar el resto del sitio.
 
-## Pruebas reales realizadas
+## Datos y pruebas reales
+
+Al verificar el despliegue, D1 contenía 128 observaciones reales, desde `2026-08-19T19:39:27.000Z` hasta `2026-08-20T16:50:13.000Z`.
 
 | Prueba | Resultado |
 | --- | --- |
-| `wrangler whoami` | Cuenta autenticada confirmada antes de crear recursos. |
-| D1 y migración | D1 creada una única vez; tabla, `UNIQUE` e índice verificados remotamente. |
-| Cron / captura | El cron almacenó una observación real: `2026-08-19T19:39:27.000Z`, temperatura 17,2 °C, humedad 52 %, presión 1012,63 hPa. |
-| Duplicado | Reintento de insertar la misma observación real dejó el total en una fila. |
-| API | `current`, `history` 24 h, 7 d y 30 d, estadísticas actuales/diarias respondieron `200` con datos D1 reales. |
-| Validación | `/api/history?hours=999` respondió `400` controlado. |
-| CORS | La petición desde `https://gerchop.github.io` recibió el origen permitido, sin comodín. |
-| Sintaxis | `node --check js/dashboard.js` sin errores. |
+| Despliegue Worker | Correcto, sin modificar cron, D1 ni secretos. |
+| `/api/history/info` | `200`, con conteo y límites temporales reales. |
+| `/api/history?hours=24` | `200`, muestras reales de D1. |
+| `/api/history?days=7` y `days=30` | `200`, agregación horaria real. |
+| CORS desde GitHub Pages | Origen `https://gerchop.github.io` autorizado, sin comodín. |
+| Sintaxis | `node --check` para Worker y scripts de históricos, sin errores. |
+| Integridad de cambios | `git diff --check`, sin errores. |
 
-## Costos, retención y límites
+## Responsive y Blogger
 
-La arquitectura usa Workers Free + D1 Free. Con 144 capturas/día hay hasta 52.560 filas/año, muy por debajo de las cuotas iniciales documentadas en `CLOUDFLARE_COSTS.md`. No se habilitó facturación ni plan pago. v1.1 conserva datos; la futura retención combinará crudo reciente y agregados sin implementarla todavía.
+Los paneles usan una columna en teléfono y dos en tablet/escritorio, con altura de gráfico reducida en pantallas pequeñas. La integración prevista con Blogger está detallada en `BLOGGER_INTEGRATION.md`; si se usa un iframe desde GitHub Pages no cambia CORS. Si se publica JavaScript directamente en Blogger, debe añadirse su origen HTTPS exacto y redesplegar el Worker.
 
-## Limitaciones y recomendaciones v1.2
+## Limitaciones y siguiente versión
 
-- La base recién comenzó: el gráfico mostrará sólo el período realmente capturado.
-- Verificar visualmente el gráfico tras publicar GitHub Pages y al embeberlo en Blogger en 360, 390, 430 px, tablet y escritorio.
-- Añadir los gráficos de humedad, presión, viento y precipitación después de acumular datos suficientes.
-- Revisar cuotas de Cloudflare antes de aumentar frecuencia, tráfico o retención, y confirmar las licencias de las fuentes visuales antes de monetizar.
+- El historial comenzó recientemente: 7 y 30 días mostrarán sólo registros capturados realmente; no se fabrican datos faltantes.
+- La dirección del viento no está incluida en las agregaciones horarias largas, por lo que el tooltip la presenta únicamente en registros que la incluyen.
+- La precipitación se representa como intensidad; el acumulado requiere al menos dos lecturas de `precip_total` válidas.
+- Antes de v1.3 conviene validar visualmente la página publicada en 360, 390 y 430 px, tablet y escritorio, una vez que GitHub Pages reciba este commit.

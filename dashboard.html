@@ -93,9 +93,8 @@
 
     <section class="forecast-section historical-section" aria-labelledby="history-title">
       <div class="section-heading"><div><p class="eyebrow">Histórico permanente</p><h2 id="history-title">Temperatura registrada</h2></div></div>
-      <div class="history-controls" role="group" aria-label="Período del histórico"><button type="button" class="history-period is-active" data-history-period="hours=24" aria-pressed="true">24 horas</button><button type="button" class="history-period" data-history-period="days=7" aria-pressed="false">7 días</button><button type="button" class="history-period" data-history-period="days=30" aria-pressed="false">30 días</button></div>
       <div class="history-chart-wrap"><canvas id="historyChart" aria-label="Gráfico de temperatura histórica" role="img"></canvas><p id="historyMessage" class="forecast-message">Cargando histórico disponible…</p></div>
-      <p id="historyMeta" class="media-meta">Fuente: registros permanentes de Meteo Ituzaingó.</p>
+      <p id="historyMeta" class="media-meta">Fuente: registros permanentes de Meteo Ituzaingó.</p><a class="history-link" href="historicos.html">Ver todos los históricos <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
     </section>
 
     <section class="forecast-section" aria-labelledby="hourly-title">
@@ -127,6 +126,7 @@
       <p class="media-attribution">Fuente: CONAE — Comisión Nacional de Actividades Espaciales.</p>
     </section>
   </main>
+  <script src="js/history-config.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
   <script src="js/dashboard.js" defer></script>
 </body>
