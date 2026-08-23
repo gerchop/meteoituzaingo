@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.3.4 - 2026-08-23
+
+- Se corrigió el parser temporal del pronóstico horario Meteored y se restauró la visualización de franjas futuras.
+- La selección utiliza el epoch real de `end` en milisegundos, ordena las horas válidas y conserva hasta 12 futuras, incluido el cruce de medianoche.
+- Se mantuvieron cache, expiración y consumo de Meteored sin peticiones adicionales del cambio.
+
 ## v1.3.3 - 2026-08-23
 
 - Se corrigió la selección del pronóstico horario: «Próximas horas» muestra hasta 12 franjas futuras según el instante actual de Ituzaingó.

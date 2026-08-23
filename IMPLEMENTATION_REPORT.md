@@ -1,3 +1,22 @@
+# Informe de implementación v1.3.4
+
+## Corrección del parser horario Meteored
+
+La inspección técnica de una única respuesta horaria real confirmó 24 franjas en `data.hours`. Cada objeto contiene el campo temporal `end` como epoch Unix en milisegundos, no como ISO: ejemplo saneado, `{ end: 1787457600000, symbol: …, temperature: … }`. La primera corrección v1.3.3 aplicaba `Date.parse(horaData.end)`; al ser numérico, el resultado era inválido y las 24 franjas quedaban excluidas.
+
+Se agregó `timestampMeteored()`: reconoce explícitamente epoch de milisegundos (13 dígitos), convierte epoch de segundos sólo cuando corresponde y acepta cadenas temporales inequívocas como respaldo. `renderizarHorario()` normaliza, elimina timestamps inválidos, ordena, filtra `timestamp > Date.now()` y finalmente ejecuta `slice(0, 12)`. La comparación usa instantes absolutos; la presentación se mantiene en `America/Argentina/Buenos_Aires` y formato 24 h.
+
+Si la respuesta tuviera horas pero ninguna fecha interpretable, el mensaje ahora indica un problema de interpretación, no una ausencia ficticia de futuro. Se conserva el recálculo local al iniciar la hora y no se modifica `obtenerPronosticoMeteored()`, su cache, expiración, endpoint ni API key.
+
+## Pruebas
+
+- Respuesta real inspeccionada: 24 horas, `end` numérico en milisegundos; no se registraron secretos ni se añadieron sondeos al flujo de la página.
+- Casos deterministas para 00:20, 06:30, 12:10, 17:19 y 22:30 verifican normalización, filtro futuro, límite de 12 y cruce de medianoche.
+- `node --check`, `git diff --check` y publicación de GitHub Pages verificados.
+- Solicitudes Meteored adicionales introducidas por la corrección: 0; la inspección técnica se limitó a las dos lecturas necesarias para identificar la forma real tras un error de formateo local.
+
+---
+
 # Informe de implementación v1.3.3
 
 ## Corrección de «Próximas horas»

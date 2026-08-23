@@ -267,12 +267,22 @@ function fechaMeteored(timestamp, opciones) {
   return new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", ...opciones, hour12: false }).format(new Date(timestamp));
 }
 
+/** Meteored entrega `end` como epoch en milisegundos; se normaliza sin depender de la zona del navegador. */
+function timestampMeteored(value) {
+  const numeric = typeof value === "number" ? value : typeof value === "string" && /^\d+$/.test(value) ? Number(value) : NaN;
+  if (Number.isFinite(numeric)) return numeric < 100000000000 ? numeric * 1000 : numeric;
+  const parsed = typeof value === "string" ? Date.parse(value) : NaN;
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
 /** Renderiza las siguientes 12 horas usando exclusivamente la respuesta real de Meteored. */
 function renderizarHorario(data) {
   const contenedor = document.getElementById("hourlyForecast"); const horas = data.hours || [];
   hourlyForecastData = data;
   const ahora = Date.now();
-  const futuras = horas.map(function (horaData) { return { horaData: horaData, timestamp: Date.parse(horaData.end) }; }).filter(function (item) { return Number.isFinite(item.timestamp) && item.timestamp > ahora; }).sort(function (a, b) { return a.timestamp - b.timestamp; }).slice(0, 12);
+  const normalizadas = horas.map(function (horaData) { return { horaData: horaData, timestamp: timestampMeteored(horaData.end) }; });
+  const validas = normalizadas.filter(function (item) { return Number.isFinite(item.timestamp); });
+  const futuras = validas.filter(function (item) { return item.timestamp > ahora; }).sort(function (a, b) { return a.timestamp - b.timestamp; }).slice(0, 12);
   contenedor.innerHTML = "";
   futuras.forEach(function (item) {
     const horaData = item.horaData;
@@ -281,7 +291,7 @@ function renderizarHorario(data) {
     tarjeta.innerHTML = `<time datetime="${new Date(horaData.end).toISOString()}">${hora}</time><i class="fa-solid ${iconoMeteored(horaData.symbol)}" aria-hidden="true"></i><strong>${grados(horaData.temperature)}</strong><span class="hour-feels">Sensación ${grados(horaData.temperature_feels_like)}</span><span class="hour-details"><span><i class="fa-solid fa-droplet" aria-hidden="true"></i>${textoPorDefecto(horaData.rain_probability, "%")}</span><span><i class="fa-solid fa-water" aria-hidden="true"></i>${textoPorDefecto(horaData.humidity, "%")}</span><span><i class="fa-solid fa-wind" aria-hidden="true"></i>${textoPorDefecto(horaData.wind_speed, " km/h")} ${horaData.wind_direction || ""}</span></span>`;
     contenedor.appendChild(tarjeta);
   });
-  if (!futuras.length) { mensajePronostico("hourlyForecast", horas.length ? "Meteored no devolvió franjas horarias futuras disponibles." : "Meteored no devolvió horas de pronóstico para esta ubicación."); fuentePronostico("hourlySource", false); } else { fuentePronostico("hourlySource", true); document.getElementById("hourlySource").textContent = "Fuente: Meteored"; }
+  if (!futuras.length) { mensajePronostico("hourlyForecast", !horas.length ? "Meteored no devolvió horas de pronóstico para esta ubicación." : !validas.length ? "No fue posible interpretar temporalmente el pronóstico horario." : "Meteored no devolvió franjas horarias futuras disponibles."); fuentePronostico("hourlySource", false); } else { fuentePronostico("hourlySource", true); document.getElementById("hourlySource").textContent = "Fuente: Meteored"; }
   window.clearTimeout(hourlyForecastTimer);
   const siguienteHora = 3600000 - (Date.now() % 3600000) + 1000;
   hourlyForecastTimer = window.setTimeout(function () { if (hourlyForecastData) renderizarHorario(hourlyForecastData); }, siguienteHora);
