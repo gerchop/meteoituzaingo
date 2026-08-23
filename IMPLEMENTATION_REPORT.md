@@ -1,3 +1,24 @@
+# Informe de implementación v1.3.1
+
+## Corrección de exportación CSV
+
+La interfaz v1.3 almacenaba los valores del selector de gráficos como `hours=24`, `days=7` y `days=30`. Esos valores son correctos para `/api/history`, pero `/api/export.csv` valida exclusivamente `24h`, `7d` y `30d`; por eso el backend respondía correctamente `400` y el enlace directo reemplazaba `historicos.html` por su JSON de error.
+
+`js/history.js` ahora conserva una única variable `activePeriod` con los únicos valores válidos para exportación, y un `customDate` separado para la consulta por fecha. El mapeo explícito `PERIODS` traduce esos valores hacia el formato que necesita sólo el endpoint de gráficos.
+
+El enlace se sustituyó por un botón. Su descarga usa `fetch`, verifica `response.ok` y `Content-Type: text/csv`, crea un `Blob` temporal y descarga nombres como `meteoituzaingo_7d_YYYY-MM-DD.csv`; en fecha personalizada usa `meteoituzaingo_YYYY-MM-DD.csv`. Durante la solicitud queda deshabilitado y muestra un estado localizado. Ante un fallo registra el detalle en consola sin abandonar la página.
+
+No se modificaron Worker, D1, cron, captura, endpoints, gráficos ni fuentes meteorológicas.
+
+## Pruebas
+
+- Validación estática: los únicos valores de botones son `24h`, `7d` y `30d`; los gráficos siguen solicitando `hours=24`, `days=7` o `days=30` mediante el mapeo explícito.
+- `node --check` y `git diff --check` sin errores.
+- `/api/export.csv?period=24h`, `7d`, `30d` y una fecha registrada devuelven CSV UTF-8; un período inválido mantiene el rechazo `400` del backend.
+- Tras publicar, se comprobará que GitHub Pages entrega el script con descarga controlada.
+
+---
+
 # Informe de implementación v1.3
 
 ## Resultado

@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.3.1 - 2026-08-23
+
+- Se corrigió el mapeo entre los períodos visuales y los parámetros válidos de exportación CSV (`24h`, `7d`, `30d`).
+- La exportación CSV ahora se descarga de forma controlada sin abandonar la página de Históricos, con estado de carga y manejo de errores.
+- Se corrigió la exportación de 24 horas, 7 días, 30 días y fecha personalizada.
+
 ## v1.3 - 2026-08-23
 
 - Se añadieron comparativas de 24 h, 7 días y 30 días contra el período anterior equivalente, calculadas en Cloudflare D1.
