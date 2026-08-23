@@ -1,3 +1,22 @@
+# Informe de implementación v1.3.3
+
+## Corrección de «Próximas horas»
+
+La implementación anterior renderizaba `data.hours.slice(0, 12)`. Aunque `end` ya era el campo real de fecha/hora de Meteored utilizado para la tarjeta, ese recorte fijo podía mostrar horas pasadas al avanzar el día.
+
+`renderizarHorario()` ahora convierte cada `end` con `Date.parse`, descarta timestamps no válidos o anteriores al instante actual, ordena las franjas futuras y recién entonces conserva hasta doce. `fechaMeteored()` mantiene la presentación explícita en `America/Argentina/Buenos_Aires` y formato de 24 horas. Al ser timestamps absolutos, la comparación no depende de la zona del navegador y atraviesa medianoche sin offset manual.
+
+La respuesta horaria recibida se conserva sólo en memoria. Un temporizador local vuelve a renderizar al inicio de cada hora con esa misma respuesta; no consulta Meteored, no altera su caché, expiración, endpoint, clave ni consumo de API. El pronóstico extendido no se modificó.
+
+## Pruebas
+
+- Sintaxis de `dashboard.js` y `git diff --check`, sin errores.
+- Se verificó que el filtrado se realiza antes de `slice(0, 12)` y que no quedan selecciones de horas por índice fijo.
+- Escenarios de tarde, medianoche, madrugada y mediodía se cubren por comparación de timestamps futuros; si hay menos de 12, se muestran sólo los disponibles.
+- El cambio no crea solicitudes Meteored nuevas: sólo usa la respuesta ya cacheada por `obtenerPronosticoMeteored()`.
+
+---
+
 # Informe de implementación v1.3.2
 
 ## Corrección de timezone CSV

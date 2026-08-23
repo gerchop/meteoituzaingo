@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.3.3 - 2026-08-23
+
+- Se corrigió la selección del pronóstico horario: «Próximas horas» muestra hasta 12 franjas futuras según el instante actual de Ituzaingó.
+- El filtrado usa el timestamp `end` real de Meteored, atraviesa correctamente la medianoche y mantiene el formato de 24 horas.
+- La lista se recalcula localmente al comenzar una nueva hora usando el pronóstico cacheado, sin solicitudes Meteored adicionales.
+
 ## v1.3.2 - 2026-08-23
 
 - Se corrigió la conversión UTC → `America/Argentina/Buenos_Aires` en las exportaciones CSV.
