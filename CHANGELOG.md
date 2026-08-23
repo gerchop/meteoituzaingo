@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.3.2 - 2026-08-23
+
+- Se corrigió la conversión UTC → `America/Argentina/Buenos_Aires` en las exportaciones CSV.
+- Las exportaciones de 24 h, 7 d y 30 d ahora muestran fecha y hora local argentina en formato de 24 horas.
+- Las exportaciones y consultas por fecha respetan exactamente el día calendario argentino mediante un rango UTC semiabierto.
+
 ## v1.3.1 - 2026-08-23
 
 - Se corrigió el mapeo entre los períodos visuales y los parámetros válidos de exportación CSV (`24h`, `7d`, `30d`).

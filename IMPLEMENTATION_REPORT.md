@@ -1,3 +1,23 @@
+# Informe de implementación v1.3.2
+
+## Corrección de timezone CSV
+
+D1 conserva `observed_at` en UTC. El problema era doble: el CSV escribía ese valor directamente, por lo que sus horas aparecían tres horas adelantadas, y los límites de fecha usaban un offset fijo en lugar de una conversión centralizada de zona horaria.
+
+`cloudflare/src/index.js` ahora centraliza `argentinaDateToUtcRange(date)`. Interpreta una fecha como medianoche de `America/Argentina/Buenos_Aires`, calcula el rango semiabierto `[inicio, fin)` en UTC y lo entrega a las consultas parametrizadas. Por ejemplo, `2026-08-21` se consulta entre `2026-08-21T03:00:00.000Z` y `2026-08-22T03:00:00.000Z`.
+
+El mismo módulo usa `formatArgentinaDateTime(timestamp)` antes de escribir cada fila CSV. Así, una observación almacenada como `2026-08-21T17:00:00Z` se exporta como `21/08/2026 14:00`. Los períodos móviles 24 h, 7 d y 30 d mantienen su rango real en UTC, pero presentan cada instante en hora Argentina.
+
+No se modificaron registros, tablas, índices, cron, frecuencia ni frontend de gráficos.
+
+## Pruebas
+
+- Sintaxis del Worker y `git diff --check` sin errores.
+- Exportaciones CSV 24 h, 7 d, 30 d y fecha personalizada verificadas contra el Worker publicado.
+- Se comprobaron los límites `[03:00Z, 03:00Z siguiente)` para la fecha argentina y que todas las filas exportadas pertenecen a la fecha local solicitada.
+
+---
+
 # Informe de implementación v1.3.1
 
 ## Corrección de exportación CSV

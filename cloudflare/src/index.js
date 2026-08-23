@@ -2,17 +2,22 @@ import { corsHeaders, jsonResponse } from "./cors.js";
 import { insertObservation, serializeObservation } from "./database.js";
 import { fetchWeatherObservation } from "./weather.js";
 
-const ARGENTINA_OFFSET = "-03:00";
+const ARGENTINA_TIME_ZONE = "America/Argentina/Buenos_Aires";
 const HISTORY_LIMITS = { hours: [24], days: [7, 30] };
 const COMPARE_PERIODS = { "24h": 86400000, "7d": 604800000, "30d": 2592000000 };
 const CSV_HEADER = ["fecha_hora", "temperatura_c", "sensacion_c", "humedad_pct", "presion_hpa", "viento_kmh", "rafaga_kmh", "direccion", "direccion_grados", "precipitacion_mm_h", "precipitacion_total_mm", "punto_rocio_c"];
 
 function badRequest(request, env, message) { return jsonResponse(request, env, { ok: false, error: message }, 400); }
-function argentinaDate(now = new Date()) { return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format(now); }
-function utcStartForArgentinaDate(date) { return new Date(`${date}T00:00:00${ARGENTINA_OFFSET}`).toISOString(); }
-function isValidArgentinaDate(date) { return /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(`${date}T00:00:00${ARGENTINA_OFFSET}`)); }
+function dateParts(value) { return Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: ARGENTINA_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(value).filter((part) => part.type !== "literal").map((part) => [part.type, part.value])); }
+function argentinaDate(now = new Date()) { const parts = dateParts(now); return `${parts.year}-${parts.month}-${parts.day}`; }
+function parsedDate(date) { const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date); if (!match) return null; const [year, month, day] = match.slice(1).map(Number); const probe = new Date(Date.UTC(year, month - 1, day)); return probe.getUTCFullYear() === year && probe.getUTCMonth() === month - 1 && probe.getUTCDate() === day ? { year, month, day } : null; }
+function localMidnightToUtc(date) { const parsed = parsedDate(date); if (!parsed) return null; const candidate = new Date(Date.UTC(parsed.year, parsed.month - 1, parsed.day)); const local = dateParts(candidate); const localAsUtc = Date.UTC(Number(local.year), Number(local.month) - 1, Number(local.day), Number(local.hour), Number(local.minute)); return new Date(candidate.getTime() - (localAsUtc - candidate.getTime())).toISOString(); }
+function nextDate(date) { const parsed = parsedDate(date); return new Date(Date.UTC(parsed.year, parsed.month - 1, parsed.day + 1)).toISOString().slice(0, 10); }
+function argentinaDateToUtcRange(date) { return { start: localMidnightToUtc(date), end: localMidnightToUtc(nextDate(date)) }; }
+function formatArgentinaDateTime(timestamp) { const parts = dateParts(new Date(timestamp)); return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute}`; }
+function isValidArgentinaDate(date) { return parsedDate(date) !== null; }
 function validPastDate(date) { return isValidArgentinaDate(date) && date <= argentinaDate(); }
-function dayRange(date) { const start = utcStartForArgentinaDate(date); return { start, end: new Date(Date.parse(start) + 86400000).toISOString() }; }
+function dayRange(date) { return argentinaDateToUtcRange(date); }
 function parseHistoryRange(url) {
   const hours = url.searchParams.get("hours"); const days = url.searchParams.get("days");
   if ((hours && days) || (!hours && !days)) return null;
@@ -100,7 +105,7 @@ async function exportCsv(request, env, url) {
   if (date !== null) { if (!validPastDate(date)) return badRequest(request, env, "La fecha debe ser YYYY-MM-DD y no puede ser futura."); range = dayRange(date); }
   else { range = rangeFromPeriod(period); if (!range) return badRequest(request, env, "El período debe ser 24h, 7d o 30d."); }
   const rows = await rawRows(env.HISTORY_DB, range.start, range.end);
-  const csv = `\uFEFF${CSV_HEADER.join(";")}\r\n${rows.map((row) => [row.observed_at, row.temperature, row.feels_like, row.humidity, row.pressure, row.wind_speed, row.wind_gust, row.wind_direction, row.wind_direction_degrees, row.precip_rate, row.precip_total, row.dew_point].map(csvValue).join(";")).join("\r\n")}\r\n`;
+  const csv = `\uFEFF${CSV_HEADER.join(";")}\r\n${rows.map((row) => [formatArgentinaDateTime(row.observed_at), row.temperature, row.feels_like, row.humidity, row.pressure, row.wind_speed, row.wind_gust, row.wind_direction, row.wind_direction_degrees, row.precip_rate, row.precip_total, row.dew_point].map(csvValue).join(";")).join("\r\n")}\r\n`;
   const headers = corsHeaders(request, env); headers.set("Content-Type", "text/csv; charset=utf-8"); headers.set("Content-Disposition", `attachment; filename="meteo-ituzaingo-${date || period}.csv"`); headers.set("Cache-Control", "no-store");
   return new Response(csv, { headers });
 }

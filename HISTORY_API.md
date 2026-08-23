@@ -2,7 +2,7 @@
 
 Base: `https://meteoituzaingo-history.meteoituzaingo.workers.dev`
 
-Las observaciones se almacenan en UTC y las consultas diarias usan `America/Argentina/Buenos_Aires` (UTC-03:00). Los endpoints son públicos, de sólo lectura y no requieren secretos.
+Las observaciones se almacenan en UTC. Las consultas diarias, la presentación y la columna `fecha_hora` del CSV usan explícitamente `America/Argentina/Buenos_Aires`; los límites diarios se convierten a UTC con un intervalo semiabierto `[inicio, fin)`. Los endpoints son públicos, de sólo lectura y no requieren secretos.
 
 | Endpoint | Parámetros válidos | Resultado |
 | --- | --- | --- |
