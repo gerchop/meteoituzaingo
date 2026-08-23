@@ -3,35 +3,27 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="Históricos meteorológicos de Meteo Ituzaingó.">
-  <title>Históricos | Meteo Ituzaingó</title>
+  <meta name="description" content="Históricos meteorológicos de Ituzaingó: temperatura, lluvia, viento, humedad y presión registrados por Meteo Ituzaingó.">
+  <title>Históricos meteorológicos de Ituzaingó | Meteo Ituzaingó</title>
   <link rel="preconnect" href="https://cdnjs.cloudflare.com">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
   <link rel="stylesheet" href="css/dashboard.css">
 </head>
 <body>
   <main id="meteo-dashboard" class="history-page">
-    <section class="weather-hero">
-      <div class="hero-topline"><p class="eyebrow"><i class="fa-solid fa-chart-line"></i> Meteo Ituzaingó</p><a class="back-link" href="dashboard.html"><i class="fa-solid fa-arrow-left"></i> Volver al tiempo actual</a></div>
-      <div class="history-hero"><h1>Históricos meteorológicos</h1><p>Datos registrados por la estación IITUZAIN9</p></div>
-    </section>
+    <section class="weather-hero"><div class="hero-topline"><p class="eyebrow"><i class="fa-solid fa-chart-line"></i> Meteo Ituzaingó</p><a class="back-link" href="dashboard.html"><i class="fa-solid fa-arrow-left"></i> Volver al tiempo actual</a></div><div class="history-hero"><h1>Históricos meteorológicos</h1><p>Datos registrados por la estación IITUZAIN9</p></div></section>
     <section class="conditions">
       <div class="section-heading"><div><p class="eyebrow">Período</p><h2 id="periodTitle">Últimas 24 horas</h2></div></div>
-      <div id="historyPeriods" class="history-controls" role="group" aria-label="Seleccionar período"><button class="history-period is-active" data-period="hours=24" aria-pressed="true">24 horas</button><button class="history-period" data-period="days=7" aria-pressed="false">7 días</button><button class="history-period" data-period="days=30" aria-pressed="false">30 días</button></div>
-      <p id="historyStatus" class="history-status">Cargando históricos…</p><div id="periodSummary" class="summary-grid" hidden></div><p id="historyStart" class="local-data-note"></p>
+      <div class="history-controls" role="group" aria-label="Seleccionar período"><button class="history-period is-active" data-period="hours=24" aria-pressed="true">24 horas</button><button class="history-period" data-period="days=7" aria-pressed="false">7 días</button><button class="history-period" data-period="days=30" aria-pressed="false">30 días</button></div>
+      <div class="history-date-controls"><label for="historyDate">Consultar fecha <input id="historyDate" type="date"></label><button id="resetHistory" class="media-refresh" type="button" hidden>Volver a últimas 24 h</button><a id="exportCsv" class="media-refresh" download><i class="fa-solid fa-download" aria-hidden="true"></i> Exportar CSV</a></div>
+      <p id="historyStatus" class="history-status" role="status">Cargando históricos…</p><div id="periodSummary" class="summary-grid" hidden></div>
     </section>
-    <section class="history-panels">
-      <article class="history-panel"><h2>Temperatura</h2><div><canvas id="temperatureChart" aria-label="Gráfico histórico de temperatura"></canvas></div></article>
-      <article class="history-panel"><h2>Humedad</h2><div><canvas id="humidityChart" aria-label="Gráfico histórico de humedad"></canvas></div></article>
-      <article class="history-panel"><h2>Presión atmosférica</h2><div><canvas id="pressureChart" aria-label="Gráfico histórico de presión"></canvas></div></article>
-      <article class="history-panel"><h2>Viento y ráfagas</h2><div><canvas id="windChart" aria-label="Gráfico histórico de viento y ráfagas"></canvas></div></article>
-      <article class="history-panel"><h2>Intensidad de precipitación</h2><div><canvas id="rainChart" aria-label="Gráfico histórico de precipitación"></canvas></div></article>
-    </section>
+    <section class="history-analysis" aria-labelledby="today-title"><div class="section-heading"><div><p class="eyebrow">Resumen del día</p><h2 id="today-title">Condiciones registradas hoy</h2></div></div><p id="todayStatus" class="history-status">Cargando resumen diario…</p><div id="todaySummary" class="summary-grid" hidden></div><p id="todayNarrative" class="local-data-note"></p></section>
+    <section class="history-analysis" aria-labelledby="compare-title"><div class="section-heading"><div><p class="eyebrow">Comparativas</p><h2 id="compare-title">Período actual vs. anterior</h2></div></div><p id="compareStatus" class="history-status">Cargando comparativa…</p><div id="comparisonGrid" class="comparison-grid" hidden></div></section>
+    <section class="history-panels" aria-label="Gráficos históricos"><article class="history-panel"><h2>Temperatura</h2><div><canvas id="temperatureChart" aria-label="Gráfico histórico de temperatura"></canvas></div></article><article class="history-panel"><h2>Humedad</h2><div><canvas id="humidityChart" aria-label="Gráfico histórico de humedad"></canvas></div></article><article class="history-panel"><h2>Presión atmosférica</h2><div><canvas id="pressureChart" aria-label="Gráfico histórico de presión"></canvas></div></article><article class="history-panel"><h2>Viento y ráfagas</h2><div><canvas id="windChart" aria-label="Gráfico histórico de viento y ráfagas"></canvas></div></article><article class="history-panel"><h2>Intensidad de precipitación</h2><div><canvas id="rainChart" aria-label="Gráfico histórico de precipitación"></canvas></div></article></section>
+    <section class="history-analysis" aria-labelledby="records-title"><div class="section-heading"><div><p class="eyebrow">Récords del histórico</p><h2 id="records-title">Extremos registrados</h2></div></div><p id="recordsStatus" class="history-status">Cargando récords…</p><div id="recordsGrid" class="records-grid" hidden></div></section>
+    <section class="history-analysis history-quality" aria-labelledby="quality-title"><div class="section-heading"><div><p class="eyebrow">Calidad del histórico</p><h2 id="quality-title">Información disponible</h2></div></div><div id="historyQuality" class="summary-grid" hidden></div></section>
   </main>
-  <script src="js/history-config.js" defer></script>
-  <script src="js/datetime-utils.js" defer></script>
-  <script src="js/history-api.js" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
-  <script src="js/history.js" defer></script>
+  <script src="js/history-config.js" defer></script><script src="js/datetime-utils.js" defer></script><script src="js/history-api.js" defer></script><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script><script src="js/history.js" defer></script>
 </body>
 </html>

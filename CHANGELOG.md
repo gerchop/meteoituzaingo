@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.3 - 2026-08-23
+
+- Se añadieron comparativas de 24 h, 7 días y 30 días contra el período anterior equivalente, calculadas en Cloudflare D1.
+- Se incorporaron resumen diario narrativo y por indicadores, consulta de una fecha real, gráficos actualizables sin recargar y exportación CSV UTF-8 con BOM.
+- Se añadieron récords de temperatura, ráfaga, presión y humedad desde el inicio real de la base D1, junto con información de primera, última y total de observaciones.
+- Se ampliaron los endpoints históricos del Worker existente con validación estricta de períodos y fechas; no se modificaron D1, cron, la captura ni las fuentes meteorológicas.
+
 ## v1.2.1 - 2026-08-20
 
 - Se corrigió la carga de «Temperatura registrada» en Home: ahora solicita explícitamente las últimas 24 horas mediante el mismo cliente de API utilizado por Históricos.

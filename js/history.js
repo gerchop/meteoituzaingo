@@ -5,90 +5,46 @@ const chartCache = new Map();
 const charts = {};
 const CACHE_MS = 600000;
 const labels = { "hours=24": "Últimas 24 horas", "days=7": "Últimos 7 días", "days=30": "Últimos 30 días" };
+let selection = { kind: "period", value: "hours=24" };
 
-function values(data, key) { return data.map(function (item) { return item[key]; }).filter(Number.isFinite); }
-function stat(data, key, kind) {
-  const list = values(data, key);
-  if (!list.length) return null;
-  if (kind === "min") return Math.min(...list);
-  if (kind === "max") return Math.max(...list);
-  return list.reduce(function (total, value) { return total + value; }, 0) / list.length;
+function values(data, key) { return data.map((item) => item[key]).filter(Number.isFinite); }
+function average(list) { return list.length ? list.reduce((total, value) => total + value, 0) / list.length : null; }
+function stat(data, key, kind) { const list = values(data, key); return !list.length ? null : kind === "min" ? Math.min(...list) : kind === "max" ? Math.max(...list) : average(list); }
+function format(value, unit) { return Number.isFinite(value) ? `${value.toFixed(1)} ${unit}` : "Sin datos"; }
+function destroyCharts() { Object.values(charts).forEach((instance) => instance.destroy()); Object.keys(charts).forEach((key) => delete charts[key]); }
+function directionLabel(data) { return !data.windDirection ? "" : `Dirección: ${data.windDirection}${Number.isFinite(data.windDirectionDegrees) ? ` (${Math.round(data.windDirectionDegrees)}°)` : ""}`; }
+function chart(id, data, datasets, type, includeDirection, isDaily) {
+  charts[id] = new window.Chart(document.getElementById(id), { type, data: { labels: data.map((item) => isDaily ? DateTime.formatTime(item.observedAt) : DateTime.formatShortDateTime(item.observedAt)), datasets }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false }, plugins: { legend: { display: datasets.length > 1 }, tooltip: { callbacks: { title: (context) => DateTime.formatDateTime(data[context[0].dataIndex].observedAt), afterBody: includeDirection ? (context) => directionLabel(data[context[0].dataIndex]) : undefined } } }, scales: { x: { ticks: { maxTicksLimit: 6, color: History.COLORS.muted }, grid: { display: false } }, y: { ticks: { color: History.COLORS.muted }, grid: { color: "rgba(97,115,129,.12)" } } } } });
 }
-function destroyCharts() { Object.values(charts).forEach(function (chartInstance) { chartInstance.destroy(); }); Object.keys(charts).forEach(function (key) { delete charts[key]; }); }
-function directionLabel(data) {
-  if (!data.windDirection) return "";
-  return Number.isFinite(data.windDirectionDegrees) ? `Dirección: ${data.windDirection} (${Math.round(data.windDirectionDegrees)}°)` : `Dirección: ${data.windDirection}`;
-}
-function chart(id, data, datasets, type, includeDirection, period) {
-  const canvas = document.getElementById(id);
-  charts[id] = new window.Chart(canvas, {
-    type,
-    data: { labels: data.map(function (item) { return period === "hours=24" ? DateTime.formatTime(item.observedAt) : DateTime.formatShortDateTime(item.observedAt); }), datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
-      plugins: {
-        legend: { display: datasets.length > 1 },
-        tooltip: { callbacks: {
-          title: function (context) { return DateTime.formatDateTime(data[context[0].dataIndex].observedAt); },
-          afterBody: includeDirection ? function (context) { return directionLabel(data[context[0].dataIndex]); } : undefined
-        } }
-      },
-      scales: { x: { ticks: { maxTicksLimit: 6, color: History.COLORS.muted }, grid: { display: false } }, y: { ticks: { color: History.COLORS.muted }, grid: { color: "rgba(97,115,129,.12)" } } }
-    }
-  });
-}
-function series(label, key, color, fill) {
-  return { label, data: [], borderColor: color, backgroundColor: fill ? "rgba(25,118,185,.12)" : color, borderWidth: 2, pointRadius: 0, tension: 0.25, fill: Boolean(fill), key };
-}
-function render(data, period) {
+function series(label, key, color, fill = false) { return { label, key, data: [], borderColor: color, backgroundColor: fill ? "rgba(25,118,185,.12)" : color, borderWidth: 2, pointRadius: 0, tension: .25, fill }; }
+function render(data) {
   destroyCharts();
-  const temperature = series("Temperatura °C", "temperature", History.COLORS.blue, true);
-  const humidity = series("Humedad %", "humidity", History.COLORS.blue);
-  const pressure = series("Presión hPa", "pressure", History.COLORS.navy);
-  const wind = series("Viento km/h", "windSpeed", History.COLORS.blue);
-  const gust = series("Ráfagas km/h", "windGust", History.COLORS.gust);
-  const rain = { label: "Intensidad mm/h", data: [], backgroundColor: History.COLORS.rain, borderColor: History.COLORS.rain, key: "precipRate" };
-  [temperature, humidity, pressure, wind, gust, rain].forEach(function (dataset) { dataset.data = data.map(function (item) { return item[dataset.key]; }); delete dataset.key; });
-  chart("temperatureChart", data, [temperature], "line", false, period);
-  chart("humidityChart", data, [humidity], "line", false, period);
-  chart("pressureChart", data, [pressure], "line", false, period);
-  chart("windChart", data, [wind, gust], "line", true, period);
-  chart("rainChart", data, [rain], "bar", false, period);
+  const datasets = [series("Temperatura °C", "temperature", History.COLORS.blue, true), series("Humedad %", "humidity", History.COLORS.blue), series("Presión hPa", "pressure", History.COLORS.navy), series("Viento km/h", "windSpeed", History.COLORS.blue), series("Ráfagas km/h", "windGust", History.COLORS.gust), { label: "Intensidad mm/h", key: "precipRate", data: [], backgroundColor: History.COLORS.rain, borderColor: History.COLORS.rain }];
+  datasets.forEach((dataset) => { dataset.data = data.map((item) => item[dataset.key]); delete dataset.key; });
+  const daily = selection.kind === "date" || selection.value === "hours=24";
+  chart("temperatureChart", data, [datasets[0]], "line", false, daily); chart("humidityChart", data, [datasets[1]], "line", false, daily); chart("pressureChart", data, [datasets[2]], "line", false, daily); chart("windChart", data, [datasets[3], datasets[4]], "line", true, daily); chart("rainChart", data, [datasets[5]], "bar", false, daily);
 }
-function rainTotal(data) {
-  const totals = data.filter(function (item) { return Number.isFinite(item.precipTotal); }).map(function (item) { return item.precipTotal; });
-  if (totals.length < 2) return null;
-  return totals.reduce(function (total, value, index) { return index ? total + (value >= totals[index - 1] ? value - totals[index - 1] : value) : total; }, 0);
+function rainTotal(data) { const totals = values(data, "precipTotal"); return totals.length < 2 ? null : totals.reduce((total, value, index) => index ? total + (value >= totals[index - 1] ? value - totals[index - 1] : value) : total, 0); }
+function setCards(id, cards) { const element = document.getElementById(id); element.innerHTML = cards.map(([label, value]) => `<article><span>${label}</span><strong>${value}</strong></article>`).join(""); element.hidden = !cards.length; }
+function summary(data) { const pressure = values(data, "pressure"); setCards("periodSummary", [["Máxima", format(stat(data, "temperature", "max"), "°C")], ["Mínima", format(stat(data, "temperature", "min"), "°C")], ["Humedad máxima", format(stat(data, "humidity", "max"), "%")], ["Ráfaga máxima", format(stat(data, "windGust", "max"), "km/h")], ["Lluvia", format(rainTotal(data), "mm")], ["Variación presión", pressure.length > 1 ? format(pressure.at(-1) - pressure[0], "hPa") : "Sin datos"]]); }
+function comparisonCards(current, previous) {
+  const metrics = [["Temperatura media", "temperatureAvg", "°C"], ["Temperatura máxima", "temperatureMax", "°C"], ["Temperatura mínima", "temperatureMin", "°C"], ["Humedad media", "humidityAvg", "%"], ["Presión media", "pressureAvg", "hPa"], ["Viento medio", "windAvg", "km/h"], ["Ráfaga máxima", "windGustMax", "km/h"], ["Precipitación", "precipitation", "mm"]];
+  return metrics.filter(([, key]) => Number.isFinite(current[key]) && Number.isFinite(previous[key])).map(([label, key, unit]) => { const delta = current[key] - previous[key]; const icon = delta > 0 ? "fa-arrow-up" : delta < 0 ? "fa-arrow-down" : "fa-minus"; return `<article class="comparison-card"><span>${label}</span><strong>${format(current[key], unit)}</strong><small>Anterior: ${format(previous[key], unit)}</small><span class="comparison-change"><i class="fa-solid ${icon}" aria-hidden="true"></i>${delta >= 0 ? "+" : ""}${delta.toFixed(1)} ${unit}</span></article>`; });
 }
-function summary(data) {
-  const pressure = values(data, "pressure");
-  const items = [["Máxima", stat(data, "temperature", "max"), "°C"], ["Mínima", stat(data, "temperature", "min"), "°C"], ["Humedad máxima", stat(data, "humidity", "max"), "%"], ["Ráfaga máxima", stat(data, "windGust", "max"), "km/h"], ["Lluvia", rainTotal(data), "mm"], ["Variación presión", pressure.length > 1 ? pressure.at(-1) - pressure[0] : null, "hPa"]].filter(function (item) { return item[1] !== null; });
-  const element = document.getElementById("periodSummary");
-  element.innerHTML = items.map(function (item) { return `<article><span>${item[0]}</span><strong>${item[1].toFixed(1)} ${item[2]}</strong></article>`; }).join("");
-  element.hidden = !items.length;
+async function loadComparison() {
+  const status = document.getElementById("compareStatus"); const grid = document.getElementById("comparisonGrid");
+  if (selection.kind !== "period") { status.textContent = "La comparativa está disponible para los períodos predefinidos."; grid.hidden = true; return; }
+  status.textContent = "Cargando comparativa…";
+  try { const period = selection.value === "hours=24" ? "24h" : selection.value === "days=7" ? "7d" : "30d"; const result = await HistoryApi.fetchCompare(period); const cards = result.sufficient ? comparisonCards(result.current, result.previous) : []; grid.innerHTML = cards.join(""); grid.hidden = !cards.length; status.textContent = cards.length ? "" : "Aún no hay datos suficientes para comparar ambos períodos."; } catch (error) { console.error("No se pudo cargar la comparativa:", error); grid.hidden = true; status.textContent = "Comparativa temporalmente no disponible."; }
 }
-async function load(period) {
-  document.getElementById("periodTitle").textContent = labels[period];
-  document.querySelectorAll(".history-period").forEach(function (button) { const active = button.dataset.period === period; button.classList.toggle("is-active", active); button.setAttribute("aria-pressed", String(active)); });
-  const status = document.getElementById("historyStatus");
-  document.getElementById("periodSummary").hidden = true;
-  status.textContent = "Cargando históricos…";
-  try {
-    let cached = chartCache.get(period);
-    if (!cached || Date.now() - cached.time > CACHE_MS) { cached = { time: Date.now(), data: await HistoryApi.fetchHistory(period) }; chartCache.set(period, cached); }
-    if (!cached.data.length) { status.textContent = "Sin datos disponibles para este período."; destroyCharts(); return; }
-    status.textContent = "";
-    render(cached.data, period);
-    summary(cached.data);
-  } catch (error) { console.error("No se pudieron cargar los históricos:", error); status.textContent = "Históricos temporalmente no disponibles."; destroyCharts(); }
-}
-async function info() {
-  try {
-    const data = await HistoryApi.fetchInfo();
-    if (data) document.getElementById("historyStart").textContent = `El histórico permanente comenzó a registrarse el ${DateTime.formatDateTime(data.firstObservation)}.`;
-  } catch (error) { console.error("No se pudo consultar la información del histórico:", error); }
-}
-
-document.querySelectorAll(".history-period").forEach(function (button) { button.addEventListener("click", function () { load(button.dataset.period); }); });
-info();
-load("hours=24");
+function narrative(data) { if (!data) return ""; const rain = Number.isFinite(data.precipitation) && data.precipitation > 0 ? ` Se acumularon ${data.precipitation.toFixed(1)} mm de precipitación.` : ""; return `Durante el día la temperatura osciló entre ${data.temperatureMin.toFixed(1)} °C y ${data.temperatureMax.toFixed(1)} °C. La ráfaga máxima registrada fue de ${data.windGustMax.toFixed(1)} km/h.${rain}`; }
+async function loadToday(date) { const status = document.getElementById("todayStatus"); try { const data = date ? await HistoryApi.fetchDailyStats(date) : await HistoryApi.fetchTodayStats(); document.getElementById("today-title").textContent = date ? `Resumen: ${DateTime.formatDate(`${date}T12:00:00-03:00`)}` : "Condiciones registradas hoy"; if (!data) { status.textContent = "No existen observaciones registradas para esta fecha."; document.getElementById("todaySummary").hidden = true; document.getElementById("todayNarrative").textContent = ""; return; } setCards("todaySummary", [["Temperatura máxima", format(data.temperatureMax, "°C")], ["Temperatura mínima", format(data.temperatureMin, "°C")], ["Temperatura promedio", format(data.temperatureAvg, "°C")], ["Humedad promedio", format(data.humidityAvg, "%")], ["Presión promedio", format(data.pressureAvg, "hPa")], ["Viento máximo", format(data.windMax, "km/h")], ["Ráfaga máxima", format(data.windGustMax, "km/h")], ["Precipitación", format(data.precipitation, "mm")]]); document.getElementById("todayNarrative").textContent = narrative(data); status.textContent = ""; } catch (error) { console.error("No se pudo cargar el resumen diario:", error); status.textContent = "Resumen diario temporalmente no disponible."; } }
+function recordCard(label, value, at, unit) { return `<article class="record-item"><span>${label}</span><strong>${format(value, unit)}</strong><span>${at ? DateTime.formatDateTime(at) : "Sin fecha disponible"}</span></article>`; }
+async function loadRecords() { const status = document.getElementById("recordsStatus"); try { const data = await HistoryApi.fetchRecords(); if (!data) { status.textContent = "Aún no hay récords disponibles."; return; } document.getElementById("recordsGrid").innerHTML = [recordCard("Temperatura máxima", data.temperature.max, data.temperature.maxAt, "°C"), recordCard("Temperatura mínima", data.temperature.min, data.temperature.minAt, "°C"), recordCard("Ráfaga máxima", data.windGust.max, data.windGust.maxAt, "km/h"), recordCard("Presión máxima", data.pressure.max, data.pressure.maxAt, "hPa"), recordCard("Presión mínima", data.pressure.min, data.pressure.minAt, "hPa"), recordCard("Humedad máxima", data.humidity.max, data.humidity.maxAt, "%"), recordCard("Humedad mínima", data.humidity.min, data.humidity.minAt, "%")].join(""); document.getElementById("recordsGrid").hidden = false; status.textContent = `Récords desde el inicio del histórico: ${DateTime.formatDate(data.firstObservation)}.`; } catch (error) { console.error("No se pudieron cargar los récords:", error); status.textContent = "Récords temporalmente no disponibles."; } }
+async function loadInfo() { try { const data = await HistoryApi.fetchInfo(); if (!data) return; document.getElementById("historyDate").min = data.firstObservation.slice(0, 10); document.getElementById("historyDate").max = DateTime.formatDate(new Date()).split("/").reverse().join("-"); setCards("historyQuality", [["Observaciones registradas", String(data.totalObservations)], ["Primera observación", DateTime.formatDateTime(data.firstObservation)], ["Última observación", DateTime.formatDateTime(data.lastObservation)]]); } catch (error) { console.error("No se pudo consultar la información del histórico:", error); } }
+function updateControls() { const custom = selection.kind === "date"; document.querySelectorAll(".history-period").forEach((button) => { const active = !custom && button.dataset.period === selection.value; button.classList.toggle("is-active", active); button.setAttribute("aria-pressed", String(active)); }); document.getElementById("resetHistory").hidden = !custom; document.getElementById("exportCsv").href = HistoryApi.exportUrl(selection); document.getElementById("periodTitle").textContent = custom ? `Fecha: ${DateTime.formatDate(`${selection.value}T12:00:00-03:00`)}` : labels[selection.value]; }
+async function load() { updateControls(); loadComparison(); loadToday(selection.kind === "date" ? selection.value : undefined); const status = document.getElementById("historyStatus"); document.getElementById("periodSummary").hidden = true; status.textContent = "Cargando históricos…"; try { const cacheKey = `${selection.kind}:${selection.value}`; let data = chartCache.get(cacheKey); if (!data || Date.now() - data.time > CACHE_MS) { const rows = selection.kind === "date" ? await HistoryApi.fetchDate(selection.value) : await HistoryApi.fetchHistory(selection.value); data = { time: Date.now(), rows }; chartCache.set(cacheKey, data); } if (!data.rows.length) { destroyCharts(); status.textContent = selection.kind === "date" ? "No existen observaciones registradas para esta fecha." : "Sin datos disponibles para este período."; return; } render(data.rows); summary(data.rows); status.textContent = ""; } catch (error) { console.error("No se pudieron cargar los históricos:", error); destroyCharts(); status.textContent = "Históricos temporalmente no disponibles."; } }
+document.querySelectorAll(".history-period").forEach((button) => button.addEventListener("click", () => { selection = { kind: "period", value: button.dataset.period }; document.getElementById("historyDate").value = ""; load(); }));
+document.getElementById("historyDate").addEventListener("change", (event) => { if (!event.target.value) return; selection = { kind: "date", value: event.target.value }; load(); });
+document.getElementById("resetHistory").addEventListener("click", () => { selection = { kind: "period", value: "hours=24" }; document.getElementById("historyDate").value = ""; load(); });
+loadInfo(); loadRecords(); load();

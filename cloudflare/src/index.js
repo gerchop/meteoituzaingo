@@ -4,9 +4,15 @@ import { fetchWeatherObservation } from "./weather.js";
 
 const ARGENTINA_OFFSET = "-03:00";
 const HISTORY_LIMITS = { hours: [24], days: [7, 30] };
+const COMPARE_PERIODS = { "24h": 86400000, "7d": 604800000, "30d": 2592000000 };
+const CSV_HEADER = ["fecha_hora", "temperatura_c", "sensacion_c", "humedad_pct", "presion_hpa", "viento_kmh", "rafaga_kmh", "direccion", "direccion_grados", "precipitacion_mm_h", "precipitacion_total_mm", "punto_rocio_c"];
 
 function badRequest(request, env, message) { return jsonResponse(request, env, { ok: false, error: message }, 400); }
-
+function argentinaDate(now = new Date()) { return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format(now); }
+function utcStartForArgentinaDate(date) { return new Date(`${date}T00:00:00${ARGENTINA_OFFSET}`).toISOString(); }
+function isValidArgentinaDate(date) { return /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(`${date}T00:00:00${ARGENTINA_OFFSET}`)); }
+function validPastDate(date) { return isValidArgentinaDate(date) && date <= argentinaDate(); }
+function dayRange(date) { const start = utcStartForArgentinaDate(date); return { start, end: new Date(Date.parse(start) + 86400000).toISOString() }; }
 function parseHistoryRange(url) {
   const hours = url.searchParams.get("hours"); const days = url.searchParams.get("days");
   if ((hours && days) || (!hours && !days)) return null;
@@ -14,14 +20,17 @@ function parseHistoryRange(url) {
   if (days && HISTORY_LIMITS.days.includes(Number(days))) return { kind: "days", value: Number(days) };
   return null;
 }
-
-function argentinaDate(now = new Date()) {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+function rainTotal(rows) {
+  let total = 0; let previous = null;
+  rows.forEach((row) => {
+    if (!Number.isFinite(row.precip_total)) return;
+    if (previous !== null) total += row.precip_total >= previous ? row.precip_total - previous : row.precip_total;
+    previous = row.precip_total;
+  });
+  return previous === null ? null : total;
 }
-
-function utcStartForArgentinaDate(date) { return new Date(`${date}T00:00:00${ARGENTINA_OFFSET}`).toISOString(); }
-
-function isValidArgentinaDate(date) { return /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(`${date}T00:00:00${ARGENTINA_OFFSET}`)); }
+function rangeFromPeriod(period) { const duration = COMPARE_PERIODS[period]; return duration ? { start: new Date(Date.now() - duration).toISOString(), end: new Date().toISOString(), duration } : null; }
+function csvValue(value) { return value === null || value === undefined ? "" : String(value).replaceAll('"', '""'); }
 
 export async function captureWeatherObservation(env) {
   const observation = await fetchWeatherObservation(env);
@@ -30,52 +39,72 @@ export async function captureWeatherObservation(env) {
   return outcome;
 }
 
+async function rawRows(database, start, end) {
+  const result = await database.prepare("SELECT * FROM weather_observations WHERE observed_at >= ? AND observed_at < ? ORDER BY observed_at ASC LIMIT 9000").bind(start, end).all();
+  return result.results;
+}
+async function aggregateStats(database, start, end) {
+  const summary = await database.prepare(`SELECT COUNT(*) AS observations, AVG(temperature) AS temperature_avg, MIN(temperature) AS temperature_min, MAX(temperature) AS temperature_max,
+    AVG(humidity) AS humidity_avg, AVG(pressure) AS pressure_avg, AVG(wind_speed) AS wind_avg, MAX(wind_speed) AS wind_max, MAX(wind_gust) AS wind_gust_max
+    FROM weather_observations WHERE observed_at >= ? AND observed_at < ?`).bind(start, end).first();
+  if (!summary || !summary.observations) return null;
+  const precipitation = rainTotal(await rawRows(database, start, end));
+  return { observations: summary.observations, temperatureAvg: summary.temperature_avg, temperatureMin: summary.temperature_min, temperatureMax: summary.temperature_max, humidityAvg: summary.humidity_avg, pressureAvg: summary.pressure_avg, windAvg: summary.wind_avg, windMax: summary.wind_max, windGustMax: summary.wind_gust_max, precipitation };
+}
 async function getCurrent(request, env) {
   const row = await env.HISTORY_DB.prepare("SELECT * FROM weather_observations ORDER BY observed_at DESC LIMIT 1").first();
   if (!row) return jsonResponse(request, env, { ok: true, data: null, message: "Aún no hay observaciones históricas." });
   return jsonResponse(request, env, { ok: true, data: serializeObservation(row) });
 }
-
 async function getHistory(request, env, url) {
+  const date = url.searchParams.get("date");
+  if (date !== null) {
+    if (!validPastDate(date)) return badRequest(request, env, "La fecha debe ser YYYY-MM-DD y no puede ser futura.");
+    const range = dayRange(date); const rows = await rawRows(env.HISTORY_DB, range.start, range.end);
+    return jsonResponse(request, env, { ok: true, range: `date:${date}`, timezone: "America/Argentina/Buenos_Aires", aggregated: false, data: rows.map(serializeObservation) });
+  }
   const range = parseHistoryRange(url);
-  if (!range) return badRequest(request, env, "Usá exactamente hours=24, days=7 o days=30.");
+  if (!range) return badRequest(request, env, "Usá exactamente hours=24, days=7, days=30 o date=YYYY-MM-DD.");
   const since = new Date(Date.now() - range.value * (range.kind === "hours" ? 3600000 : 86400000)).toISOString();
   let query;
-  if (range.kind === "hours") {
-    query = env.HISTORY_DB.prepare("SELECT * FROM weather_observations WHERE observed_at >= ? ORDER BY observed_at ASC LIMIT 300").bind(since);
-  } else {
-    query = env.HISTORY_DB.prepare(`SELECT substr(observed_at, 1, 13) || ':00:00.000Z' AS observed_at,
-      AVG(temperature) AS temperature, AVG(feels_like) AS feels_like, AVG(humidity) AS humidity,
-      AVG(pressure) AS pressure, AVG(wind_speed) AS wind_speed, MAX(wind_gust) AS wind_gust,
-      MAX(precip_rate) AS precip_rate, MAX(precip_total) AS precip_total
-      FROM weather_observations WHERE observed_at >= ? GROUP BY substr(observed_at, 1, 13) ORDER BY observed_at ASC LIMIT 720`).bind(since);
-  }
+  if (range.kind === "hours") query = env.HISTORY_DB.prepare("SELECT * FROM weather_observations WHERE observed_at >= ? ORDER BY observed_at ASC LIMIT 300").bind(since);
+  else query = env.HISTORY_DB.prepare(`SELECT substr(observed_at, 1, 13) || ':00:00.000Z' AS observed_at, AVG(temperature) AS temperature, AVG(feels_like) AS feels_like, AVG(humidity) AS humidity, AVG(pressure) AS pressure, AVG(wind_speed) AS wind_speed, MAX(wind_gust) AS wind_gust, MAX(precip_rate) AS precip_rate, MAX(precip_total) AS precip_total FROM weather_observations WHERE observed_at >= ? GROUP BY substr(observed_at, 1, 13) ORDER BY observed_at ASC LIMIT 720`).bind(since);
   const result = await query.all();
   return jsonResponse(request, env, { ok: true, range: `${range.kind}:${range.value}`, aggregated: range.kind === "days", data: result.results.map(serializeObservation) });
 }
-
 async function getHistoryInfo(request, env) {
   const row = await env.HISTORY_DB.prepare("SELECT MIN(observed_at) AS first_observation, MAX(observed_at) AS last_observation, COUNT(*) AS total_observations FROM weather_observations").first();
   return jsonResponse(request, env, { ok: true, data: row && row.total_observations ? { firstObservation: row.first_observation, lastObservation: row.last_observation, totalObservations: row.total_observations } : null });
 }
-
 async function getDailyStats(request, env, date) {
-  if (!isValidArgentinaDate(date)) return badRequest(request, env, "La fecha debe tener formato YYYY-MM-DD.");
-  const start = utcStartForArgentinaDate(date); const end = utcStartForArgentinaDate(new Date(Date.parse(start) + 86400000).toISOString().slice(0, 10));
-  const row = await env.HISTORY_DB.prepare(`SELECT MIN(temperature) AS temperature_min, MAX(temperature) AS temperature_max,
-    MIN(humidity) AS humidity_min, MAX(humidity) AS humidity_max, MIN(pressure) AS pressure_min,
-    MAX(pressure) AS pressure_max, MAX(wind_speed) AS wind_max, MAX(wind_gust) AS wind_gust_max,
-    MAX(precip_total) AS precip_total_max, COUNT(*) AS observations
-    FROM weather_observations WHERE observed_at >= ? AND observed_at < ?`).bind(start, end).first();
-  return jsonResponse(request, env, { ok: true, date, timezone: "America/Argentina/Buenos_Aires", data: row && row.observations ? row : null });
+  if (!validPastDate(date)) return badRequest(request, env, "La fecha debe ser YYYY-MM-DD y no puede ser futura.");
+  const range = dayRange(date); const data = await aggregateStats(env.HISTORY_DB, range.start, range.end);
+  return jsonResponse(request, env, { ok: true, date, timezone: "America/Argentina/Buenos_Aires", data });
 }
-
-function isAuthorizedCapture(request, env) {
-  if (!env.ADMIN_TOKEN) return false;
-  const authorization = request.headers.get("Authorization") || "";
-  return authorization === `Bearer ${env.ADMIN_TOKEN}`;
+async function getCompare(request, env, url) {
+  const period = url.searchParams.get("period"); const current = rangeFromPeriod(period);
+  if (!current) return badRequest(request, env, "El período debe ser 24h, 7d o 30d.");
+  const previous = { start: new Date(Date.parse(current.start) - current.duration).toISOString(), end: current.start };
+  const [currentData, previousData] = await Promise.all([aggregateStats(env.HISTORY_DB, current.start, current.end), aggregateStats(env.HISTORY_DB, previous.start, previous.end)]);
+  return jsonResponse(request, env, { ok: true, period, current: currentData, previous: previousData, sufficient: Boolean(currentData && previousData) });
 }
-
+async function recordAt(database, column, order) { return database.prepare(`SELECT ${column} AS value, observed_at FROM weather_observations WHERE ${column} IS NOT NULL ORDER BY ${column} ${order}, observed_at ASC LIMIT 1`).first(); }
+async function getRecords(request, env) {
+  const info = await env.HISTORY_DB.prepare("SELECT MIN(observed_at) AS first_observation, MAX(observed_at) AS last_observation, COUNT(*) AS total_observations FROM weather_observations").first();
+  if (!info || !info.total_observations) return jsonResponse(request, env, { ok: true, data: null });
+  const [temperatureMax, temperatureMin, gustMax, pressureMax, pressureMin, humidityMax, humidityMin] = await Promise.all([recordAt(env.HISTORY_DB, "temperature", "DESC"), recordAt(env.HISTORY_DB, "temperature", "ASC"), recordAt(env.HISTORY_DB, "wind_gust", "DESC"), recordAt(env.HISTORY_DB, "pressure", "DESC"), recordAt(env.HISTORY_DB, "pressure", "ASC"), recordAt(env.HISTORY_DB, "humidity", "DESC"), recordAt(env.HISTORY_DB, "humidity", "ASC")]);
+  return jsonResponse(request, env, { ok: true, data: { firstObservation: info.first_observation, lastObservation: info.last_observation, totalObservations: info.total_observations, temperature: { max: temperatureMax && temperatureMax.value, maxAt: temperatureMax && temperatureMax.observed_at, min: temperatureMin && temperatureMin.value, minAt: temperatureMin && temperatureMin.observed_at }, windGust: { max: gustMax && gustMax.value, maxAt: gustMax && gustMax.observed_at }, pressure: { max: pressureMax && pressureMax.value, maxAt: pressureMax && pressureMax.observed_at, min: pressureMin && pressureMin.value, minAt: pressureMin && pressureMin.observed_at }, humidity: { max: humidityMax && humidityMax.value, maxAt: humidityMax && humidityMax.observed_at, min: humidityMin && humidityMin.value, minAt: humidityMin && humidityMin.observed_at } } });
+}
+async function exportCsv(request, env, url) {
+  const period = url.searchParams.get("period"); const date = url.searchParams.get("date"); let range;
+  if (date !== null) { if (!validPastDate(date)) return badRequest(request, env, "La fecha debe ser YYYY-MM-DD y no puede ser futura."); range = dayRange(date); }
+  else { range = rangeFromPeriod(period); if (!range) return badRequest(request, env, "El período debe ser 24h, 7d o 30d."); }
+  const rows = await rawRows(env.HISTORY_DB, range.start, range.end);
+  const csv = `\uFEFF${CSV_HEADER.join(";")}\r\n${rows.map((row) => [row.observed_at, row.temperature, row.feels_like, row.humidity, row.pressure, row.wind_speed, row.wind_gust, row.wind_direction, row.wind_direction_degrees, row.precip_rate, row.precip_total, row.dew_point].map(csvValue).join(";")).join("\r\n")}\r\n`;
+  const headers = corsHeaders(request, env); headers.set("Content-Type", "text/csv; charset=utf-8"); headers.set("Content-Disposition", `attachment; filename="meteo-ituzaingo-${date || period}.csv"`); headers.set("Cache-Control", "no-store");
+  return new Response(csv, { headers });
+}
+function isAuthorizedCapture(request, env) { return Boolean(env.ADMIN_TOKEN) && (request.headers.get("Authorization") || "") === `Bearer ${env.ADMIN_TOKEN}`; }
 async function route(request, env) {
   const url = new URL(request.url);
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request, env) });
@@ -84,21 +113,11 @@ async function route(request, env) {
   if (request.method === "GET" && url.pathname === "/api/history/info") return getHistoryInfo(request, env);
   if (request.method === "GET" && url.pathname === "/api/stats/today") return getDailyStats(request, env, argentinaDate());
   if (request.method === "GET" && url.pathname === "/api/stats/daily") return getDailyStats(request, env, url.searchParams.get("date") || "");
-  if (request.method === "POST" && url.pathname === "/api/admin/capture") {
-    if (!isAuthorizedCapture(request, env)) return jsonResponse(request, env, { ok: false, error: "No autorizado." }, 401);
-    const outcome = await captureWeatherObservation(env);
-    return jsonResponse(request, env, { ok: true, data: outcome }, outcome.inserted ? 201 : 200);
-  }
+  if (request.method === "GET" && url.pathname === "/api/compare") return getCompare(request, env, url);
+  if (request.method === "GET" && url.pathname === "/api/records") return getRecords(request, env);
+  if (request.method === "GET" && url.pathname === "/api/export.csv") return exportCsv(request, env, url);
+  if (request.method === "POST" && url.pathname === "/api/admin/capture") { if (!isAuthorizedCapture(request, env)) return jsonResponse(request, env, { ok: false, error: "No autorizado." }, 401); const outcome = await captureWeatherObservation(env); return jsonResponse(request, env, { ok: true, data: outcome }, outcome.inserted ? 201 : 200); }
   if (["GET", "POST"].includes(request.method)) return jsonResponse(request, env, { ok: false, error: "Ruta no encontrada." }, 404);
   return jsonResponse(request, env, { ok: false, error: "Método no permitido." }, 405);
 }
-
-export default {
-  async fetch(request, env) {
-    try { return await route(request, env); }
-    catch (error) { console.error("Error de API histórica:", error instanceof Error ? error.message : "error desconocido"); return jsonResponse(request, env, { ok: false, error: "No fue posible procesar la solicitud." }, 500); }
-  },
-  async scheduled(event, env, ctx) {
-    ctx.waitUntil(captureWeatherObservation(env).catch(function (error) { console.error("Error de captura programada:", error instanceof Error ? error.message : "error desconocido"); }));
-  }
-};
+export default { async fetch(request, env) { try { return await route(request, env); } catch (error) { console.error("Error de API histórica:", error instanceof Error ? error.message : "error desconocido"); return jsonResponse(request, env, { ok: false, error: "No fue posible procesar la solicitud." }, 500); } }, async scheduled(event, env, ctx) { ctx.waitUntil(captureWeatherObservation(env).catch((error) => console.error("Error de captura programada:", error instanceof Error ? error.message : "error desconocido"))); } };

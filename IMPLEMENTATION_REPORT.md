@@ -1,3 +1,40 @@
+# Informe de implementación v1.3
+
+## Resultado
+
+La página `historicos.html` incorpora análisis avanzado con datos reales de D1: comparativas, resumen diario, consulta por fecha, récords y exportación CSV. La Home, Weather.com, Meteored, radar, satélite, D1, Worker y cron se conservaron.
+
+## Endpoints v1.3
+
+- `GET /api/compare?period=24h|7d|30d`: dos bloques agregados mediante `AVG`, `MIN`, `MAX` y `COUNT` para el período actual y el anterior.
+- `GET /api/records`: extremos y timestamps desde el inicio de D1, sin transferir el histórico al navegador.
+- `GET /api/history?date=YYYY-MM-DD`: muestras de un día argentino para los cinco gráficos existentes.
+- `GET /api/stats/daily?date=YYYY-MM-DD`: resumen del día seleccionado; `/api/stats/today` reutiliza la misma ruta de cálculo.
+- `GET /api/export.csv?period=…|date=…`: CSV de hasta 30 días, UTF-8 con BOM y separador `;` para compatibilidad con Excel.
+
+Las fechas se validan como `YYYY-MM-DD`, no aceptan futuros y se convierten a límites UTC sólo en el Worker. No se agregaron migraciones ni índices: el índice temporal existente atiende los rangos y el volumen histórico actual.
+
+## Precipitación y rendimiento
+
+La precipitación se calcula dentro del Worker sobre filas del rango mediante diferencias consecutivas de `precip_total`, incluidas reinicializaciones del acumulador. No se suman acumulados repetidos. Los promedios D1 excluyen `NULL` y la comparación/estadística no envía filas al navegador. El CSV sí entrega las filas seleccionadas, limitado a 24 h, 7 d, 30 d o una fecha.
+
+Los gráficos mantienen una solicitud por período y caché de sesión de diez minutos. Comparativa, récords y resumen manejan sus fallos por separado para no bloquear gráficos. Los récords se piden una vez por carga de página.
+
+## Pruebas reales
+
+- Worker existente desplegado como versión `2e671595-536a-4a9d-96da-1085ce25993e`; el cron permanece `*/10 * * * *`.
+- Con 570 observaciones reales: `/api/compare?period=24h`, `/api/records`, `/api/history?date=2026-08-19`, `/api/stats/daily` y `/api/export.csv?period=24h` respondieron correctamente.
+- El CSV devolvió `text/csv; charset=utf-8` y encabezados UTF-8 con BOM.
+- Sintaxis de Worker y JavaScript, además de `git diff --check`, sin errores.
+
+## Recomendaciones v1.4
+
+- Revaluar índices de extremos cuando el histórico crezca significativamente.
+- Mantener el límite de exportación de 30 días y revisar cuotas D1 antes de ampliar períodos.
+- Verificar visualmente en GitHub Pages la disposición de comparativas, fecha y CSV en 360/390/430 px, tablet y escritorio tras publicar el commit.
+
+---
+
 # Informe de implementación v1.2.1
 
 ## Correcciones
