@@ -1,3 +1,44 @@
+# Informe de implementación v1.4
+
+## Resultado
+
+Se integró Cloudflare Web Analytics para medir pageviews reales de `dashboard.html` e `historicos.html`, sin alterar Weather.com, Meteored, radar, satélite, el Worker `meteoituzaingo-history`, D1, cron, API histórica, gráficos ni CSV. No se añadieron componentes visuales, SDKs ni servicios pagos.
+
+## Implementación
+
+- `js/analytics-config.js` centraliza el proveedor, URL del beacon, hosts locales excluidos y el Site Token público correspondiente a `gerchop.github.io`.
+- `js/analytics.js` se carga con `defer`, resuelve el token por `location.hostname` y crea el script oficial de Cloudflare con `type="module"`, `async`, `src="https://static.cloudflareinsights.com/beacon.min.js"` y `data-cf-beacon`.
+- El cargador evita cargas duplicadas mediante `window.__meteoAnalyticsBeaconLoaded` y una comprobación de `script[data-cf-beacon]`.
+- `dashboard.html` y `historicos.html` incluyen los dos archivos comunes. No existen otras páginas públicas HTML en el repositorio.
+- El Site Token es un identificador público del beacon, no un secreto ni una credencial administrativa. No se añadieron API keys, Account IDs, secretos ni variables de Worker.
+
+## Eventos, privacidad y rendimiento
+
+Cloudflare Web Analytics no soporta eventos personalizados en su implementación actual, por lo que no se instrumentaron clics, períodos históricos, CSV, radar, satélite ni pronóstico. `ANALYTICS.md` deja priorizados los eventos para reevaluación futura, sin inventar un tracker propio ni usar D1.
+
+El beacon se omite en `localhost`, `127.0.0.1` y `::1`. No usa cookies ni almacenamiento local desde el código de Meteo Ituzaingó; no se envían datos personales, IP, contenido de CSV, claves ni datos de formularios. `PRIVACY_ANALYTICS.md` documenta el alcance técnico, bloqueadores, Blogger y los requisitos separados que podría introducir AdSense.
+
+La carga se realiza después de los scripts funcionales y de forma asíncrona. Si la solicitud falla o un bloqueador la impide, no afecta al dashboard ni a Históricos y no se muestra ningún error al visitante.
+
+## Pruebas y publicación
+
+- Se validó sintaxis con `node --check` para los dos scripts agregados.
+- Se verificó estáticamente que ambas páginas incluyen exactamente una carga del iniciador común, que el token sólo figura en la configuración central y que no se modificaron archivos meteorológicos ni Cloudflare Worker.
+- Se validó la exclusión de hosts locales, resolución de `gerchop.github.io` y prevención de duplicados con un DOM simulado.
+- Se verificó `git diff --check`.
+- GitHub Pages publicado respondió `200` para las dos páginas y ambos scripts de analítica. Cargas únicas con Edge en producción confirmaron que dashboard e Históricos insertan exactamente un `script[data-cf-beacon]`; Históricos conservó gráficos, comparativas, récords y CSV.
+- El recurso oficial `https://static.cloudflareinsights.com/beacon.min.js` respondió `200` por HTTPS. El navegador ejecutó el cargador y añadió el beacon; por diseño, esa etiqueta genera el envío de pageview al proveedor.
+- El panel autenticado de Cloudflare no es accesible desde este entorno, por lo que la aparición agregada del pageview debe confirmarse en **Cloudflare Dashboard → Web Analytics → Meteo Ituzaingó — GitHub Pages**. Cloudflare advierte que el panel puede demorar en reflejarlo; no se debe interpretar una demora breve como un fallo del beacon.
+
+## Limitaciones y recomendación v1.5
+
+- La métrica es agregada y puede verse reducida por bloqueadores; no se intentará evadirlos.
+- No hay recurrencia individual fiable ni eventos personalizados en el proveedor actual.
+- Para publicación directa en Blogger u otro host se requiere crear otra propiedad de Web Analytics y añadir su token por host; un iframe que se mantenga en GitHub Pages conserva la propiedad actual.
+- Antes de añadir AdSense, GA4 o Google Ads, revisar consentimiento, CMP, privacidad y evitar doble tracking innecesario.
+
+---
+
 # Informe de implementación v1.3.4
 
 ## Corrección del parser horario Meteored

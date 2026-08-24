@@ -332,6 +332,8 @@ Tendencias e indicadores locales basados únicamente en observaciones recientes 
 
 Los históricos permanentes se capturan mediante Cloudflare Workers + D1. El frontend no debe almacenar secretos, depender de la API histórica para las condiciones actuales ni aumentar consultas Meteored. Consultar `CLOUDFLARE_SETUP.md` y `CLOUDFLARE_COSTS.md` antes de modificar Worker, D1, cron o cuotas.
 
+La analítica de audiencia usa Cloudflare Web Analytics de forma aditiva: `js/analytics-config.js` centraliza los Site Tokens públicos por host y `js/analytics.js` no debe cargar el beacon en entornos locales. No usar D1, el Worker histórico ni eventos propios para registrar visitas; consultar `ANALYTICS.md` y `PRIVACY_ANALYTICS.md` antes de cambiar esa integración.
+
 ## v1.2
 
 Los gráficos históricos avanzados residen en `historicos.html`; la home mantiene sólo una previsualización de temperatura. Reutilizar `js/history-config.js`, una solicitud por período y la agregación de D1. No duplicar URL de API, instancias Chart.js ni registros históricos.

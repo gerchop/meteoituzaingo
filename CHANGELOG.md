@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.4 - 2026-08-24
+
+- Se incorporó Cloudflare Web Analytics mediante el beacon oficial para `dashboard.html` e `historicos.html`, sin cambios visuales ni funcionales en los servicios meteorológicos.
+- Se centralizaron el Site Token público por host y el cargador no bloqueante; el beacon se añade una sola vez por documento y se excluye en `localhost`, `127.0.0.1` y `::1`.
+- Se documentaron métricas, privacidad técnica, limitaciones de eventos personalizados, compatibilidad futura con Blogger y consideraciones previas a una eventual monetización.
+- No se instrumentaron eventos personalizados, no se creó contador público y no se usaron D1, Worker, cron ni datos de visitantes propios para analítica.
+
 ## v1.3.4 - 2026-08-23
 
 - Se corrigió el parser temporal del pronóstico horario Meteored y se restauró la visualización de franjas futuras.
