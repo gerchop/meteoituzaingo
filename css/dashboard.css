@@ -14,6 +14,7 @@ body { min-width:320px; overflow-x:hidden; background:var(--page); color:var(--i
 .hero-content { flex-direction:column; align-items:stretch; gap:28px; margin-top:30px; }
 h1 { font-size:clamp(2rem,9vw,3rem); letter-spacing:-.06em; line-height:1; }
 .location-subtitle { margin-top:7px; color:rgba(255,255,255,.78); font-size:.95rem; }
+.seo-intro { max-width:510px; margin-top:11px; color:rgba(255,255,255,.82); font-size:.78rem; line-height:1.45; }
 .temperature-row { gap:20px; margin-top:18px; }
 .temp { font-size:clamp(4rem,22vw,6.5rem); font-weight:700; letter-spacing:-.09em; line-height:.85; }
 .weather-status { gap:9px; max-width:130px; color:rgba(255,255,255,.9); font-size:.9rem; line-height:1.3; }
@@ -100,6 +101,8 @@ h2 { margin-top:4px; font-size:1.18rem; letter-spacing:-.03em; }
 .icon-button { justify-content:center; min-width:34px; padding-right:8px; padding-left:8px; }
 .satellite-frame { position:relative; background:#101c27; }
 .satellite-frame img { background:#101c27; }
+.site-footer { max-width:1240px; margin:0 auto 26px; padding:18px 22px; color:var(--muted); font-size:.72rem; line-height:1.5; text-align:center; }
+.site-footer strong { color:var(--ink); }.site-footer nav { display:flex; justify-content:center; gap:14px; margin:8px 0; }.site-footer a { color:var(--blue); font-weight:700; text-decoration:none; }.site-footer a:hover,.site-footer a:focus-visible { text-decoration:underline; }.site-footer a:focus-visible { outline:3px solid rgba(25,118,185,.35); outline-offset:2px; }.site-sources { font-size:.66rem; }
 @media (min-width:620px) { #meteo-dashboard { margin:28px auto; } .weather-hero { padding:38px; } .hero-content { flex-direction:row; align-items:end; justify-content:space-between; } .hero-summary { width:310px; } .conditions { padding:34px; } .forecast-section,.history-analysis { padding-right:34px; padding-left:34px; } .media-frame { min-height:240px; } .media-frame img { min-height:240px; max-height:420px; } .cards { grid-template-columns:repeat(3,1fr); gap:14px; } .highlight-list,.records-grid,.summary-grid,.comparison-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } .history-panels { grid-template-columns:repeat(2,minmax(0,1fr)); padding-right:34px; padding-left:34px; } .history-panel>div { height:290px; } }
 @media (min-width:960px) { .weather-hero { padding:46px 52px; } .hero-summary { width:340px; } .conditions { padding:38px 52px 46px; } .forecast-section { padding-right:52px; padding-left:52px; } .cards { grid-template-columns:repeat(5,1fr); } .highlight-list,.records-grid { grid-template-columns:repeat(4,minmax(0,1fr)); } .card { min-height:146px; padding:20px 17px; } .card:hover { transform:translateY(-4px); box-shadow:0 10px 20px rgba(27,64,90,.1); } }
 @media (prefers-reduced-motion:reduce) { * { transition:none!important; } }

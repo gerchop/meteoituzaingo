@@ -3,27 +3,31 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Condiciones meteorológicas actuales en Ituzaingó, Buenos Aires.">
+  <meta name="description" content="Clima en Ituzaingó, Buenos Aires: temperatura actual, humedad, viento, pronóstico horario, radar, satélite e históricos meteorológicos actualizados.">
   <meta name="robots" content="index,follow">
   <meta name="theme-color" content="#0c3b66">
+  <link rel="canonical" href="https://gerchop.github.io/meteoituzaingo/dashboard.html">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="es_AR">
-  <meta property="og:title" content="Meteo Ituzaingó | Tiempo actual">
-  <meta property="og:description" content="Datos meteorológicos actuales de la estación local de Ituzaingó, Buenos Aires.">
+  <meta property="og:title" content="Clima en Ituzaingó | Tiempo actual, pronóstico y radar | Meteo Ituzaingó">
+  <meta property="og:description" content="Tiempo actual, pronóstico, radar, satélite e históricos meteorológicos de Ituzaingó, Buenos Aires.">
+  <meta property="og:url" content="https://gerchop.github.io/meteoituzaingo/dashboard.html">
+  <meta property="og:site_name" content="Meteo Ituzaingó">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Meteo Ituzaingó | Tiempo, pronóstico y radar">
-  <meta name="twitter:description" content="Tiempo actual, pronóstico local, radar Ezeiza e imágenes satelitales para Ituzaingó.">
-  <title>Meteo Ituzaingó | Tiempo actual</title>
+  <meta name="twitter:title" content="Clima en Ituzaingó | Meteo Ituzaingó">
+  <meta name="twitter:description" content="Tiempo actual, pronóstico, radar, satélite e históricos de Ituzaingó.">
+  <title>Clima en Ituzaingó | Tiempo actual, pronóstico y radar | Meteo Ituzaingó</title>
   <link rel="preconnect" href="https://cdnjs.cloudflare.com">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
   <link rel="stylesheet" href="css/dashboard.css">
   <script type="application/ld+json">
-  {"@context":"https://schema.org","@type":"WeatherStation","name":"Meteo Ituzaingó","address":{"@type":"PostalAddress","addressLocality":"Ituzaingó","addressRegion":"Buenos Aires","addressCountry":"AR"},"geo":{"@type":"GeoCoordinates","latitude":-34.655,"longitude":-58.667}}
+  {"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://gerchop.github.io/meteoituzaingo/#website","name":"Meteo Ituzaingó","url":"https://gerchop.github.io/meteoituzaingo/dashboard.html","description":"Información meteorológica local para Ituzaingó, Buenos Aires.","inLanguage":"es-AR"},{"@type":"WebPage","@id":"https://gerchop.github.io/meteoituzaingo/dashboard.html#webpage","url":"https://gerchop.github.io/meteoituzaingo/dashboard.html","name":"Clima en Ituzaingó | Tiempo actual, pronóstico y radar","description":"Tiempo actual, pronóstico, radar, satélite e históricos meteorológicos de Ituzaingó, Buenos Aires.","inLanguage":"es-AR","isPartOf":{"@id":"https://gerchop.github.io/meteoituzaingo/#website"}}]}
   </script>
 </head>
 <body>
   <main id="meteo-dashboard" aria-live="polite">
-    <section class="weather-hero" aria-labelledby="location-title">
+    <header class="weather-hero" aria-labelledby="location-title">
       <div class="hero-topline">
         <p class="eyebrow"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> Estación meteorológica local</p>
         <p id="actualizacion" class="updated-at">Actualizando datos…</p>
@@ -31,8 +35,9 @@
 
       <div class="hero-content">
         <div>
-          <h1 id="location-title">Ituzaingó</h1>
+          <h1 id="location-title">Clima en Ituzaingó</h1>
           <p class="location-subtitle">Buenos Aires, Argentina</p>
+          <p class="seo-intro">Datos meteorológicos locales con pronóstico, radar, satélite e históricos actualizados.</p>
           <div class="temperature-row">
             <span class="temp" aria-label="Temperatura actual">--°</span>
             <div class="weather-status">
@@ -55,7 +60,7 @@
           </div>
         </div>
       </div>
-    </section>
+    </header>
 
     <section class="conditions" aria-labelledby="conditions-title">
       <div class="section-heading">
@@ -111,7 +116,7 @@
 
     <section class="forecast-section media-section" aria-labelledby="radar-title">
       <div class="section-heading"><div><p class="eyebrow">Precipitación</p><h2 id="radar-title">Radar meteorológico</h2></div><button id="refreshRadar" class="media-refresh" type="button"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Actualizar</button></div>
-      <div class="media-frame"><img id="radarImage" alt="Radar meteorológico de Ezeiza" loading="lazy"></div>
+      <div class="media-frame"><img id="radarImage" alt="Radar meteorológico de Ezeiza" loading="lazy" decoding="async"></div>
       <p id="radarMeta" class="media-meta">Fuente provisional: ClimaSurGBA.</p>
     </section>
 
@@ -121,11 +126,16 @@
         <label for="satelliteProduct">Producto satelital <select id="satelliteProduct"><option value="ArgIrol">Infrarrojo</option><option value="ArgVisb2">Visible</option><option value="ArgRgbmn">Microfísica nocturna</option><option value="ArgVanm">Vapor de agua</option></select></label>
         <div class="animation-controls" aria-label="Controles de animación satelital"><button id="satellitePlay" class="media-refresh" type="button"><i class="fa-solid fa-pause" aria-hidden="true"></i> Pausar</button><button id="satellitePrevious" class="media-refresh icon-button" type="button" aria-label="Imagen anterior" title="Imagen anterior"><i class="fa-solid fa-backward-step" aria-hidden="true"></i></button><button id="satelliteNext" class="media-refresh icon-button" type="button" aria-label="Imagen siguiente" title="Imagen siguiente"><i class="fa-solid fa-forward-step" aria-hidden="true"></i></button></div>
       </div>
-      <div class="media-frame satellite-frame"><img id="satelliteImage" alt="Animación satelital GOES-19 de Argentina — Infrarrojo de onda larga" loading="lazy"><div id="satellitePlaceholder" class="media-unavailable" hidden><i class="fa-solid fa-satellite-dish" aria-hidden="true"></i><p id="satelliteMessage">Imagen satelital temporalmente no disponible.</p></div></div>
+      <div class="media-frame satellite-frame"><img id="satelliteImage" alt="Animación satelital GOES-19 de Argentina — Infrarrojo de onda larga" loading="lazy" decoding="async"><div id="satellitePlaceholder" class="media-unavailable" hidden><i class="fa-solid fa-satellite-dish" aria-hidden="true"></i><p id="satelliteMessage">Imagen satelital temporalmente no disponible.</p></div></div>
       <p id="satelliteMeta" class="media-meta">Última imagen: consultando datos de CONAE…</p>
       <p class="media-attribution">Fuente: CONAE — Comisión Nacional de Actividades Espaciales.</p>
     </section>
   </main>
+  <footer class="site-footer" aria-label="Información del sitio">
+    <p><strong>Meteo Ituzaingó</strong> · Datos locales, pronóstico e históricos para Ituzaingó, Buenos Aires.</p>
+    <nav aria-label="Navegación secundaria"><a href="dashboard.html">Inicio</a><a href="historicos.html">Históricos</a></nav>
+    <p class="site-sources">Fuentes: Weather.com, Meteored, ClimaSurGBA, CONAE y registros propios mediante Cloudflare.</p>
+  </footer>
   <script src="js/history-config.js" defer></script>
   <script src="js/datetime-utils.js" defer></script>
   <script src="js/history-api.js" defer></script>

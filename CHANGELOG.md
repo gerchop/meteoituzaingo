@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.5 - 2026-08-28
+
+- Se reforzó el SEO técnico de Dashboard e Históricos con títulos, descripciones, canonical, Open Graph, Twitter Cards, favicon y datos estructurados `WebSite`/`WebPage` válidos en HTML estático.
+- Se añadieron `sitemap.xml` y `robots.txt` en la raíz de GitHub Pages, exclusivamente con las dos páginas públicas canónicas.
+- Se mejoró la semántica de cabecera y footer, la navegación interna crawlable, el texto descriptivo mínimo y el foco visible sin cambiar la identidad gráfica.
+- Radar y satélite conservan carga diferida y ahora declaran decodificación asíncrona para reducir trabajo de renderizado no crítico.
+- Se documentaron Search Console, seguridad de credenciales, preparación responsable de AdSense y la integración final recomendada con Blogger; no se instalaron anuncios, verificaciones, `ads.txt`, contadores ni servicios pagos.
+
 ## v1.4 - 2026-08-24
 
 - Se incorporó Cloudflare Web Analytics mediante el beacon oficial para `dashboard.html` e `historicos.html`, sin cambios visuales ni funcionales en los servicios meteorológicos.

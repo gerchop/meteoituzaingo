@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Meteo Ituzaingó">
+  <rect width="64" height="64" rx="14" fill="#0c3b66"/>
+  <path d="M19 42h27a10 10 0 0 0 .8-20A15 15 0 0 0 18.5 27 8 8 0 0 0 19 42Z" fill="#dceefa"/>
+  <circle cx="23" cy="20" r="7" fill="#ffda72"/>
+</svg>

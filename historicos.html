@@ -3,15 +3,31 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="Históricos meteorológicos de Ituzaingó: temperatura, lluvia, viento, humedad y presión registrados por Meteo Ituzaingó.">
+  <meta name="description" content="Consultá históricos meteorológicos de Ituzaingó: temperatura, humedad, presión, viento, ráfagas y precipitación de las últimas 24 horas, 7 días y 30 días.">
+  <meta name="robots" content="index,follow">
+  <meta name="theme-color" content="#0c3b66">
+  <link rel="canonical" href="https://gerchop.github.io/meteoituzaingo/historicos.html">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="es_AR">
+  <meta property="og:title" content="Históricos meteorológicos de Ituzaingó | Meteo Ituzaingó">
+  <meta property="og:description" content="Temperatura, humedad, presión, viento y precipitación registrados en Ituzaingó.">
+  <meta property="og:url" content="https://gerchop.github.io/meteoituzaingo/historicos.html">
+  <meta property="og:site_name" content="Meteo Ituzaingó">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Históricos meteorológicos de Ituzaingó | Meteo Ituzaingó">
+  <meta name="twitter:description" content="Consultá registros de temperatura, humedad, presión, viento y precipitación de Ituzaingó.">
   <title>Históricos meteorológicos de Ituzaingó | Meteo Ituzaingó</title>
   <link rel="preconnect" href="https://cdnjs.cloudflare.com">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
   <link rel="stylesheet" href="css/dashboard.css">
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://gerchop.github.io/meteoituzaingo/#website","name":"Meteo Ituzaingó","url":"https://gerchop.github.io/meteoituzaingo/dashboard.html","description":"Información meteorológica local para Ituzaingó, Buenos Aires.","inLanguage":"es-AR"},{"@type":"WebPage","@id":"https://gerchop.github.io/meteoituzaingo/historicos.html#webpage","url":"https://gerchop.github.io/meteoituzaingo/historicos.html","name":"Históricos meteorológicos de Ituzaingó | Meteo Ituzaingó","description":"Registros meteorológicos de temperatura, humedad, presión, viento y precipitación de Ituzaingó.","inLanguage":"es-AR","isPartOf":{"@id":"https://gerchop.github.io/meteoituzaingo/#website"}}]}
+  </script>
 </head>
 <body>
   <main id="meteo-dashboard" class="history-page">
-    <section class="weather-hero"><div class="hero-topline"><p class="eyebrow"><i class="fa-solid fa-chart-line"></i> Meteo Ituzaingó</p><a class="back-link" href="dashboard.html"><i class="fa-solid fa-arrow-left"></i> Volver al tiempo actual</a></div><div class="history-hero"><h1>Históricos meteorológicos</h1><p>Datos registrados por la estación IITUZAIN9</p></div></section>
+    <header class="weather-hero"><div class="hero-topline"><p class="eyebrow"><i class="fa-solid fa-chart-line"></i> Meteo Ituzaingó</p><a class="back-link" href="dashboard.html"><i class="fa-solid fa-arrow-left"></i> Volver al tiempo actual</a></div><div class="history-hero"><h1>Históricos meteorológicos de Ituzaingó</h1><p>Registros de temperatura, humedad, presión, viento y precipitación de la estación Meteo Ituzaingó.</p></div></header>
     <section class="conditions">
       <div class="section-heading"><div><p class="eyebrow">Período</p><h2 id="periodTitle">Últimas 24 horas</h2></div></div>
       <div class="history-controls" role="group" aria-label="Seleccionar período"><button class="history-period is-active" data-period="24h" aria-pressed="true">24 horas</button><button class="history-period" data-period="7d" aria-pressed="false">7 días</button><button class="history-period" data-period="30d" aria-pressed="false">30 días</button></div>
@@ -24,6 +40,11 @@
     <section class="history-analysis" aria-labelledby="records-title"><div class="section-heading"><div><p class="eyebrow">Récords del histórico</p><h2 id="records-title">Extremos registrados</h2></div></div><p id="recordsStatus" class="history-status">Cargando récords…</p><div id="recordsGrid" class="records-grid" hidden></div></section>
     <section class="history-analysis history-quality" aria-labelledby="quality-title"><div class="section-heading"><div><p class="eyebrow">Calidad del histórico</p><h2 id="quality-title">Información disponible</h2></div></div><div id="historyQuality" class="summary-grid" hidden></div></section>
   </main>
+  <footer class="site-footer" aria-label="Información del sitio">
+    <p><strong>Meteo Ituzaingó</strong> · Históricos meteorológicos registrados por la estación local.</p>
+    <nav aria-label="Navegación secundaria"><a href="dashboard.html">Inicio</a><a href="historicos.html">Históricos</a></nav>
+    <p class="site-sources">Registros propios mediante Cloudflare; observación actual de Weather.com.</p>
+  </footer>
   <script src="js/history-config.js" defer></script><script src="js/datetime-utils.js" defer></script><script src="js/history-api.js" defer></script><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script><script src="js/history.js" defer></script><script src="js/analytics-config.js" defer></script><script src="js/analytics.js" defer></script>
 </body>
 </html>

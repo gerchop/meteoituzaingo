@@ -1,3 +1,53 @@
+# Informe de implementación v1.5
+
+## Resultado
+
+v1.5 prepara la publicación y el crecimiento de Meteo Ituzaingó sin alterar las fuentes meteorológicas, el Worker, D1, cron, cachés, gráficos, CSV ni Cloudflare Web Analytics. Las mejoras reales son SEO estático, pequeños ajustes semánticos y de renderizado, y documentación operativa para Search Console, seguridad, AdSense y Blogger.
+
+## SEO e indexación
+
+- `dashboard.html` usa el título **Clima en Ituzaingó | Tiempo actual, pronóstico y radar | Meteo Ituzaingó** y una descripción localizada, natural y directamente disponible en HTML.
+- `historicos.html` conserva un título específico y una descripción de sus datos, períodos y variables registradas.
+- Ambas páginas incluyen `lang="es"`, `robots=index,follow`, canonical absoluto de GitHub Pages, Open Graph completo (`title`, `description`, `type`, `url`, `site_name`) y Twitter Card `summary`. No se declaró `og:image` ni `summary_large_image` porque no existe aún una imagen social 1200×630 adecuada.
+- Se reemplazó el JSON-LD aislado por grafos `WebSite` y `WebPage` con URL, nombre, descripción e idioma. No se inventó un `Dataset` para datos dinámicos ni propiedades meteorológicas no disponibles.
+- Se agregaron `sitemap.xml` UTF-8 y `robots.txt` en la raíz. El sitemap contiene sólo `dashboard.html` e `historicos.html`, con URLs absolutas y sin APIs, localhost ni `lastmod` artificial.
+- Se creó `favicon.svg`, un recurso vectorial liviano y local.
+
+## HTML, accesibilidad y rendimiento
+
+- Las cabeceras principales ahora son elementos `header`; cada página conserva un único H1 y se añadió contexto textual breve sin sobrecargar el dashboard.
+- Se añadieron footer semántico, enlaces HTML crawlables entre Inicio e Históricos, fuentes y foco visible de teclado. No se modificó la distribución de los módulos meteorológicos.
+- Radar y satélite mantienen `loading="lazy"` y suman `decoding="async"`. Se mantienen sus contenedores de altura mínima existentes para reservar espacio; no se fijó una relación de aspecto ficticia porque los proveedores entregan imágenes dinámicas de dimensiones variables.
+- No se tocaron ciclos de actualización, cachés, peticiones de Meteored, carga histórica, Chart.js ni beacon de Analytics. La importación de Inter ya utilizaba `display=swap`; no se agregaron fuentes ni SDKs.
+
+## Monetización, Blogger y seguridad
+
+- `MONETIZATION.md` define posiciones futuras sin renderizar contenedores ni anuncios. AdSense, Publisher ID, `ads.txt`, CMP y código publicitario quedan fuera de v1.5.
+- `BLOGGER_INTEGRATION.md` compara iframe frente a integración directa y recomienda integrar el contenido principal en Blogger, manteniendo GitHub Pages como staging y Worker/D1 como API externa.
+- `SEARCH_CONSOLE.md` detalla el procedimiento manual de propiedad, verificación y envío de sitemap sin valores inventados.
+- `SECURITY.md` separa secretos de Worker, identificadores públicos y credenciales expuestas por el frontend. Recomienda una futura migración de la observación actual de Weather.com al Worker, pero no la ejecuta por riesgo operativo.
+
+## Auditoría y limitaciones detectadas
+
+La v1.4 no tenía canonical, `og:url`, `og:site_name`, metadatos sociales completos en Históricos, sitemap, robots, favicon ni documentación operativa de Search Console/seguridad. El HTML ya tenía `lang`, descripciones parciales, alt de radar/satélite, carga diferida y navegación básica. No se encontró CSS activo de Leaflet ni CX2SA para retirar.
+
+La futura migración a Blogger deberá sustituir de forma coordinada canonical, URLs de JSON-LD, Open Graph, sitemap, robots, navegación, CORS del Worker y Site Token de Analytics. Los pageviews de v1.4 siguen activos porque los scripts de Analytics permanecen sin cambios.
+
+## Pruebas
+
+- Se verificó que ambos HTML tienen un único H1, canonical, descripción, metadatos Open Graph/Twitter, scripts de Analytics y enlaces internos.
+- Se validó el JSON-LD de ambas páginas con `JSON.parse` y el XML del sitemap con el parser XML del sistema.
+- Se verificó la sintaxis de `robots.txt`, que las URLs del sitemap son absolutas y que no incluye API, localhost ni rutas privadas.
+- Se ejecutaron `node --check` sobre scripts actuales, `git diff --check` y comprobaciones estáticas de recursos/atributos nuevos.
+- GitHub Pages publicado respondió `200` para Dashboard, Históricos, sitemap, robots y favicon. Se confirmaron en producción ambos canonical, los grafos `WebSite`/`WebPage`, las dos URLs del sitemap, su referencia desde robots y las referencias existentes al cargador de Analytics.
+- Search Console y AdSense requieren acciones manuales/autenticadas y no se simularon. La propiedad de Analytics conserva el mismo cargador y Site Token de v1.4; sus métricas agregadas se verifican desde el panel autenticado de Cloudflare.
+
+## Recomendación v1.6
+
+Validar los metadatos publicados en Search Console y un validador de resultados enriquecidos, crear una imagen social 1200×630 antes de usar `og:image`, y planificar la migración de Weather.com al Worker sólo mediante una versión dedicada con pruebas de cuota, cache, CORS y reversión.
+
+---
+
 # Informe de implementación v1.4
 
 ## Resultado
