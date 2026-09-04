@@ -10,6 +10,7 @@ Las observaciones se almacenan en UTC. Las consultas diarias, la presentación y
 | `/api/history/info` | — | Primera, última y cantidad total de observaciones. |
 | `/api/stats/today` | — | Estadísticas del día actual argentino. |
 | `/api/stats/daily` | `date=YYYY-MM-DD` | Estadísticas de una fecha registrada. |
+| `/api/daily-summary` | `date=YYYY-MM-DD` opcional | Extremos diarios, horas, cobertura, precipitación y comparación con ayer. Sin parámetro usa hoy en Argentina. |
 | `/api/compare` | `period=24h`, `7d` o `30d` | Estadísticas del período actual y del anterior equivalente. |
 | `/api/records` | — | Extremos desde el inicio real del histórico D1. |
 | `/api/export.csv` | `period=24h`, `7d`, `30d` o `date=YYYY-MM-DD` | CSV UTF-8 con BOM, delimitado por punto y coma. |
@@ -22,10 +23,17 @@ Los promedios SQL ignoran `NULL`. La precipitación acumulada se calcula con las
 
 Las comparativas devuelven `sufficient: false` cuando no hay datos en ambos períodos. La exportación está limitada a 30 días como máximo y no expone un endpoint de «todo el histórico».
 
+## Resumen diario
+
+`/api/daily-summary` devuelve `date`, `timezone`, `isCurrentDay`, `data` y `comparison`. `data` es `null` si no hay observaciones. Cuando existe, incluye `firstObservation`, `lastObservation`, `observations`, `coverage`, `temperature`, `humidity`, `pressure`, `wind`, `gust` y `precipitation`.
+
+Los extremos incluyen timestamp sólo donde aporta valor visible (máxima/mínima de temperatura, viento y ráfaga). El día actual se compara contra ayer hasta la misma hora; una fecha histórica se prepara contra el día anterior completo. La metodología de lluvia y cobertura está documentada en [DAILY_SUMMARY.md](DAILY_SUMMARY.md).
+
 ## Ejemplos
 
 ```text
 GET /api/compare?period=7d
 GET /api/history?date=2026-08-20
 GET /api/export.csv?period=24h
+GET /api/daily-summary?date=2026-08-27
 ```

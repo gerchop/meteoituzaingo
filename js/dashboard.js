@@ -13,6 +13,7 @@ const DIRECCIONES = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO
 const CONFIG = {
   observacionesMs: 150000,
   radarMs: 600000,
+  resumenDiarioMs: 600000,
   sateliteMs: 1800000,
   cuadroSateliteMs: 500,
   historialMaximo: 96,
@@ -466,6 +467,50 @@ function iniciarHistoricos() {
   cargarHistorico();
 }
 
+function formatoResumen(valor, unidad) { return Number.isFinite(valor) ? `${valor.toFixed(1)} ${unidad}` : "Sin datos"; }
+function horaResumen(timestamp) { return timestamp ? DateTime.formatTime(timestamp) : "Sin hora disponible"; }
+function tarjetaResumen(etiqueta, valor, detalle) { return `<article><span>${etiqueta}</span><strong>${valor}</strong>${detalle ? `<small>${detalle}</small>` : ""}</article>`; }
+function narrativaDiaria(data) {
+  const inicio = data.temperature && Number.isFinite(data.temperature.min) && Number.isFinite(data.temperature.max) ? `En lo que va del día la temperatura se movió entre ${formatoResumen(data.temperature.min, "°C")} y ${formatoResumen(data.temperature.max, "°C")}.` : "En lo que va del día hay observaciones meteorológicas disponibles.";
+  const gust = data.gust && Number.isFinite(data.gust.max) ? ` La ráfaga máxima alcanzó ${formatoResumen(data.gust.max, "km/h")}.` : "";
+  const rain = data.precipitation && Number.isFinite(data.precipitation.total) ? data.precipitation.total > 0 ? ` Se acumularon ${formatoResumen(data.precipitation.total, "mm")} de precipitación.` : " No se registraron precipitaciones." : "";
+  return `${inicio}${gust}${rain}`;
+}
+function comparacionDiaria(data, comparison) {
+  if (!comparison || !comparison.data) return "";
+  const previous = comparison.data; const pieces = [];
+  if (Number.isFinite(data.temperature && data.temperature.max) && Number.isFinite(previous.temperature && previous.temperature.max)) pieces.push(`máxima ${data.temperature.max >= previous.temperature.max ? "+" : ""}${(data.temperature.max - previous.temperature.max).toFixed(1)} °C`);
+  if (Number.isFinite(data.temperature && data.temperature.min) && Number.isFinite(previous.temperature && previous.temperature.min)) pieces.push(`mínima ${data.temperature.min >= previous.temperature.min ? "+" : ""}${(data.temperature.min - previous.temperature.min).toFixed(1)} °C`);
+  if (Number.isFinite(data.precipitation && data.precipitation.total) && Number.isFinite(previous.precipitation && previous.precipitation.total)) pieces.push(`lluvia ${formatoResumen(data.precipitation.total, "mm")} vs. ${formatoResumen(previous.precipitation.total, "mm")}`);
+  return pieces.length ? `Comparado con ayer hasta esta hora: ${pieces.join(" · ")}.` : "";
+}
+function mostrarResumenDiario(result) {
+  const status = document.getElementById("dailySummaryStatus"); const cards = document.getElementById("dailySummaryCards"); const coverage = document.getElementById("dailySummaryCoverage"); const narrative = document.getElementById("dailySummaryNarrative"); const comparison = document.getElementById("dailySummaryComparison");
+  const data = result.data;
+  if (!data) { cards.hidden = true; coverage.hidden = true; narrative.hidden = true; comparison.hidden = true; status.textContent = "No hay observaciones disponibles para el resumen de hoy."; return; }
+  const humidity = data.humidity && (Number.isFinite(data.humidity.min) || Number.isFinite(data.humidity.max)) ? `${formatoResumen(data.humidity.min, "%")} – ${formatoResumen(data.humidity.max, "%")}` : "Sin datos";
+  const pressure = data.pressure && (Number.isFinite(data.pressure.min) || Number.isFinite(data.pressure.max)) ? `${formatoResumen(data.pressure.min, "hPa")} – ${formatoResumen(data.pressure.max, "hPa")}` : "Sin datos";
+  cards.innerHTML = [
+    tarjetaResumen("Máxima", formatoResumen(data.temperature && data.temperature.max, "°C"), horaResumen(data.temperature && data.temperature.maxAt)),
+    tarjetaResumen("Mínima", formatoResumen(data.temperature && data.temperature.min, "°C"), horaResumen(data.temperature && data.temperature.minAt)),
+    tarjetaResumen("Humedad", humidity, "mínima – máxima"),
+    tarjetaResumen("Presión", pressure, "mínima – máxima"),
+    tarjetaResumen("Viento máximo", formatoResumen(data.wind && data.wind.max, "km/h"), horaResumen(data.wind && data.wind.maxAt)),
+    tarjetaResumen("Ráfaga máxima", formatoResumen(data.gust && data.gust.max, "km/h"), horaResumen(data.gust && data.gust.maxAt)),
+    tarjetaResumen("Precipitación", formatoResumen(data.precipitation && data.precipitation.total, "mm"), "acumulada hoy")
+  ].join("");
+  cards.hidden = false; status.textContent = "";
+  const from = data.firstObservation ? `Datos disponibles desde ${horaResumen(data.firstObservation)}.` : "";
+  coverage.textContent = `${from}${data.coverage && data.coverage.partial ? ` Cobertura parcial: ${data.coverage.percentage} % (${data.observations} observaciones).` : ""}`;
+  coverage.hidden = !coverage.textContent;
+  narrative.textContent = narrativaDiaria(data); narrative.hidden = false;
+  comparison.textContent = comparacionDiaria(data, result.comparison); comparison.hidden = !comparison.textContent;
+}
+async function cargarResumenDiario() {
+  const status = document.getElementById("dailySummaryStatus");
+  try { mostrarResumenDiario(await HistoryApi.fetchDailySummary()); } catch (error) { console.error("No se pudo cargar el resumen diario:", error); status.textContent = "Resumen diario temporalmente no disponible."; document.getElementById("dailySummaryCards").hidden = true; document.getElementById("dailySummaryCoverage").hidden = true; document.getElementById("dailySummaryNarrative").hidden = true; document.getElementById("dailySummaryComparison").hidden = true; }
+}
+
 async function cargarClima() {
   try {
     const respuesta = await fetch(API_URL); if (!respuesta.ok) throw new Error(`Error HTTP ${respuesta.status}`);
@@ -480,5 +525,6 @@ async function cargarClima() {
   }
 }
 
-cargarClima(); cargarPronosticos(); iniciarImagenesExternas(); iniciarSatelite(); iniciarHistoricos();
+cargarClima(); cargarPronosticos(); iniciarImagenesExternas(); iniciarSatelite(); iniciarHistoricos(); cargarResumenDiario();
 setInterval(cargarClima, CONFIG.observacionesMs);
+setInterval(cargarResumenDiario, CONFIG.resumenDiarioMs);

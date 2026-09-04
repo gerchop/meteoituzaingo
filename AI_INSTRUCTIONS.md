@@ -332,6 +332,8 @@ Tendencias e indicadores locales basados únicamente en observaciones recientes 
 
 Los históricos permanentes se capturan mediante Cloudflare Workers + D1. El frontend no debe almacenar secretos, depender de la API histórica para las condiciones actuales ni aumentar consultas Meteored. Consultar `CLOUDFLARE_SETUP.md` y `CLOUDFLARE_COSTS.md` antes de modificar Worker, D1, cron o cuotas.
 
+El resumen diario usa D1 en UTC con límites de día y presentación en `America/Argentina/Buenos_Aires`. `precip_total` es acumulativo: para un día se calcula con primera lectura, diferencias consecutivas y reinicios, sin sumar acumulados completos; consultar `DAILY_SUMMARY.md` antes de modificar esa metodología o frecuencia de consulta.
+
 La analítica de audiencia usa Cloudflare Web Analytics de forma aditiva: `js/analytics-config.js` centraliza los Site Tokens públicos por host y `js/analytics.js` no debe cargar el beacon en entornos locales. No usar D1, el Worker histórico ni eventos propios para registrar visitas; consultar `ANALYTICS.md` y `PRIVACY_ANALYTICS.md` antes de cambiar esa integración.
 
 La publicación actual usa GitHub Pages como URL canónica; sus únicas páginas indexables son `dashboard.html` e `historicos.html`, declaradas en `sitemap.xml` y `robots.txt`. Antes de migrar a Blogger, actualizar en conjunto canonical, Open Graph, JSON-LD, sitemap, navegación, CORS y Analytics siguiendo `BLOGGER_INTEGRATION.md`. No instalar AdSense, `ads.txt`, Publisher ID ni una verificación de Search Console sin valores reales; consultar `MONETIZATION.md`, `SEARCH_CONSOLE.md` y `SECURITY.md`.

@@ -22,6 +22,7 @@
     async fetchInfo() { return (await request("/api/history/info")).data; },
     async fetchTodayStats() { return (await request("/api/stats/today")).data; },
     async fetchDailyStats(date) { return (await request(`/api/stats/daily?date=${encodeURIComponent(date)}`)).data; },
+    async fetchDailySummary(date) { const query = date ? `?date=${encodeURIComponent(date)}` : ""; return request(`/api/daily-summary${query}`); },
     async fetchCompare(period) { return request(`/api/compare?period=${encodeURIComponent(period)}`); },
     async fetchRecords() { return (await request("/api/records")).data; },
     exportUrl(selection) {

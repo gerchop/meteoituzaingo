@@ -6,6 +6,8 @@ const ARGENTINA_TIME_ZONE = "America/Argentina/Buenos_Aires";
 const HISTORY_LIMITS = { hours: [24], days: [7, 30] };
 const COMPARE_PERIODS = { "24h": 86400000, "7d": 604800000, "30d": 2592000000 };
 const CSV_HEADER = ["fecha_hora", "temperatura_c", "sensacion_c", "humedad_pct", "presion_hpa", "viento_kmh", "rafaga_kmh", "direccion", "direccion_grados", "precipitacion_mm_h", "precipitacion_total_mm", "punto_rocio_c"];
+const DAILY_INTERVAL_MS = 600000;
+const DAILY_VALID_LIMITS = { temperature: [-90, 70], humidity: [0, 100], pressure: [800, 1100], windSpeed: [0, 300], windGust: [0, 400], precipTotal: [0, 2000] };
 
 function badRequest(request, env, message) { return jsonResponse(request, env, { ok: false, error: message }, 400); }
 function dateParts(value) { return Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: ARGENTINA_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(value).filter((part) => part.type !== "literal").map((part) => [part.type, part.value])); }
@@ -13,6 +15,7 @@ function argentinaDate(now = new Date()) { const parts = dateParts(now); return 
 function parsedDate(date) { const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date); if (!match) return null; const [year, month, day] = match.slice(1).map(Number); const probe = new Date(Date.UTC(year, month - 1, day)); return probe.getUTCFullYear() === year && probe.getUTCMonth() === month - 1 && probe.getUTCDate() === day ? { year, month, day } : null; }
 function localMidnightToUtc(date) { const parsed = parsedDate(date); if (!parsed) return null; const candidate = new Date(Date.UTC(parsed.year, parsed.month - 1, parsed.day)); const local = dateParts(candidate); const localAsUtc = Date.UTC(Number(local.year), Number(local.month) - 1, Number(local.day), Number(local.hour), Number(local.minute)); return new Date(candidate.getTime() - (localAsUtc - candidate.getTime())).toISOString(); }
 function nextDate(date) { const parsed = parsedDate(date); return new Date(Date.UTC(parsed.year, parsed.month - 1, parsed.day + 1)).toISOString().slice(0, 10); }
+function previousDate(date) { const parsed = parsedDate(date); return new Date(Date.UTC(parsed.year, parsed.month - 1, parsed.day - 1)).toISOString().slice(0, 10); }
 function argentinaDateToUtcRange(date) { return { start: localMidnightToUtc(date), end: localMidnightToUtc(nextDate(date)) }; }
 function formatArgentinaDateTime(timestamp) { const parts = dateParts(new Date(timestamp)); return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute}`; }
 function isValidArgentinaDate(date) { return parsedDate(date) !== null; }
@@ -33,6 +36,18 @@ function rainTotal(rows) {
     previous = row.precip_total;
   });
   return previous === null ? null : total;
+}
+function validDailyValue(value, key) { const [minimum, maximum] = DAILY_VALID_LIMITS[key]; return Number.isFinite(value) && value >= minimum && value <= maximum; }
+function dailyPrecipitationTotal(rows) {
+  let total = 0; let previous = null; let available = false;
+  rows.forEach((row) => {
+    if (!validDailyValue(row.precip_total, "precipTotal")) return;
+    available = true;
+    if (previous === null) total += row.precip_total;
+    else total += row.precip_total >= previous ? row.precip_total - previous : row.precip_total;
+    previous = row.precip_total;
+  });
+  return available ? total : null;
 }
 function rangeFromPeriod(period) { const duration = COMPARE_PERIODS[period]; return duration ? { start: new Date(Date.now() - duration).toISOString(), end: new Date().toISOString(), duration } : null; }
 function csvValue(value) { return value === null || value === undefined ? "" : String(value).replaceAll('"', '""'); }
@@ -55,6 +70,43 @@ async function aggregateStats(database, start, end) {
   if (!summary || !summary.observations) return null;
   const precipitation = rainTotal(await rawRows(database, start, end));
   return { observations: summary.observations, temperatureAvg: summary.temperature_avg, temperatureMin: summary.temperature_min, temperatureMax: summary.temperature_max, humidityAvg: summary.humidity_avg, pressureAvg: summary.pressure_avg, windAvg: summary.wind_avg, windMax: summary.wind_max, windGustMax: summary.wind_gust_max, precipitation };
+}
+async function dailyExtreme(database, column, minimum, maximum, order, start, end) {
+  return database.prepare(`SELECT ${column} AS value, observed_at FROM weather_observations WHERE observed_at >= ? AND observed_at < ? AND ${column} BETWEEN ? AND ? ORDER BY ${column} ${order}, observed_at ASC LIMIT 1`).bind(start, end, minimum, maximum).first();
+}
+async function dailySummaryData(database, start, end) {
+  const aggregatePromise = database.prepare(`SELECT COUNT(*) AS observations, MIN(observed_at) AS first_observation, MAX(observed_at) AS last_observation,
+    MIN(CASE WHEN temperature BETWEEN -90 AND 70 THEN temperature END) AS temperature_min, MAX(CASE WHEN temperature BETWEEN -90 AND 70 THEN temperature END) AS temperature_max,
+    MIN(CASE WHEN humidity BETWEEN 0 AND 100 THEN humidity END) AS humidity_min, MAX(CASE WHEN humidity BETWEEN 0 AND 100 THEN humidity END) AS humidity_max,
+    MIN(CASE WHEN pressure BETWEEN 800 AND 1100 THEN pressure END) AS pressure_min, MAX(CASE WHEN pressure BETWEEN 800 AND 1100 THEN pressure END) AS pressure_max,
+    MAX(CASE WHEN wind_speed BETWEEN 0 AND 300 THEN wind_speed END) AS wind_max,
+    MAX(CASE WHEN wind_gust BETWEEN 0 AND 400 THEN wind_gust END) AS gust_max
+    FROM weather_observations WHERE observed_at >= ? AND observed_at < ?`).bind(start, end).first();
+  const precipitationPromise = database.prepare("SELECT observed_at, precip_total FROM weather_observations WHERE observed_at >= ? AND observed_at < ? AND precip_total IS NOT NULL ORDER BY observed_at ASC LIMIT 300").bind(start, end).all();
+  const [aggregate, temperatureMin, temperatureMax, windMax, gustMax, precipitation] = await Promise.all([
+    aggregatePromise,
+    dailyExtreme(database, "temperature", -90, 70, "ASC", start, end),
+    dailyExtreme(database, "temperature", -90, 70, "DESC", start, end),
+    dailyExtreme(database, "wind_speed", 0, 300, "DESC", start, end),
+    dailyExtreme(database, "wind_gust", 0, 400, "DESC", start, end),
+    precipitationPromise
+  ]);
+  if (!aggregate || !aggregate.observations) return null;
+  const expectedObservations = Math.max(1, Math.ceil((Date.parse(end) - Date.parse(start)) / DAILY_INTERVAL_MS));
+  const firstGap = aggregate.first_observation ? Date.parse(aggregate.first_observation) - Date.parse(start) : Infinity;
+  const lastGap = aggregate.last_observation ? Date.parse(end) - Date.parse(aggregate.last_observation) : Infinity;
+  return {
+    observations: aggregate.observations,
+    firstObservation: aggregate.first_observation,
+    lastObservation: aggregate.last_observation,
+    coverage: { expectedObservations, percentage: Math.min(100, Math.round((aggregate.observations / expectedObservations) * 100)), partial: firstGap > DAILY_INTERVAL_MS * 2 || lastGap > DAILY_INTERVAL_MS * 2 },
+    temperature: { min: aggregate.temperature_min, minAt: temperatureMin && temperatureMin.observed_at, max: aggregate.temperature_max, maxAt: temperatureMax && temperatureMax.observed_at },
+    humidity: { min: aggregate.humidity_min, max: aggregate.humidity_max },
+    pressure: { min: aggregate.pressure_min, max: aggregate.pressure_max },
+    wind: { max: aggregate.wind_max, maxAt: windMax && windMax.observed_at },
+    gust: { max: aggregate.gust_max, maxAt: gustMax && gustMax.observed_at },
+    precipitation: { total: dailyPrecipitationTotal(precipitation.results) }
+  };
 }
 async function getCurrent(request, env) {
   const row = await env.HISTORY_DB.prepare("SELECT * FROM weather_observations ORDER BY observed_at DESC LIMIT 1").first();
@@ -85,6 +137,18 @@ async function getDailyStats(request, env, date) {
   if (!validPastDate(date)) return badRequest(request, env, "La fecha debe ser YYYY-MM-DD y no puede ser futura.");
   const range = dayRange(date); const data = await aggregateStats(env.HISTORY_DB, range.start, range.end);
   return jsonResponse(request, env, { ok: true, date, timezone: "America/Argentina/Buenos_Aires", data });
+}
+async function getDailySummary(request, env, url) {
+  const date = url.searchParams.get("date") || argentinaDate();
+  if (!validPastDate(date)) return badRequest(request, env, "La fecha debe ser YYYY-MM-DD y no puede ser futura.");
+  const range = dayRange(date); const isCurrentDay = date === argentinaDate();
+  const end = isCurrentDay ? new Date().toISOString() : range.end;
+  const data = await dailySummaryData(env.HISTORY_DB, range.start, end);
+  const comparisonDate = previousDate(date); const comparisonRange = dayRange(comparisonDate);
+  const elapsed = Date.parse(end) - Date.parse(range.start);
+  const comparisonEnd = isCurrentDay ? new Date(Date.parse(comparisonRange.start) + elapsed).toISOString() : comparisonRange.end;
+  const comparison = await dailySummaryData(env.HISTORY_DB, comparisonRange.start, comparisonEnd);
+  return jsonResponse(request, env, { ok: true, date, timezone: ARGENTINA_TIME_ZONE, isCurrentDay, data, comparison: comparison ? { date: comparisonDate, sameElapsed: isCurrentDay, data: comparison } : null });
 }
 async function getCompare(request, env, url) {
   const period = url.searchParams.get("period"); const current = rangeFromPeriod(period);
@@ -118,6 +182,7 @@ async function route(request, env) {
   if (request.method === "GET" && url.pathname === "/api/history/info") return getHistoryInfo(request, env);
   if (request.method === "GET" && url.pathname === "/api/stats/today") return getDailyStats(request, env, argentinaDate());
   if (request.method === "GET" && url.pathname === "/api/stats/daily") return getDailyStats(request, env, url.searchParams.get("date") || "");
+  if (request.method === "GET" && url.pathname === "/api/daily-summary") return getDailySummary(request, env, url);
   if (request.method === "GET" && url.pathname === "/api/compare") return getCompare(request, env, url);
   if (request.method === "GET" && url.pathname === "/api/records") return getRecords(request, env);
   if (request.method === "GET" && url.pathname === "/api/export.csv") return exportCsv(request, env, url);

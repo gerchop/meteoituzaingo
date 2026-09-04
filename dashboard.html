@@ -96,6 +96,15 @@
       <p class="local-data-note">Datos locales registrados por este dispositivo; no constituyen históricos oficiales.</p>
     </section>
 
+    <section class="conditions daily-summary-section" aria-labelledby="daily-summary-title">
+      <div class="section-heading"><div><p class="eyebrow">Registros permanentes</p><h2 id="daily-summary-title">Resumen de hoy</h2></div></div>
+      <p id="dailySummaryStatus" class="history-status" role="status">Cargando resumen diario…</p>
+      <div id="dailySummaryCards" class="summary-grid daily-summary-grid" hidden></div>
+      <p id="dailySummaryCoverage" class="local-data-note" hidden></p>
+      <p id="dailySummaryNarrative" class="daily-summary-narrative" hidden></p>
+      <p id="dailySummaryComparison" class="daily-summary-comparison" hidden></p>
+    </section>
+
     <section class="forecast-section historical-section" aria-labelledby="history-title">
       <div class="section-heading"><div><p class="eyebrow">Histórico permanente</p><h2 id="history-title">Temperatura registrada</h2></div></div>
       <div class="history-chart-wrap"><canvas id="historyChart" aria-label="Gráfico de temperatura histórica" role="img"></canvas><p id="historyMessage" class="forecast-message">Cargando histórico disponible…</p></div>

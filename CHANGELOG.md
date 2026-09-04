@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.6 - 2026-09-04
+
+- Se incorporó el resumen meteorológico diario basado en observaciones reales de Cloudflare D1: máximas, mínimas, horas de extremos, humedad, presión, viento, ráfaga, lluvia y cobertura.
+- La Home muestra una frase local determinística y compara hoy hasta ahora con ayer hasta la misma hora; el resumen de Históricos reutiliza el selector de fecha y presenta los extremos diarios disponibles.
+- Se agregó `GET /api/daily-summary`, con límites de día en `America/Argentina/Buenos_Aires`, validación de datos y consultas acotadas al rango diario.
+- La precipitación diaria se calcula desde `precip_total` con primera lectura, diferencias consecutivas y manejo de reinicios; no se suman acumulados completos.
+- Se documentaron metodología, API, cobertura, limitaciones y uso editorial futuro sin crear servicios, bases ni tareas nuevas.
+
 ## v1.5 - 2026-08-28
 
 - Se reforzó el SEO técnico de Dashboard e Históricos con títulos, descripciones, canonical, Open Graph, Twitter Cards, favicon y datos estructurados `WebSite`/`WebPage` válidos en HTML estático.

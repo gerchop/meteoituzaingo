@@ -1,3 +1,45 @@
+# Informe de implementación v1.6
+
+## Resultado
+
+v1.6 convierte los registros permanentes de D1 en un resumen meteorológico diario real. La Home incorpora un bloque compacto «Resumen de hoy» y `historicos.html` reutiliza su selector de fecha para presentar el mismo modelo enriquecido. Weather.com, Meteored, radar, satélite, Analytics, SEO, D1, cron, CSV y gráficos existentes se conservaron.
+
+## Backend y timezone
+
+Se añadió `GET /api/daily-summary` al Worker existente `meteoituzaingo-history`; no se crearon Worker, D1, tablas, migraciones, índices ni tareas. El endpoint admite `date=YYYY-MM-DD` opcional y responde `date`, `timezone`, `isCurrentDay`, `data` y `comparison`. Los días usan el rango semiabierto de medianoche a medianoche en `America/Argentina/Buenos_Aires`, convertido a UTC mediante las utilidades existentes.
+
+`data` devuelve primera/última observación, cantidad, cobertura, máximas/mínimas, horas de máximas/mínimas de temperatura, viento y ráfaga, humedad, presión y precipitación. Los valores imposibles se excluyen antes de agregarse; cuando no hay filas el endpoint devuelve `data: null`, sin inventar ceros.
+
+Para eficiencia, el Worker usa el índice temporal existente: una agregación del rango diario, cuatro consultas de extremos con timestamp y una lectura de sólo `observed_at`/`precip_total`, limitada a 300 filas. La Home consulta al iniciar y cada diez minutos; el caché público del endpoint se mantiene en 60 segundos.
+
+## Precipitación y comparación
+
+La auditoría de registros reales confirmó que `precip_total` es acumulativo durante el día local: el 27/08/2026 creció de 0,25 a 17,53 mm y se observaron valores reiniciados después del cambio de día. El resumen toma la primera lectura válida, suma diferencias consecutivas y, si el acumulado disminuye, suma la lectura nueva como reinicio. No suma acumulados completos fila a fila. `precip_rate` conserva su uso como intensidad para gráficos.
+
+La comparación de Home es «hoy hasta ahora» contra «ayer hasta la misma hora», evitando comparar un día parcial con ayer completo. La frase local se genera con reglas determinísticas, omite variables faltantes y sólo informa lluvia cuando existe. Cobertura parcial se indica si faltan más de dos intervalos de diez minutos al inicio o al final.
+
+## Frontend y documentación
+
+- `dashboard.html`, `js/dashboard.js` y `css/dashboard.css`: bloque responsive, siete tarjetas reutilizando la identidad visual, cobertura, frase y comparación compacta.
+- `js/history.js` y `js/history-api.js`: resumen diario enriquecido coordinado con el selector de fecha existente; no se agregaron controles nuevos.
+- `DAILY_SUMMARY.md` y `HISTORY_API.md`: metodología, contrato, calidad, lluvia, cobertura, consultas y fallback.
+- `README.md`, `AI_INSTRUCTIONS.md` y `CHANGELOG.md`: capacidad y restricciones actualizadas.
+
+## Pruebas reales
+
+- `node --check` sobre Worker y scripts modificados; `git diff --check`; empaquetado Wrangler `--dry-run` correcto con los mismos bindings.
+- Worker desplegado como versión `60d600bd-0a7d-41d9-ba27-d61bfe7f18eb`; D1 y cron `*/10 * * * *` se conservaron.
+- `/api/daily-summary` actual devolvió `200`, `America/Argentina/Buenos_Aires`, datos reales, CORS para GitHub Pages y comparación de mismo intervalo con ayer.
+- `/api/daily-summary?date=2026-08-27` devolvió 17,53 mm; un cálculo independiente sobre `/api/history?date=2026-08-27` coincidió exactamente. Máxima, mínima y ráfaga máxima también coincidieron con las filas reales.
+- Una fecha previa al comienzo del histórico devolvió `data: null`; una fecha inválida devolvió `400`.
+- GitHub Pages publicado respondió `200` para Dashboard e Históricos. Una carga controlada en navegador confirmó el bloque Home renderizado con datos reales y comparación, y el resumen de Históricos coexistiendo con sus gráficos, comparativas y récords. Analytics, sitemap y el archivo de verificación de Google permanecieron accesibles.
+
+## Limitaciones y siguiente paso
+
+El histórico comenzó el 19/08/2026: los resúmenes tempranos o con cobertura parcial se identifican como tales. No se implementaron estadísticas mensuales, efemérides, nuevos récords ni publicaciones Blogger automáticas. La API puede usarse más adelante para contenido editorial sin cambiar la metodología diaria.
+
+---
+
 # Informe de implementación v1.5
 
 ## Resultado
