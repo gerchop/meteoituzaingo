@@ -185,27 +185,13 @@ function textoTendencia(nombre, tendencia, unidad) {
   return `${nombre} ${flecha} ${variacion} / ${tendencia.minutos} min`;
 }
 
-function actualizarTendenciasYRegistros(obs, historial) {
+function actualizarTendenciasYDestacados(obs, historial) {
   const metric = obs.metric;
   const temperatura = calcularTendencia(historial, "temperatura", metric.temp, CONFIG.temperaturaEstable);
   const presion = calcularTendencia(historial, "presion", metric.pressure, CONFIG.presionEstable);
   const viento = calcularTendencia(historial, "viento", metric.windSpeed, CONFIG.vientoEstable);
   document.getElementById("heroTrends").innerHTML = `<span>${textoTendencia("Temperatura", temperatura, "°C")}</span><span>${textoTendencia("Presión", presion, "hPa")}</span><span>${textoTendencia("Viento", viento, "km/h")}</span>`;
-  mostrarRegistrosRecientes(historial);
   mostrarCondicionesDestacadas(obs, presion);
-}
-
-function mostrarRegistrosRecientes(historial) {
-  const seccion = document.getElementById("recentRecordsSection"); const contenedor = document.getElementById("recentRecords");
-  if (historial.length < 2) { seccion.hidden = true; return; }
-  const valores = function (campo) { return historial.map(function (muestra) { return muestra[campo]; }).filter(numeroValido); };
-  const campos = ["temperatura", "rafaga", "humedad", "presion"];
-  if (campos.some(function (campo) { return valores(campo).length < 2; })) { seccion.hidden = true; return; }
-  const maximo = function (campo) { return Math.max.apply(null, valores(campo)); };
-  const minimo = function (campo) { return Math.min.apply(null, valores(campo)); };
-  const datos = [["Temperatura máxima", grados(maximo("temperatura"))], ["Temperatura mínima", grados(minimo("temperatura"))], ["Ráfaga máxima", `${Math.round(maximo("rafaga"))} km/h`], ["Humedad máxima", `${Math.round(maximo("humedad"))}%`], ["Humedad mínima", `${Math.round(minimo("humedad"))}%`], ["Presión máxima", `${Math.round(maximo("presion"))} hPa`], ["Presión mínima", `${Math.round(minimo("presion"))} hPa`]];
-  contenedor.innerHTML = datos.map(function (dato) { return `<article class="record-item"><span>${dato[0]}</span><strong>${dato[1]}</strong></article>`; }).join("");
-  seccion.hidden = false;
 }
 
 function mostrarCondicionesDestacadas(obs, tendenciaPresion) {
@@ -250,7 +236,7 @@ function mostrarClima(obs) {
   if (Number.isFinite(calor)) detallesConfort.push(`Índice de calor ${Math.round(calor)}°`);
   if (Number.isFinite(enfriamiento) && metric.temp <= 10 && metric.windSpeed > 4.8) detallesConfort.push(`Wind chill ${Math.round(enfriamiento)}°`);
   valor("cComfortDetail", detallesConfort.join(" · ") || "Indicador orientativo");
-  actualizarTendenciasYRegistros(obs, guardarObservacionLocal(obs));
+  actualizarTendenciasYDestacados(obs, guardarObservacionLocal(obs));
   valor("actualizacion", `Actualizado: ${DateTime.formatDateTime(obs.obsTimeLocal || obs.obsTimeUtc)}`);
 }
 

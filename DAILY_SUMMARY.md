@@ -40,3 +40,7 @@ Si el Worker o D1 falla, el bloque informa «Resumen diario temporalmente no dis
 ## Uso editorial futuro
 
 El mismo JSON puede alimentar una futura nota de Blogger, por ejemplo «Resumen meteorológico del 3 de septiembre de 2026». No se generan publicaciones, estadísticas mensuales, efemérides ni récords nuevos en v1.6.
+
+## Fuente autoritativa en Home
+
+Desde v1.6.1, «Resumen de hoy» es la única fuente de máximas, mínimas, ráfagas, humedad, presión y lluvia diarias en Home. Se retiró el anterior bloque «Registros recientes»: no leía D1, sino las respuestas de Weather.com guardadas por cada navegador en `localStorage`, filtradas a las últimas 24 horas y limitadas a 96 muestras. Esa ventana podía empezar cuando el visitante abría el sitio o conservar una sesión parcial; por eso sus extremos podían ser iguales o diferir de los del día meteorológico argentino. El almacenamiento local permanece sólo para calcular tendencias breves de cabecera.

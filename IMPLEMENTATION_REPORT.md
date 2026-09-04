@@ -1,3 +1,23 @@
+# Informe de implementación v1.6.1
+
+## Corrección de registros diarios en Home
+
+La auditoría confirmó que el bloque «Registros recientes» no usaba D1. `guardarObservacionLocal()` guardaba respuestas directas de Weather.com en `localStorage` por navegador, descartaba muestras con más de 24 horas y retenía un máximo de 96. `mostrarRegistrosRecientes()` calculaba sus máximas/mínimas sobre esa ventana local. Por lo tanto, su cobertura dependía de cuándo se abrió el dashboard, de la persistencia del navegador y de cuántas actualizaciones locales habían ocurrido; si sólo había lecturas similares, máxima y mínima podían coincidir.
+
+En contraste, «Resumen de hoy» usa `GET /api/daily-summary` sobre observaciones persistentes de D1, delimitadas en `America/Argentina/Buenos_Aires`, con horas de extremos, cobertura y metodología de precipitación ya validada. Ambos bloques parecían describir el mismo día, pero no medían el mismo universo de datos, causando una inconsistencia de UX.
+
+Se eliminó solamente el HTML, CSS y renderizado específico de «Registros recientes». El historial local y `localStorage` continúan porque las tendencias breves de temperatura, presión y viento de la cabecera los necesitan. No se cambió backend, endpoint, D1, cron, cálculo diario, lluvia, Históricos, SEO, Analytics, sitemap ni archivo de verificación de Google.
+
+La etiqueta pública del bloque autoritativo cambió de «Registros permanentes» a «Resumen diario». Desde v1.6.1 es la única respuesta visible en Home para extremos y acumulados del día.
+
+## Pruebas
+
+- `node --check` y `git diff --check` sobre los archivos modificados.
+- Auditoría estática: no quedan `recentRecordsSection`, `recentRecords` ni `mostrarRegistrosRecientes` en Home.
+- GitHub Pages publicado respondió `200`: el HTML ya no contiene `recentRecordsSection` ni «Registros recientes», conserva Analytics y presenta «Resumen diario». Una carga controlada en navegador confirmó tarjetas D1, horarios, ráfaga, precipitación, narrativa y comparación renderizadas correctamente.
+
+---
+
 # Informe de implementación v1.6
 
 ## Resultado

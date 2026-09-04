@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.6.1 - 2026-09-04
+
+- Se retiró de Home el bloque local «Registros recientes», que resumía una ventana parcial de `localStorage` y podía contradecir los extremos diarios de D1.
+- «Resumen de hoy» queda como única referencia visible de máximas, mínimas, ráfaga, humedad, presión, lluvia, horarios y cobertura del día argentino.
+- Se renombró el encabezado público a «Resumen diario», sin cambiar cálculos, endpoint, precipitación, tendencias de cabecera ni servicios meteorológicos.
+
 ## v1.6 - 2026-09-04
 
 - Se incorporó el resumen meteorológico diario basado en observaciones reales de Cloudflare D1: máximas, mínimas, horas de extremos, humedad, presión, viento, ráfaga, lluvia y cobertura.
