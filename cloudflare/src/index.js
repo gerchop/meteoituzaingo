@@ -147,10 +147,23 @@ async function statisticRows(database, start, end) {
     cursor = result.results.at(-1).observed_at;
   }
 }
+function localDateCache() {
+  const cache = new Map();
+  return (timestamp) => {
+    const utcDate = timestamp.slice(0, 10); let entry = cache.get(utcDate);
+    if (!entry) {
+      const localDate = argentinaDate(new Date(`${utcDate}T12:00:00.000Z`));
+      entry = { localDate, localMidnight: localMidnightToUtc(localDate) };
+      cache.set(utcDate, entry);
+    }
+    return timestamp >= entry.localMidnight ? entry.localDate : previousDate(entry.localDate);
+  };
+}
 function dailyStatistics(rows) {
   const days = new Map();
+  const localDate = localDateCache();
   rows.forEach((row) => {
-    const date = argentinaDate(new Date(row.observed_at));
+    const date = localDate(row.observed_at);
     const day = days.get(date) || { date, temperatures: [], precipitationRows: [], observations: 0 };
     day.observations += 1;
     if (validDailyValue(row.temperature, "temperature")) day.temperatures.push(row.temperature);
@@ -197,8 +210,10 @@ async function statisticsInfo(database) {
   const info = await database.prepare("SELECT MIN(observed_at) AS first_observation, MAX(observed_at) AS last_observation, COUNT(*) AS total_observations FROM weather_observations").first();
   if (!info || !info.total_observations) return null;
   const rows = await statisticRows(database, info.first_observation, new Date(Date.parse(info.last_observation) + 1000).toISOString());
-  const months = [...new Set(rows.map((row) => localMonth(row.observed_at)))].sort();
-  const years = [...new Set(rows.map((row) => localYear(row.observed_at)))].sort();
+  const localDate = localDateCache();
+  const dates = rows.map((row) => localDate(row.observed_at));
+  const months = [...new Set(dates.map((date) => date.slice(0, 7)))].sort();
+  const years = [...new Set(dates.map((date) => date.slice(0, 4)))].sort();
   return { firstObservation: info.first_observation, lastObservation: info.last_observation, totalObservations: info.total_observations, months, years };
 }
 function previousStatisticRange(period, value, current) {

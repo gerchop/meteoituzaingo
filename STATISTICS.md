@@ -22,6 +22,6 @@ Un mes o año en curso se compara con el mismo tramo transcurrido del período c
 
 ## Rendimiento y límites actuales
 
-`GET /api/statistics` realiza agregación y agrupación diaria dentro del Worker; el navegador recibe sólo indicadores, cobertura y una serie diaria compacta para Chart.js. No se descargan observaciones crudas para calcular estadísticas en el cliente. La consulta aprovecha el índice existente de `observed_at`; no se creó una tabla, índice, D1, Worker ni cron adicional.
+`GET /api/statistics` realiza agregación y agrupación diaria dentro del Worker; el navegador recibe sólo indicadores, cobertura y una serie diaria compacta para Chart.js. No se descargan observaciones crudas para calcular estadísticas en el cliente. La consulta aprovecha el índice existente de `observed_at`; no se creó una tabla, índice, D1, Worker ni cron adicional. La conversión a fecha argentina se memoriza por día UTC durante la consulta para conservar el límite de CPU de Workers al crecer el histórico.
 
 El histórico inicial todavía es corto. Las estadísticas mensuales/anuales están implementadas para que evolucionen con la base, pero hasta acumular años completos sólo expresan datos disponibles de la estación.

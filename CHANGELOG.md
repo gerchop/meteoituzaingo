@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.7.1 - 2026-09-05
+
+- Se corrigieron los endpoints de estadísticas que podían finalizar con `error code: 1102` de Cloudflare Workers y provocar el mensaje de indisponibilidad aunque D1 tuviera datos reales.
+- La conversión UTC a calendario `America/Argentina/Buenos_Aires` ahora se memoriza por día UTC durante cada agregación, evitando ejecutar `Intl` por cada observación. Se conservan el timezone, la metodología de lluvia, los contratos JSON y la agregación en backend.
+- Se verificó la hidratación publicada de meses `2026-08` y `2026-09`, el año `2026`, las estadísticas parciales de septiembre, el año en curso, todo el histórico y ambos gráficos diarios.
+
 ## v1.7 - 2026-09-05
 
 - Se añadió en `historicos.html` una capa de estadísticas reales por mes, año y «Desde el inicio», con opciones derivadas de D1, extremos con fecha/hora argentina, medias registradas, humedad, presión, racha máxima, lluvia, día más lluvioso, días con precipitación, observaciones y cobertura.

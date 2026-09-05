@@ -1,3 +1,17 @@
+# Informe de implementación v1.7.1
+
+## Corrección de estadísticas y selectores
+
+La causa raíz fue un excedente de CPU del Worker publicado (`error code: 1102`), no una ausencia de datos ni un error de CORS. `statisticsInfo()` y `dailyStatistics()` invocaban `Intl.DateTimeFormat` indirectamente para cada fila D1 al traducir UTC al calendario argentino. Al solicitar el histórico completo, esas miles de conversiones podían superar el límite de CPU y el frontend recibía el fallback «Estadísticas temporalmente no disponibles».
+
+Se reemplazó esa repetición por una caché de fecha local por día UTC: cada día se resuelve con las utilidades existentes de `America/Argentina/Buenos_Aires` y sus observaciones reutilizan el resultado. No se codificó UTC-3, no se cambió el contrato API, la tabla, el índice, el cron ni la metodología de precipitación. El Worker corregido quedó desplegado como `6489d6c5-a144-4464-b143-7cd0a48ff012`.
+
+La auditoría D1 real encontró inicio `2026-08-19T19:39:27.000Z`, última observación `2026-09-05T18:59:19.000Z`, 2383 filas, agosto con 1764 observaciones y septiembre con 619. El endpoint público devuelve esos dos meses y el año 2026. Para septiembre, sus 619 observaciones, mínima `5,8 °C`, máxima `24,0 °C` y ráfaga `30,6 km/h` coinciden con una consulta D1 independiente; el mes se informa correctamente como parcial y contiene cinco agregados diarios.
+
+Tras el deploy, `statistics/info`, mes, año y todo el histórico respondieron `200`; CORS devolvió exactamente `https://gerchop.github.io`; un parámetro inválido devolvió `400`. Una carga headless de GitHub Pages confirmó selectores hidratados, tarjetas reales y ambos canvas diarios renderizados, sin el fallback técnico. Un período válido sin filas continúa devolviendo `data: null` para que el frontend muestre «No hay datos disponibles para este período.»
+
+---
+
 # Informe de implementación v1.7
 
 ## Estadísticas históricas de la estación
