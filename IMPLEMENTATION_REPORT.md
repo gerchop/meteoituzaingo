@@ -1,3 +1,15 @@
+# Informe de implementación v1.8.2
+
+## Corrección de lectura de CSRF
+
+La causa raíz fue un desajuste de contrato en `socialScript()`: el helper `api()` devolvía siempre `body.data`, pero `POST /api/admin/login` devuelve correctamente `{ ok: true, csrf: "…" }` en la raíz. Por ello `result` era `undefined` y la lectura `result.csrf` provocaba el error visible. El backend, secrets y contrato de login no requerían cambios.
+
+El helper ahora admite respuestas raíz con `raw:true`, valida que exista `result.csrf` antes de asignarlo y muestra un mensaje controlado si falta. Se agregó `GET /api/admin/session`, protegido por la cookie existente, para restaurar el CSRF al recargar: F5 mantiene la sesión y permite mutaciones con el mismo token firmado.
+
+Producción: el JavaScript descargado validó con Node; login devolvió `200`, `csrf` raíz presente y sin `data`; sesión restaurada devolvió el mismo token; pronóstico cargó con estado `generated`; logout devolvió `200` y una consulta posterior `401`. Worker publicado: `e4555069-00fe-49b5-942c-df8c486213b8`.
+
+---
+
 # Informe de implementación v1.8.1
 
 ## Corrección urgente del login

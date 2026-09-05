@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.8.2 - 2026-09-05
+
+- Se corrigió la lectura de CSRF en el panel privado: el login devuelve `csrf` en la raíz del JSON y el frontend ya no intenta acceder a un objeto `data` inexistente.
+- Se incorporó restauración de sesión con endpoint privado y CSRF validado para que una recarga mantenga el panel y sus operaciones protegidas, sin modificar secrets ni el contrato de login.
+
 ## v1.8.1 - 2026-09-05
 
 - Se corrigió el JavaScript servido por el panel privado: un salto de línea real dentro de una cadena de `redes.js` impedía que el navegador analizara el script y, por lo tanto, no registraba el login.
