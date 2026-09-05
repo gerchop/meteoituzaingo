@@ -25,6 +25,8 @@
     async fetchDailySummary(date) { const query = date ? `?date=${encodeURIComponent(date)}` : ""; return request(`/api/daily-summary${query}`); },
     async fetchCompare(period) { return request(`/api/compare?period=${encodeURIComponent(period)}`); },
     async fetchRecords() { return (await request("/api/records")).data; },
+    async fetchStatisticsInfo() { return (await request("/api/statistics/info")).data; },
+    async fetchStatistics(period, value = "") { return request(`/api/statistics?period=${encodeURIComponent(period)}&value=${encodeURIComponent(value)}`); },
     exportUrl(selection) {
       const parameter = selection.kind === "date" ? `date=${encodeURIComponent(selection.value)}` : `period=${encodeURIComponent(selection.value)}`;
       return `${baseUrl}/api/export.csv?${parameter}`;

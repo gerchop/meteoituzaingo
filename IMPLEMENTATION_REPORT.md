@@ -1,3 +1,26 @@
+# Informe de implementación v1.7
+
+## Estadísticas históricas de la estación
+
+La nueva capa de `historicos.html` consulta meses y años realmente disponibles en D1 y permite elegir un mes, un año o todo el histórico. Muestra extremos con timestamps argentinos, temperatura media registrada, humedad, presión, ráfaga, acumulado de lluvia, día más lluvioso, días con lluvia, observaciones y cobertura. Incluye gráficos diarios de temperatura y precipitación reutilizando Chart.js y la estética existente.
+
+`/api/statistics` agrega los datos dentro del Worker; el frontend recibe indicadores y series diarias, no observaciones crudas masivas. No se modificaron Weather.com, Meteored, radar, satélite, dashboard, Analytics, SEO, sitemap, Search Console, D1, el Worker existente, la captura ni el cron `*/10 * * * *`.
+
+Los límites de todos los períodos son `America/Argentina/Buenos_Aires`. La lluvia se calcula primero por día mediante la regla ya auditada de primera lectura, diferencias y reinicios de `precip_total`; los períodos suman esos resultados diarios. «Día con lluvia» significa un total diario mayor que cero. En empates, las consultas ordenan por timestamp ascendente y muestran la primera ocurrencia real.
+
+La cobertura usa seis observaciones esperadas por hora, de acuerdo con el cron existente. Se considera suficiente para comparativas a partir de 50 % en ambos períodos. Los períodos en curso se contrastan sólo contra el mismo tramo relativo anterior; los cerrados contra el calendario anterior completo. No se usan porcentajes de lluvia, por lo que `0 mm` no produce resultados engañosos.
+
+El histórico sigue siendo una base propia en crecimiento: toda interfaz emplea «registros de la estación» y «datos disponibles», nunca récord climatológico oficial. Los años parciales exponen su rango real. Metodología, límites y contrato se documentan en `STATISTICS.md` y `HISTORY_API.md`.
+
+## Validación de datos reales
+
+- El esquema remoto conserva exclusivamente `weather_observations` y `idx_weather_observations_observed_at`; no hubo migración ni escritura de D1.
+- Tras el deploy del Worker, `/api/statistics/info` devolvió meses `2026-08` y `2026-09`, año `2026`, inicio real `2026-08-19T19:39:27.000Z` y el último timestamp disponible en la prueba.
+- Para septiembre de 2026, `/api/statistics` devolvió 617 observaciones, 92 % de cobertura, cinco filas diarias y 6,1 mm. La suma independiente de los cinco `daily-summary` del mes también fue 6,1 mm.
+- Se verificaron `400` para un período inválido y CORS exacto para `https://gerchop.github.io`. El empaquetado Wrangler, `node --check` de Worker/frontend y `git diff --check` completaron sin errores funcionales.
+
+---
+
 # Informe de implementación v1.6.1
 
 ## Corrección de registros diarios en Home

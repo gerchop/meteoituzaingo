@@ -29,6 +29,12 @@ Las comparativas devuelven `sufficient: false` cuando no hay datos en ambos per�
 
 Los extremos incluyen timestamp sólo donde aporta valor visible (máxima/mínima de temperatura, viento y ráfaga). El día actual se compara contra ayer hasta la misma hora; una fecha histórica se prepara contra el día anterior completo. La metodología de lluvia y cobertura está documentada en [DAILY_SUMMARY.md](DAILY_SUMMARY.md).
 
+## Estadísticas de períodos
+
+`GET /api/statistics/info` devuelve primera/última observación y las listas de meses/años que contienen datos reales según el calendario argentino. `GET /api/statistics` admite `period=month&value=YYYY-MM`, `period=year&value=YYYY` o `period=all` y devuelve agregados, cobertura, una serie diaria compacta y una comparativa equivalente cuando ambos rangos superan 50 % de cobertura.
+
+La API agrupa del lado del Worker: el cliente no recibe miles de observaciones para calcular estadísticas. La lluvia de períodos deriva de totales diarios validados; consultar [STATISTICS.md](STATISTICS.md) y [DAILY_SUMMARY.md](DAILY_SUMMARY.md).
+
 ## Ejemplos
 
 ```text
@@ -36,4 +42,5 @@ GET /api/compare?period=7d
 GET /api/history?date=2026-08-20
 GET /api/export.csv?period=24h
 GET /api/daily-summary?date=2026-08-27
+GET /api/statistics?period=month&value=2026-08
 ```

@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.7 - 2026-09-05
+
+- Se añadió en `historicos.html` una capa de estadísticas reales por mes, año y «Desde el inicio», con opciones derivadas de D1, extremos con fecha/hora argentina, medias registradas, humedad, presión, racha máxima, lluvia, día más lluvioso, días con precipitación, observaciones y cobertura.
+- Se incorporaron `GET /api/statistics/info` y `GET /api/statistics`: el Worker agrega datos y devuelve sólo resultados y series diarias compactas para Chart.js; no se descargan registros masivos al navegador ni se crean tablas, índices, D1, Worker o cron nuevos.
+- Los acumulados de período y el día más lluvioso reutilizan la metodología validada de lluvia diaria de v1.6. Las comparativas de meses/años en curso usan el mismo tramo transcurrido del período anterior; sin cobertura suficiente se informa la limitación y la lluvia se expresa como diferencia absoluta.
+- El bloque pasó a llamarse «Récords de la estación» y suma el día más lluvioso, siempre delimitado desde el inicio real del histórico. Los resultados no se presentan como climatología oficial.
+- Se documentaron metodología, cobertura, límites y contratos en `STATISTICS.md`, `HISTORY_API.md`, `DAILY_SUMMARY.md`, `README.md` y `AI_INSTRUCTIONS.md`.
+
 ## v1.6.1 - 2026-09-04
 
 - Se retiró de Home el bloque local «Registros recientes», que resumía una ventana parcial de `localStorage` y podía contradecir los extremos diarios de D1.

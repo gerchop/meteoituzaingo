@@ -338,6 +338,10 @@ La analítica de audiencia usa Cloudflare Web Analytics de forma aditiva: `js/an
 
 La publicación actual usa GitHub Pages como URL canónica; sus únicas páginas indexables son `dashboard.html` e `historicos.html`, declaradas en `sitemap.xml` y `robots.txt`. Antes de migrar a Blogger, actualizar en conjunto canonical, Open Graph, JSON-LD, sitemap, navegación, CORS y Analytics siguiendo `BLOGGER_INTEGRATION.md`. No instalar AdSense, `ads.txt`, Publisher ID ni una verificación de Search Console sin valores reales; consultar `MONETIZATION.md`, `SEARCH_CONSOLE.md` y `SECURITY.md`.
 
+## v1.7
+
+Las estadísticas de períodos viven exclusivamente en `historicos.html` y se agregan en Cloudflare Worker + D1. Deben mantener calendario `America/Argentina/Buenos_Aires`, cobertura basada en el cron real `*/10 * * * *`, lluvia como suma de totales diarios validados y terminología de «registros de la estación», no climatología. Consultar `STATISTICS.md` y `HISTORY_API.md` antes de cambiar `/api/statistics` o sus comparativas.
+
 ## v1.2
 
 Los gráficos históricos avanzados residen en `historicos.html`; la home mantiene sólo una previsualización de temperatura. Reutilizar `js/history-config.js`, una solicitud por período y la agregación de D1. No duplicar URL de API, instancias Chart.js ni registros históricos.

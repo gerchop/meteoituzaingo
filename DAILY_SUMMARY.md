@@ -23,6 +23,10 @@ El acumulado diario no suma cada fila. Ordena los `precip_total` válidos del ra
 
 La auditoría previa de datos reales verificó acumulados crecientes el 27/08/2026 (de 0,25 a 17,53 mm) y valores bajos reiniciados después del día siguiente. Esta evidencia respalda el tratamiento como acumulado diario. El cálculo sigue siendo conservador si una estación reinicia el contador dentro del rango.
 
+## Estadísticas de períodos
+
+Desde v1.7, los acumulados mensuales, anuales y de todo el histórico reutilizan sin cambios este cálculo: se obtiene primero el total correcto de cada día argentino y luego se suman esos días. Por ello el día más lluvioso y los días con lluvia (`total diario > 0 mm`) no dependen del máximo de una lectura aislada. La metodología completa, cobertura y alcance no climatológico están en [STATISTICS.md](STATISTICS.md).
+
 ## Comparación y frase
 
 Para el día actual se compara **hoy hasta ahora** con **ayer hasta la misma hora**, evitando comparar una jornada parcial con un día completo. Para una fecha histórica, el endpoint prepara el día anterior completo como referencia; la interfaz actual sólo muestra la comparación compacta en Home.
