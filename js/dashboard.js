@@ -1,9 +1,6 @@
 const API_KEY = "1f02ece8a18244d482ece8a18284d480";
 const API_URL = `https://api.weather.com/v2/pws/observations/current?stationId=IITUZAIN9&format=json&units=m&apiKey=${API_KEY}&numericPrecision=decimal`;
 const GEOCOORDENADAS = "-34.655,-58.667";
-const METEORED_API_KEY = "588d0c77954be983ce8b369a5a0e41f10c8d52b790573a92e21ce0a8cc695edf";
-const METEORED_HASH = "02fb9feb8e7f9462733d7279a5479236";
-const METEORED_URL = "https://api.meteored.com/api/forecast/v1";
 const METEORED_CACHE_PREFIX = "meteoituzaingo.meteored.v1.";
 const HistoryApi = window.MeteoHistoryApi;
 const DateTime = window.MeteoDateTime;
@@ -309,7 +306,7 @@ function guardarCacheMeteored(tipo, respuesta) {
 async function obtenerPronosticoMeteored(tipo) {
   const cache = leerCacheMeteored(tipo);
   if (cache && cache.expiracion > Date.now() && cache.data) return cache.data;
-  const respuesta = await fetch(`${METEORED_URL}/${tipo}/${METEORED_HASH}`, { headers: { "X-API-Key": METEORED_API_KEY, Accept: "application/json" }, cache: "no-store" });
+  const respuesta = await fetch(`${window.MeteoHistoryConfig.API_BASE_URL}/api/forecast/${tipo}`, { cache: "no-store" });
   if (!respuesta.ok) throw new Error(`Meteored respondió ${respuesta.status}`);
   const cuerpo = await respuesta.json();
   if (!cuerpo.ok || !cuerpo.data || !Number.isFinite(cuerpo.expiracion)) throw new Error("Meteored devolvió una respuesta inválida");

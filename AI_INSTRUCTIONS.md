@@ -342,6 +342,10 @@ La publicación actual usa GitHub Pages como URL canónica; sus únicas páginas
 
 Las estadísticas de períodos viven exclusivamente en `historicos.html` y se agregan en Cloudflare Worker + D1. Deben mantener calendario `America/Argentina/Buenos_Aires`, cobertura basada en el cron real `*/10 * * * *`, lluvia como suma de totales diarios validados y terminología de «registros de la estación», no climatología. Consultar `STATISTICS.md` y `HISTORY_API.md` antes de cambiar `/api/statistics` o sus comparativas.
 
+## v1.8
+
+Nunca publicar automáticamente en X ni integrar una API social sin una versión explícita posterior. El generador social debe seguir siendo determinístico, usar Meteored cacheado, mantener el blog público `https://meteoituzaingo.blogspot.com/` y costar USD 0. El panel administrativo se sirve sólo desde el Worker y sus secretos viven únicamente en Cloudflare; nunca incluir contraseñas, tokens de sesión o claves Meteored en Git, HTML, JavaScript público o documentación. Consultar `SOCIAL_FORECAST.md` y `SECURITY.md` antes de modificar autenticación, cron, D1 o reglas.
+
 ## v1.2
 
 Los gráficos históricos avanzados residen en `historicos.html`; la home mantiene sólo una previsualización de temperatura. Reutilizar `js/history-config.js`, una solicitud por período y la agregación de D1. No duplicar URL de API, instancias Chart.js ni registros históricos.

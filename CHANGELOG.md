@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.8 - 2026-09-05
+
+- Se incorporó un generador diario y determinístico de pronóstico para redes, basado en datos reales horarios y diarios de Meteored, con texto breve de mañana/tarde, noche, viento, mínimas/máximas y enlace al blog; no publica en ninguna red social.
+- Se añadió el panel privado same-origin del Worker con login, sesión temporal firmada, CSRF, limitación básica de intentos, edición, regeneración, copia por publicación e historial de hasta 30 pronósticos.
+- Se creó la migración no destructiva para pronósticos, caché Meteored y límites de login; `forecast_date` es único para que la generación diaria sea idempotente.
+- Meteored se trasladó a un proxy cacheado del Worker y su credencial dejó de viajar en el dashboard público. Se agregó el cron `1 3 * * *` para las 00:01 de Argentina y se conservó la captura `*/10 * * * *`.
+
 ## v1.7.1 - 2026-09-05
 
 - Se corrigieron los endpoints de estadísticas que podían finalizar con `error code: 1102` de Cloudflare Workers y provocar el mensaje de indisponibilidad aunque D1 tuviera datos reales.

@@ -1,3 +1,15 @@
+# Informe de implementación v1.8
+
+## Generador privado para redes
+
+La auditoría confirmó que Meteored se consumía directamente desde el dashboard y su caché sólo vivía en `localStorage`; esa caché no podía ser utilizada por un cron. v1.8 trasladó la solicitud al Worker existente con `METEORED_API_KEY` como Secret, cache persistente D1 hasta la expiración informada por Meteored y endpoints públicos equivalentes para no alterar las tarjetas de pronóstico.
+
+Se agregó la migración no destructiva `0002_create_social_forecasts.sql`: pronósticos únicos por fecha, caché de fuente y límites de login. El cron existente `*/10 * * * *` continúa capturando Weather.com; `1 3 * * *` genera alrededor de las 00:01 de Argentina. La primera generación manual publicada produjo el 05/09/2026 una publicación real de 227 caracteres, con estado `generated`, a partir de 24 horas y cinco días Meteored.
+
+El panel privado se sirve same-origin en `https://meteoituzaingo-history.meteoituzaingo.workers.dev/admin/redes`, sin Analytics, sitemap ni datos privados embebidos. Login, sesión firmada de 12 horas, cookie HttpOnly/Secure/SameSite=Strict, CSRF para mutaciones, logout y rate-limit de cinco fallos por quince minutos protegen la edición, regeneración e historial. No existe integración ni publicación automática en X.
+
+---
+
 # Informe de implementación v1.7.1
 
 ## Corrección de estadísticas y selectores
