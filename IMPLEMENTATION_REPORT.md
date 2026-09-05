@@ -1,3 +1,15 @@
+# Informe de implementación v1.8.1
+
+## Corrección urgente del login
+
+El diagnóstico de producción fue correcto: `redes.js` devolvía `200` pero contenía un `SyntaxError: Invalid or unexpected token` cerca de la columna 1209. La fuente afectada era `socialScript()` en `cloudflare/src/index.js`. Dentro de su template literal, `\n` se interpretaba al construir la respuesta y emitía una nueva línea física dentro de una cadena JavaScript delimitada por comillas simples (`...length+'` seguido de salto de línea), que el navegador no puede analizar.
+
+La corrección duplica el escape en la fuente para que el recurso emitido conserve la secuencia JavaScript `\n`. Antes del deploy se evaluó el recurso generado con `new Function`; después del deploy, el recurso descargado de producción validó con Node como `ProductionJavaScript=OK`. La versión publicada del Worker es `95f039d7-baa3-4c8d-9e35-b33d3bba3b57`.
+
+La prueba de producción confirmó `POST /api/admin/login` con contraseña correcta en `200`, CSRF presente y sesión creada; una contraseña incorrecta devuelve `401`. El panel HTML carga desde `/admin/redes`, el formulario y el script quedan disponibles sin SyntaxError. No se modificaron secrets, D1, Meteored, dashboard ni funciones públicas.
+
+---
+
 # Informe de implementación v1.8
 
 ## Generador privado para redes

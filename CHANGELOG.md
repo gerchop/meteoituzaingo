@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.8.1 - 2026-09-05
+
+- Se corrigió el JavaScript servido por el panel privado: un salto de línea real dentro de una cadena de `redes.js` impedía que el navegador analizara el script y, por lo tanto, no registraba el login.
+- El escape se corrigió en la fuente `socialScript()` del Worker. El recurso publicado valida con Node, la contraseña correcta devuelve `200` y la incorrecta devuelve `401`.
+
 ## v1.8 - 2026-09-05
 
 - Se incorporó un generador diario y determinístico de pronóstico para redes, basado en datos reales horarios y diarios de Meteored, con texto breve de mañana/tarde, noche, viento, mínimas/máximas y enlace al blog; no publica en ninguna red social.
