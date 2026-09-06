@@ -1,3 +1,17 @@
+# Informe de implementación v1.8.3
+
+## Restauración de captura automática
+
+La auditoría D1 confirmó el hueco real: antes de la recuperación, la última fila era `2026-09-05T20:49:18.000Z` (17:49 Argentina). Se conservaron todas las filas y no se reconstruyó el período faltante. La configuración de Wrangler ya contenía ambos triggers, pero el handler introducido en v1.8 delegaba la captura a un `else` implícito, mientras el cron social tenía el único identificador explícito. Esa separación no era auditable ni protegía la responsabilidad crítica de captura frente a cambios de triggers.
+
+v1.8.3 declara `CAPTURE_CRON` y `SOCIAL_CRON` y enruta cada valor de `event.cron` de forma explícita, con retorno independiente y aviso para cron desconocido. El deploy reinstaló ambos triggers: captura `*/10 * * * *` y social `1 3 * * *`. No se tocaron secrets, Weather.com, Meteored, tablas ni registros históricos.
+
+Las verificaciones remotas posteriores mostraron nuevas filas consecutivas: `2026-09-06T15:40:01.000Z`, `15:50:01.000Z` y `15:59:56.000Z` (12:40, 12:50 y 12:59 Argentina). Las dos últimas son posteriores al deploy y prueban continuidad automática aproximada de diez minutos. `MAX(observed_at)` avanzó a `2026-09-06T15:59:56.000Z`; `/api/daily-summary` volvió a tener tres observaciones reales y cobertura parcial, `/api/history/info` informó la nueva última observación y `/admin/redes` continuó respondiendo `200`.
+
+La prueba manual no usó `POST /api/admin/capture` porque requiere el `ADMIN_TOKEN` deliberadamente no disponible para el frontend ni el repositorio. La recuperación quedó validada mediante las ejecuciones automáticas reales, que ejercitan la misma función `captureWeatherObservation()` e inserción idempotente en D1.
+
+---
+
 # Informe de implementación v1.8.2
 
 ## Corrección de lectura de CSRF

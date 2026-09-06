@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.8.3 - 2026-09-06
+
+- Se restauró la captura histórica automática haciendo explícita la asignación de cada cron en `scheduled()`: `*/10 * * * *` captura Weather.com en D1 y `1 3 * * *` genera el pronóstico social. Ambos triggers permanecen activos en el mismo Worker.
+- Se validaron capturas consecutivas reales posteriores al deploy, sin rellenar el hueco de cobertura anterior. El resumen diario vuelve a informar datos disponibles y cobertura parcial.
+
 ## v1.8.2 - 2026-09-05
 
 - Se corrigió la lectura de CSRF en el panel privado: el login devuelve `csrf` en la raíz del JSON y el frontend ya no intenta acceder a un objeto `data` inexistente.

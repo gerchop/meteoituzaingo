@@ -11,6 +11,7 @@ const DAILY_INTERVAL_MS = 600000;
 const DAILY_VALID_LIMITS = { temperature: [-90, 70], humidity: [0, 100], pressure: [800, 1100], windSpeed: [0, 300], windGust: [0, 400], precipTotal: [0, 2000] };
 const STATISTICS_COVERAGE_GOOD = 90;
 const STATISTICS_COVERAGE_PARTIAL = 50;
+const CAPTURE_CRON = "*/10 * * * *";
 const SOCIAL_CRON = "1 3 * * *";
 const SOCIAL_COOKIE = "meteo_social_session";
 const SOCIAL_SESSION_MS = 12 * 60 * 60 * 1000;
@@ -372,4 +373,4 @@ async function route(request, env) {
   if (["GET", "POST"].includes(request.method)) return jsonResponse(request, env, { ok: false, error: "Ruta no encontrada." }, 404);
   return jsonResponse(request, env, { ok: false, error: "Método no permitido." }, 405);
 }
-export default { async fetch(request, env) { try { return await route(request, env); } catch (error) { console.error("Error de API histórica:", error instanceof Error ? error.message : "error desconocido"); return jsonResponse(request, env, { ok: false, error: "No fue posible procesar la solicitud." }, 500); } }, async scheduled(event, env, ctx) { if (event.cron === SOCIAL_CRON) { ctx.waitUntil(buildSocialForecast(env.HISTORY_DB, env).then((forecast) => saveSocialForecast(env.HISTORY_DB, forecast)).catch((error) => console.error("Error de pronóstico social:", error instanceof Error ? error.message : "error desconocido"))); } else ctx.waitUntil(captureWeatherObservation(env).catch((error) => console.error("Error de captura programada:", error instanceof Error ? error.message : "error desconocido"))); } };
+export default { async fetch(request, env) { try { return await route(request, env); } catch (error) { console.error("Error de API histórica:", error instanceof Error ? error.message : "error desconocido"); return jsonResponse(request, env, { ok: false, error: "No fue posible procesar la solicitud." }, 500); } }, async scheduled(event, env, ctx) { if (event.cron === CAPTURE_CRON) { ctx.waitUntil(captureWeatherObservation(env).catch((error) => console.error("Error de captura programada:", error instanceof Error ? error.message : "error desconocido"))); return; } if (event.cron === SOCIAL_CRON) { ctx.waitUntil(buildSocialForecast(env.HISTORY_DB, env).then((forecast) => saveSocialForecast(env.HISTORY_DB, forecast)).catch((error) => console.error("Error de pronóstico social:", error instanceof Error ? error.message : "error desconocido"))); return; } console.error("Cron no reconocido"); } };

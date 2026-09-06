@@ -19,7 +19,7 @@ npx wrangler secret put SOCIAL_SESSION_SECRET
 
 No se almacenan valores de secretos en el repositorio. `ADMIN_TOKEN` protege `POST /api/admin/capture` mediante `Authorization: Bearer <token>`.
 
-El cron `*/10 * * * *` conserva la captura de observaciones. El cron `1 3 * * *` genera el pronóstico social diario a las 00:01 de Argentina (UTC-3 vigente). Consultar `../SOCIAL_FORECAST.md`; el panel privado es `/admin/redes` y no publica en redes sociales.
+El Worker tiene dos cron independientes y explícitos: `*/10 * * * *` captura observaciones Weather.com en D1 y `1 3 * * *` genera el pronóstico social diario a las 00:01 de Argentina (UTC-3 vigente). Consultar `../SOCIAL_FORECAST.md`; el panel privado es `/admin/redes` y no publica en redes sociales.
 
 ## Operación
 
