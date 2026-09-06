@@ -1,3 +1,17 @@
+# Informe de implementación v1.8.4
+
+## Recuperación controlada WeatherCloud
+
+Se auditó el CSV original de WeatherCloud de septiembre de 2026 y el esquema D1 real antes de escribir datos. El CSV usa `;`, `America/Argentina/Buenos_Aires`, decimales regionales y unidades explícitas. Se mapearon exclusivamente variables exteriores compatibles con `weather_observations`; las variables interiores, radiación, UV e índices de calor se omitieron. La lluvia e intensidad de lluvia son 0 en las 116 filas y se almacenaron como `precip_total=0` y `precip_rate=0` en las filas recuperadas.
+
+El rango seguro fue el intervalo abierto entre la última observación previa `2026-09-05T20:49:18.000Z` y la primera captura automática posterior `2026-09-06T15:40:01.000Z`. De 116 filas CSV, 114 pertenecían a ese intervalo. Se excluyeron las filas de `2026-09-06T15:50:00.000Z` y `2026-09-06T16:00:00.000Z`, posteriores al hueco, incluso cuando no coincidían por segundos con la captura automática.
+
+La operación insertó exactamente 114 timestamps UTC únicos, desde `2026-09-05T20:50:00.000Z` hasta `2026-09-06T15:40:00.000Z`. No se ejecutaron `UPDATE`, `DELETE` ni `REPLACE`. La verificación remota confirmó 114 filas y 114 timestamps distintos, 114 valores de precipitación/rate en cero, continuidad de diez minutos, cero inserciones de las dos filas excluidas y 118 filas únicas en el rango de borde completo. El historial total pasó a 2522 observaciones y su última captura fue `2026-09-06T17:49:55.000Z`, confirmando que el cron continúa activo.
+
+Los endpoints de resumen diario, historia e información devolvieron `200`; Home e Históricos fueron accesibles en GitHub Pages. El panel privado continuó sirviéndose en `200` y su endpoint de sesión rechazó correctamente accesos no autenticados con `401`. No fue necesario desplegar el Worker, dado que la recuperación fue una operación D1 administrativa.
+
+---
+
 # Informe de implementación v1.8.3
 
 ## Restauración de captura automática

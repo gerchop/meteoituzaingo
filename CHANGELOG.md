@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.8.4 - 2026-09-06
+
+- Se recuperaron de forma controlada 114 observaciones reales de WeatherCloud para el hueco comprendido entre `2026-09-05T20:49:18.000Z` y `2026-09-06T15:40:01.000Z`, sin actualizar, borrar, reemplazar ni alterar registros existentes.
+- La importación conserva UTC, normaliza el formato numérico regional, registra temperatura, sensación, punto de rocío, humedad, presión, viento, ráfaga y dirección; lluvia e intensidad permanecen en 0 mm y 0 mm/h según el CSV original.
+- Se excluyeron deliberadamente dos filas posteriores al hueco seguro. La verificación final confirmó 114 timestamps recuperados únicos, continuidad de 10 minutos y la captura automática posterior activa.
+- Se añadió una herramienta administrativa reproducible de preview/aplicación idempotente y el informe de auditoría `docs/WEATHERCLOUD_RECOVERY_2026-09.md`; no se modificó Worker, cron, frontend, secretos ni diseño.
+
 ## v1.8.3 - 2026-09-06
 
 - Se restauró la captura histórica automática haciendo explícita la asignación de cada cron en `scheduled()`: `*/10 * * * *` captura Weather.com en D1 y `1 3 * * *` genera el pronóstico social. Ambos triggers permanecen activos en el mismo Worker.
