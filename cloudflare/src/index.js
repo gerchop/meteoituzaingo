@@ -2,6 +2,7 @@ import { corsHeaders, jsonResponse } from "./cors.js";
 import { insertObservation, serializeObservation } from "./database.js";
 import { fetchWeatherObservation } from "./weather.js";
 import { argentinaDate as socialDate, buildSocialForecast, publicForecast, saveSocialForecast, serializeSocialForecast } from "./social-forecast.js";
+import { alertsResponse } from "./smn-alerts.js";
 
 const ARGENTINA_TIME_ZONE = "America/Argentina/Buenos_Aires";
 const HISTORY_LIMITS = { hours: [24], days: [7, 30] };
@@ -358,6 +359,7 @@ async function route(request, env) {
   if (request.method === "POST" && url.pathname === "/api/admin/social-forecast/regenerate") return regenerateSocial(request, env);
   if (request.method === "PUT" && url.pathname === "/api/admin/social-forecast") return saveSocial(request, env);
   if (request.method === "GET" && url.pathname === "/api/current") return getCurrent(request, env);
+  if (request.method === "GET" && url.pathname === "/api/alerts") { try { return await alertsResponse(); } catch (error) { console.error("[alerts] failure", error?.message || String(error)); return jsonResponse(request, env, { ok: false, alerts: [], error: "temporarily_unavailable" }, 503); } }
   if (request.method === "GET" && ["/api/forecast/hourly", "/api/forecast/daily"].includes(url.pathname)) return getForecast(request, env, url);
   if (request.method === "GET" && url.pathname === "/api/history") return getHistory(request, env, url);
   if (request.method === "GET" && url.pathname === "/api/history/info") return getHistoryInfo(request, env);

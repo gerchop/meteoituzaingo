@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.9 - 2026-09-07
+
+- Se integraron alertas meteorológicas oficiales del SMN mediante descubrimiento HTML del feed oficial, RSS/CAP XML seguro, Cache API y filtro point-in-polygon para Ituzaingó.
+- Se agregó `GET /api/alerts` y un módulo compacto en Home; sin alerta local informa el estado correcto sin confundirlo con nivel verde.
+- No se interpretan ni muestran amarillo, naranja, rojo, verde o `severity` CAP.
+
 ## v1.8.4 - 2026-09-06
 
 - Se recuperaron de forma controlada 114 observaciones reales de WeatherCloud para el hueco comprendido entre `2026-09-05T20:49:18.000Z` y `2026-09-06T15:40:01.000Z`, sin actualizar, borrar, reemplazar ni alterar registros existentes.

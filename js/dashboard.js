@@ -3,6 +3,7 @@ const API_URL = `https://api.weather.com/v2/pws/observations/current?stationId=I
 const GEOCOORDENADAS = "-34.655,-58.667";
 const METEORED_CACHE_PREFIX = "meteoituzaingo.meteored.v1.";
 const HistoryApi = window.MeteoHistoryApi;
+const SMN_ALERTS_URL = "https://meteoituzaingo-history.meteoituzaingo.workers.dev/api/alerts";
 const DateTime = window.MeteoDateTime;
 let hourlyForecastData = null;
 let hourlyForecastTimer = null;
@@ -52,6 +53,8 @@ function valor(id, contenido) { document.getElementById(id).textContent = conten
 function grados(numero) { return Number.isFinite(numero) ? `${Math.round(numero)}°` : "--"; }
 function textoPorDefecto(numero, sufijo) { return numero === null || numero === undefined ? `--${sufijo}` : `${numero}${sufijo}`; }
 function numeroValido(numero) { return Number.isFinite(numero); }
+function formatoAlerta(fecha) { return fecha ? new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(fecha)) : "No informado"; }
+async function cargarAlertasSmn() { const box = document.getElementById("smnAlerts"); if (!box) return; try { const response = await fetch(SMN_ALERTS_URL); const data = await response.json(); if (!response.ok || !data.ok) throw new Error(); if (!data.alerts.length) { box.textContent = "✓ No hay alertas meteorológicas oficiales vigentes para Ituzaingó. Fuente: Servicio Meteorológico Nacional (SMN)."; return; } box.replaceChildren(...data.alerts.map((alert) => { const article = document.createElement("article"); const title = document.createElement("strong"); title.textContent = `ALERTA OFICIAL DEL SMN — ${alert.event}`; const description = document.createElement("p"); description.textContent = alert.description || alert.headline || "Alerta meteorológica oficial vigente."; const validity = document.createElement("p"); validity.textContent = `${alert.onset && Date.parse(alert.onset) > Date.now() ? "Vigente desde" : "Vigente hasta"}: ${formatoAlerta(alert.onset && Date.parse(alert.onset) > Date.now() ? alert.onset : alert.expires)}`; article.append(title, description, validity); if (alert.instructions) { const details = document.createElement("details"); const summary = document.createElement("summary"); summary.textContent = "Recomendaciones del SMN"; const instructions = document.createElement("p"); instructions.textContent = alert.instructions; details.append(summary, instructions); article.append(details); } const link = document.createElement("a"); link.href = alert.officialUrl; link.target = "_blank"; link.rel = "noopener noreferrer"; link.textContent = "Ver alerta oficial"; article.append(link); return article; })); } catch { box.textContent = "Información de alertas temporalmente no disponible."; } }
 
 /** Calcula el punto de rocío en °C mediante la aproximación de Magnus. */
 function puntoDeRocio(temperatura, humedad) {
@@ -508,6 +511,7 @@ async function cargarClima() {
   }
 }
 
-cargarClima(); cargarPronosticos(); iniciarImagenesExternas(); iniciarSatelite(); iniciarHistoricos(); cargarResumenDiario();
+cargarClima(); cargarPronosticos(); iniciarImagenesExternas(); iniciarSatelite(); iniciarHistoricos(); cargarResumenDiario(); cargarAlertasSmn();
 setInterval(cargarClima, CONFIG.observacionesMs);
 setInterval(cargarResumenDiario, CONFIG.resumenDiarioMs);
+setInterval(cargarAlertasSmn, 300000);

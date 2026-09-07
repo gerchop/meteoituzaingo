@@ -1,3 +1,13 @@
+# Informe de implementación v1.9
+
+## Alertas oficiales SMN (GO-B)
+
+Se integró `GET /api/alerts` en el Worker existente con fuente exclusiva SMN, Cache API y filtro polygon para Ituzaingó. El índice oficial `/rss` se trata como HTML para descubrir el feed; RSS/CAP continúan rechazando DOCTYPE/entidades. No se usan D1, crons ni servicios pagos y no se traducen niveles o colores SAT.
+
+La causa del hotfix fue procesar el índice HTML como XML seguro. v1.9.3 separó ambos flujos y conserva fallback a la última URL CAP oficial validada. Producción devuelve HTTP 200 y `ok:true` cuando no hay CAP local aplicable.
+
+---
+
 # Informe de implementación v1.8.4
 
 ## Recuperación controlada WeatherCloud
