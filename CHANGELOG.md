@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.9.1 - 2026-09-08
+
+- Se corrigió CORS en `GET /api/alerts`: las respuestas frescas y cacheadas del módulo SMN ahora reutilizan la política centralizada del Worker y permiten la consulta pública desde GitHub Pages.
+- Se preservan el cuerpo, `Content-Type` y `Cache-Control` de la respuesta de alertas; los errores controlados ya utilizaban el mismo helper. No se modificaron feed, CAP, parser, caché, D1, crons, frontend ni la lógica que interpreta `alerts: []` como ausencia válida de alertas.
+
 ## v1.9 - 2026-09-07
 
 - Se integraron alertas meteorológicas oficiales del SMN mediante descubrimiento HTML del feed oficial, RSS/CAP XML seguro, Cache API y filtro point-in-polygon para Ituzaingó.

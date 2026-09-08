@@ -346,6 +346,7 @@ function socialScript() { return String.raw`(()=>{
   restoreSession();
 })()`; }
 function isAuthorizedCapture(request, env) { return Boolean(env.ADMIN_TOKEN) && (request.headers.get("Authorization") || "") === `Bearer ${env.ADMIN_TOKEN}`; }
+function withCors(request, env, response) { const headers = new Headers(response.headers); corsHeaders(request, env).forEach((value, name) => headers.set(name, value)); return new Response(response.body, { status: response.status, statusText: response.statusText, headers }); }
 async function route(request, env) {
   const url = new URL(request.url);
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request, env) });
@@ -359,7 +360,7 @@ async function route(request, env) {
   if (request.method === "POST" && url.pathname === "/api/admin/social-forecast/regenerate") return regenerateSocial(request, env);
   if (request.method === "PUT" && url.pathname === "/api/admin/social-forecast") return saveSocial(request, env);
   if (request.method === "GET" && url.pathname === "/api/current") return getCurrent(request, env);
-  if (request.method === "GET" && url.pathname === "/api/alerts") { try { return await alertsResponse(); } catch (error) { console.error("[alerts] failure", error?.message || String(error)); return jsonResponse(request, env, { ok: false, alerts: [], error: "temporarily_unavailable" }, 503); } }
+  if (request.method === "GET" && url.pathname === "/api/alerts") { try { return withCors(request, env, await alertsResponse()); } catch (error) { console.error("[alerts] failure", error?.message || String(error)); return jsonResponse(request, env, { ok: false, alerts: [], error: "temporarily_unavailable" }, 503); } }
   if (request.method === "GET" && ["/api/forecast/hourly", "/api/forecast/daily"].includes(url.pathname)) return getForecast(request, env, url);
   if (request.method === "GET" && url.pathname === "/api/history") return getHistory(request, env, url);
   if (request.method === "GET" && url.pathname === "/api/history/info") return getHistoryInfo(request, env);

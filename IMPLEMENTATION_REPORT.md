@@ -1,3 +1,13 @@
+# Informe de implementación v1.9.1
+
+## Corrección CORS de alertas SMN
+
+La respuesta exitosa de `GET /api/alerts` se devolvía directamente desde `alertsResponse()`. Eso preservaba el resultado real del SMN y el caché, pero omitía `corsHeaders(request, env)`, a diferencia de los demás endpoints públicos y del camino de error. En una consulta desde GitHub Pages el navegador bloqueaba la lectura por no recibir `Access-Control-Allow-Origin`; el frontend entraba correctamente en su `catch` y mostraba indisponibilidad aunque `ok: true` y `alerts: []` fueran válidos.
+
+El router ahora combina los encabezados de la respuesta de alertas con el helper CORS centralizado antes de devolverla. La respuesta conserva `Content-Type` y `Cache-Control`, obtiene `Vary: Origin` y, para `https://gerchop.github.io`, `Access-Control-Allow-Origin` con ese valor. El handler global `OPTIONS` ya reutilizaba este helper. No se habilitan credenciales, no se altera la Cache API ni se cambia la lógica de alertas.
+
+---
+
 # Informe de implementación v1.9
 
 ## Alertas oficiales SMN (GO-B)
