@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.10 - 2026-09-09
+
+- El generador social ahora analiza madrugada, mañana, tarde y noche en `America/Argentina/Buenos_Aires`, fusionando únicamente mañana/tarde normales con la misma condición validada.
+- Se incorporaron POP, precipitación horaria acumulada sólo con cobertura completa, ráfagas relevantes, sensación térmica y reglas editoriales documentadas para fresco/frío, calor y «Ventoso», sin solicitudes Meteored adicionales.
+- Se corrigió la semántica social de `symbol` 5, 12 y 13 según la validación JSON v1: «Cubierto» y lluvia débil; no se generan «chaparrones».
+- Los símbolos no auditados no reciben condición inventada y se registran una vez por ejecución. La descripción de cielo requiere ahora al menos 60 % de horas con símbolos JSON v1 validados; una minoría conocida no representa un período mayoritariamente desconocido. Una lista centralizada mantiene prohibidos fenómenos no validados, incluidos tormentas, granizo, niebla, heladas, severidad y lluvia intensa.
+
 ## v1.9.1 - 2026-09-08
 
 - Se corrigió CORS en `GET /api/alerts`: las respuestas frescas y cacheadas del módulo SMN ahora reutilizan la política centralizada del Worker y permiten la consulta pública desde GitHub Pages.

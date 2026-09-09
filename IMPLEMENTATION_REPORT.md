@@ -1,3 +1,17 @@
+# Informe de implementación v1.10
+
+## Pronóstico social avanzado, determinístico y acotado
+
+v1.10 reutiliza exclusivamente los payloads Meteored ya cacheados y divide las horas del día argentino en cuatro períodos. Cada período registra cobertura, temperatura, sensación, POP, suma de lluvia sólo si sus seis horas están completas, viento, ráfaga, dirección dominante y símbolos. No se añadieron llamadas Meteored, D1, migraciones ni crons.
+
+La revisión previa al deploy corrigió una ambigüedad: antes, el dominante se calculaba sólo entre símbolos válidos, por lo que `[1,1,1,1,3]` terminaba descrito como «Nubes y claros». Ahora se contabilizan `knownSymbolHours`, `unknownSymbolHours` y `symbolCoverage`; se exige cobertura validada de al menos 60 % para publicar un cielo. Los datos numéricos seguros no dependen de ese umbral. Los fixtures cubren minoría válida (20 % y 16,7 %) y mayoría válida (66,7 %).
+
+La validación previa demostró que el JSON v1 no usa el catálogo XML histórico. Sólo 3, 4, 5, 12 y 13 pueden describirse automáticamente; 12/13 son lluvia débil, nunca chaparrones. Símbolos desconocidos conservan los datos numéricos seguros, no obtienen una descripción y generan un único log estructurado por código durante la ejecución. Tormentas, granizo, niebla/neblina, heladas, severidad e intensidad de lluvia siguen explícitamente prohibidos.
+
+Las reglas editoriales se documentan en `SOCIAL_FORECAST.md`: POP ≥40 %, o ≥20 % con precipitación validada; ráfagas desde 35 km/h; «Ventoso» desde 30 km/h sostenidos o 45 km/h de ráfaga; sensación con diferencia ≥3 °C; fresco ≤10 °C, muy frío ≤5 °C, caluroso ≥30 °C y muy caluroso ≥35 °C. No son categorías de Meteored ni del SMN.
+
+---
+
 # Informe de implementación v1.9.1
 
 ## Corrección CORS de alertas SMN
