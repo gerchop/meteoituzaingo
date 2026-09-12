@@ -1,5 +1,13 @@
 # Informe de implementación v1.10
 
+## Preparación local v1.11 — Monitor EMA
+
+La implementación local reutiliza el cron de observaciones y no realiza consultas meteorológicas adicionales. `dataFreshness` se calcula a partir de `MAX(observed_at)` y conserva la verdad histórica aun si la captura actual falla; `captureHealth` reporta ese fallo por separado. La migración y el outbox permanecen sin aplicar en producción. El adaptador de correo es una interfaz de prueba: no existen secrets ni requests de Resend en esta fase.
+
+La limitación permanece explícita: un Worker o cron que no ejecuta no puede alertarse desde sí mismo. El deploy queda condicionado a aplicar la migración controlada y configurar un proveedor/destino de correo aprobado.
+
+---
+
 ## Pronóstico social avanzado, determinístico y acotado
 
 v1.10 reutiliza exclusivamente los payloads Meteored ya cacheados y divide las horas del día argentino en cuatro períodos. Cada período registra cobertura, temperatura, sensación, POP, suma de lluvia sólo si sus seis horas están completas, viento, ráfaga, dirección dominante y símbolos. No se añadieron llamadas Meteored, D1, migraciones ni crons.

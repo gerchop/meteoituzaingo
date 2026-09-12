@@ -1,0 +1,27 @@
+import assert from "node:assert/strict";
+import { classifyCaptureError, deliverEmaOutboxEvent, EMA_OUTBOX_LEASE_MS, evaluateFreshness, isNonRetryableEmailError, nextRetryAt, outboxEligible, transitionEmaHealth } from "../src/ema-health.js";
+
+const now = "2026-09-10T20:00:00.000Z";
+const minutesAgo = (minutes) => new Date(Date.parse(now) - minutes * 60000).toISOString();
+const fresh = (minutes) => evaluateFreshness(minutesAgo(minutes), now).value;
+assert.equal(fresh(5), "FRESH"); assert.equal(fresh(20), "FRESH"); assert.equal(fresh(30), "STALE"); assert.equal(fresh(31), "STALE");
+assert.equal(evaluateFreshness("invalid", now).value, "UNKNOWN"); assert.equal(evaluateFreshness("2026-09-10T21:00:00.000Z", now).value, "UNKNOWN");
+assert.equal(classifyCaptureError(new Error("Weather.com respondió 500")), "WEATHER_HTTP"); assert.equal(classifyCaptureError(new Error("Weather.com respondió 401")), "WEATHER_AUTH");
+const last = "2026-09-10T19:30:59.000Z"; const detected = "2026-09-10T20:10:00.000Z";
+let result = transitionEmaHealth(null, last, "OK", detected);
+assert.equal(result.state.dataFreshness, "STALE"); assert.equal(result.state.staleSince, "2026-09-10T20:00:59.000Z"); assert.deepEqual(result.events.map((item) => item.eventType), ["STALE"]);
+const incident = result.state.currentIncidentId;
+result = transitionEmaHealth(result.state, last, "OK", "2026-09-10T20:20:00.000Z"); assert.equal(result.events.length, 0); assert.equal(result.state.currentIncidentId, incident);
+result = transitionEmaHealth(result.state, last, "ERROR", "2026-09-10T23:10:00.000Z"); assert.equal(result.state.dataFreshness, "STALE"); assert.equal(result.state.captureHealth, "ERROR"); assert.deepEqual(result.events.map((item) => item.eventType), ["REMINDER"]);
+const oldNew = "2026-09-10T21:00:00.000Z";
+result = transitionEmaHealth(result.state, oldNew, "OK", "2026-09-10T22:00:00.000Z"); assert.equal(result.state.dataFreshness, "STALE"); assert.equal(result.events.some((item) => item.eventType === "RECOVERY"), false);
+const recovery = transitionEmaHealth(result.state, "2026-09-11T12:40:02.000Z", "OK", "2026-09-11T12:40:32.000Z");
+assert.equal(recovery.state.dataFreshness, "FRESH"); assert.deepEqual(recovery.events.map((item) => item.eventType), ["RECOVERY"]); assert.equal(recovery.events[0].incidentId, incident);
+assert.equal(transitionEmaHealth(recovery.state, "2026-09-11T12:40:02.000Z", "OK", "2026-09-11T12:41:00.000Z").events.length, 0);
+assert.equal(nextRetryAt(1, now), "2026-09-10T20:10:00.000Z"); assert.equal(nextRetryAt(2, now), "2026-09-10T20:30:00.000Z"); assert.equal(nextRetryAt(3, now), "2026-09-10T21:00:00.000Z"); assert.equal(nextRetryAt(4, now), "2026-09-10T23:00:00.000Z"); assert.equal(nextRetryAt(5, now), "2026-09-11T02:00:00.000Z");
+const item = { subject: "test", body: "test", eventType: "STALE", idempotencyKey: "ema:test:STALE", attempts: 0 };
+const failed = await deliverEmaOutboxEvent(item, async () => { throw new Error("network"); }, now); assert.equal(failed.status, "PENDING"); assert.equal(failed.nextAttemptAt, "2026-09-10T20:10:00.000Z");
+const delivered = await deliverEmaOutboxEvent(failed, async () => ({ id: "mock-message" }), failed.nextAttemptAt); assert.equal(delivered.status, "SENT"); assert.equal(delivered.providerMessageId, "mock-message"); assert.equal(delivered.sentAt, "2026-09-10T20:10:00.000Z");
+const midnight = transitionEmaHealth(null, "2026-12-31T23:40:00.000Z", "OK", "2027-01-01T00:10:00.000Z"); assert.equal(midnight.state.dataFreshness, "STALE");
+assert.equal(EMA_OUTBOX_LEASE_MS, 600000); assert.equal(outboxEligible("PENDING", null, now), true); assert.equal(outboxEligible("SENDING", "2026-09-10T20:10:00.000Z", now), false); assert.equal(outboxEligible("SENDING", "2026-09-10T19:59:59.000Z", now), true); assert.equal(outboxEligible("SENT", null, now), false); assert.equal(outboxEligible("CANCELLED", null, now), false); assert.equal(isNonRetryableEmailError("EMA_EMAIL_HTTP_409"), true);
+console.log("ema-health tests: OK (31 deterministic scenarios)");

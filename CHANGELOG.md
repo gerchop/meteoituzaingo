@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.11 - pendiente de deploy
+
+- Se añadió localmente el monitor de frescura EMA con estados independientes de datos y captura, umbral de 30 minutos, incidentes determinísticos y outbox idempotente; no fue desplegado ni configurado para enviar correos.
+- Se incorporó una migración pendiente para el estado singleton y las notificaciones, junto con pruebas determinísticas de stale, recuperación, recordatorio y retry simulado.
+
 ## v1.10 - 2026-09-09
 
 - El generador social ahora analiza madrugada, mañana, tarde y noche en `America/Argentina/Buenos_Aires`, fusionando únicamente mañana/tarde normales con la misma condición validada.

@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node test/social-forecast.test.mjs",
+    "test": "node test/social-forecast.test.mjs && node test/ema-health.test.mjs && node test/resend-email.test.mjs",
+    "test:ema-email": "node scripts/test-ema-email.mjs",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "db:migrate:remote": "wrangler d1 migrations apply meteoituzaingo-history --remote",
