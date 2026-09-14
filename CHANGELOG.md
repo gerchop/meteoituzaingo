@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.12 - Avisos locales por bajas temperaturas
+
+- Se retiró la consulta directa del navegador a Weather.com y su credencial embebida. Home ahora obtiene la observación actual desde `GET /api/current`, que lee exclusivamente la última fila de D1; la key existente no se rotó y permanece sólo como secret del Worker.
+- `/api/current` ahora declara fuente `d1` y estado `available`, `stale` o `unavailable`, conserva `data` por compatibilidad y no hace solicitudes meteorológicas adicionales. El refresco de Home pasó de 150 segundos a cinco minutos, coherente con la captura de diez minutos.
+- Se añadió `GET /api/advisories`, separado de las Alertas Oficiales SMN, para evaluar avisos automáticos no oficiales de bajas temperaturas.
+- El endpoint lee exclusivamente el pronóstico horario vigente ya cacheado en D1, las dos últimas observaciones y el estado EMA; no solicita Weather.com ni Meteored, no añade cron, tablas, migraciones ni secretos.
+- Se incorporaron las categorías propias `information` (mínima prevista ≤4 °C) y `attention` (mínima prevista ≤2 °C o sensación ≤0 °C durante dos horas consecutivas con temperatura ≤10 °C). La categoría `attention` prevalece para evitar duplicados.
+- La observación PWS sólo confirma un aviso predictivo cuando EMA está `FRESH` y `OK`, existen dos lecturas recientes y continuas, y ambas cumplen el criterio térmico. No puede originar avisos por sí sola.
+- Home incorpora «Condiciones locales destacadas» con el producto «Avisos Meteo Ituzaingó», disclaimer permanente y estados diferenciados para ausencia válida de avisos y cobertura insuficiente. No se usan niveles, colores ni lenguaje oficial del SMN.
+- Quedan fuera de alcance condición sostenida, calor, viento, precipitación, tormentas, heladas, visibilidad, presión y cualquier recomendación sanitaria.
+
 ## v1.11 - pendiente de deploy
 
 - Se añadió localmente el monitor de frescura EMA con estados independientes de datos y captura, umbral de 30 minutos, incidentes determinísticos y outbox idempotente; no fue desplegado ni configurado para enviar correos.

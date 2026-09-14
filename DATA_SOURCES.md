@@ -1,5 +1,17 @@
 # Fuentes de datos
 
+## Avisos Meteo Ituzaingó (v1.12)
+
+| Componente | Uso | Restricciones |
+| --- | --- | --- |
+| `social_forecast_cache` D1 | Pronóstico horario Meteored ya disponible para evaluar bajas temperaturas | El endpoint de avisos lee el payload cacheado directamente y no puede provocar una consulta Meteored. Un cache vencido se informa como no disponible. |
+| `weather_observations` D1 | Contexto confirmatorio de PWS | Sólo se usa con dos lecturas recientes y continuas cuando el monitor EMA permite observaciones. No origina un aviso por sí mismo. |
+| `ema_health_state` D1 | Calidad de observación | Sólo `FRESH` + `OK` habilita el componente observacional; el forecast puede evaluarse independientemente. |
+
+Los Avisos Meteo Ituzaingó son indicadores automáticos no oficiales. Su primer alcance es bajas temperaturas: `information` para mínima prevista ≤4 °C y `attention` para mínima ≤2 °C o sensación ≤0 °C durante dos horas continuas con temperatura ≤10 °C. No reproducen SAT-TE, no usan niveles oficiales ni recomendaciones sanitarias. No añaden proveedores, secretos, cron ni costo de API.
+
+La observación actual de Home se sirve mediante `GET /api/current` desde la última fila de `weather_observations` en D1. El navegador ya no consulta Weather.com ni recibe su credencial; la misma key existente permanece únicamente como `WEATHER_API_KEY` en el Worker. El endpoint informa `available`, `stale` o `unavailable` y no genera solicitudes meteorológicas por visitante.
+
 Auditoría realizada el 2026-07-19 para Meteo Ituzaingó. Los estados de autorización de Weather.com fueron comprobados con la clave configurada sin registrar ni exponer sus credenciales.
 
 ## Weather.com / Weather Underground

@@ -1,15 +1,15 @@
-const API_KEY = "1f02ece8a18244d482ece8a18284d480";
-const API_URL = `https://api.weather.com/v2/pws/observations/current?stationId=IITUZAIN9&format=json&units=m&apiKey=${API_KEY}&numericPrecision=decimal`;
+const CURRENT_URL = "https://meteoituzaingo-history.meteoituzaingo.workers.dev/api/current";
 const GEOCOORDENADAS = "-34.655,-58.667";
 const METEORED_CACHE_PREFIX = "meteoituzaingo.meteored.v1.";
 const HistoryApi = window.MeteoHistoryApi;
 const SMN_ALERTS_URL = "https://meteoituzaingo-history.meteoituzaingo.workers.dev/api/alerts";
+const ADVISORIES_URL = "https://meteoituzaingo-history.meteoituzaingo.workers.dev/api/advisories";
 const DateTime = window.MeteoDateTime;
 let hourlyForecastData = null;
 let hourlyForecastTimer = null;
 const DIRECCIONES = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
 const CONFIG = {
-  observacionesMs: 150000,
+  observacionesMs: 300000,
   radarMs: 600000,
   resumenDiarioMs: 600000,
   sateliteMs: 1800000,
@@ -55,6 +55,10 @@ function textoPorDefecto(numero, sufijo) { return numero === null || numero === 
 function numeroValido(numero) { return Number.isFinite(numero); }
 function formatoAlerta(fecha) { return fecha ? new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(fecha)) : "No informado"; }
 async function cargarAlertasSmn() { const box = document.getElementById("smnAlerts"); if (!box) return; try { const response = await fetch(SMN_ALERTS_URL); const data = await response.json(); if (!response.ok || !data.ok) throw new Error(); if (!data.alerts.length) { box.textContent = "✓ No hay alertas meteorológicas oficiales vigentes para Ituzaingó. Fuente: Servicio Meteorológico Nacional (SMN)."; return; } box.replaceChildren(...data.alerts.map((alert) => { const article = document.createElement("article"); const title = document.createElement("strong"); title.textContent = `ALERTA OFICIAL DEL SMN — ${alert.event}`; const description = document.createElement("p"); description.textContent = alert.description || alert.headline || "Alerta meteorológica oficial vigente."; const validity = document.createElement("p"); validity.textContent = `${alert.onset && Date.parse(alert.onset) > Date.now() ? "Vigente desde" : "Vigente hasta"}: ${formatoAlerta(alert.onset && Date.parse(alert.onset) > Date.now() ? alert.onset : alert.expires)}`; article.append(title, description, validity); if (alert.instructions) { const details = document.createElement("details"); const summary = document.createElement("summary"); summary.textContent = "Recomendaciones del SMN"; const instructions = document.createElement("p"); instructions.textContent = alert.instructions; details.append(summary, instructions); article.append(details); } const link = document.createElement("a"); link.href = alert.officialUrl; link.target = "_blank"; link.rel = "noopener noreferrer"; link.textContent = "Ver alerta oficial"; article.append(link); return article; })); } catch { box.textContent = "Información de alertas temporalmente no disponible."; } }
+
+function textoAvisoCategoria(category) { return category === "attention" ? "Atención local" : "Información local"; }
+function formatoValorAviso(values) { if (!values || !Number.isFinite(values.forecastMinimumC)) return "Pronóstico disponible"; const feels = Number.isFinite(values.forecastMinimumFeelsLikeC) ? ` · sensación mínima ${Math.round(values.forecastMinimumFeelsLikeC)} °C` : ""; return `Mínima prevista: ${Math.round(values.forecastMinimumC)} °C${feels}`; }
+async function cargarAvisosLocales() { const box = document.getElementById("localAdvisories"); if (!box) return; try { const response = await fetch(ADVISORIES_URL); const data = await response.json(); if (!response.ok || !data || !data.ok) throw new Error(); if (data.sourceStatus?.forecast !== "available") { box.textContent = "No fue posible evaluar los avisos locales con la cobertura de datos actual."; return; } if (!Array.isArray(data.advisories) || !data.advisories.length) { box.textContent = "No hay avisos locales activos con los datos disponibles."; return; } box.replaceChildren(...data.advisories.map((advisory) => { const article = document.createElement("article"); article.className = "advisory-item"; const icon = document.createElement("i"); icon.className = "fa-solid fa-temperature-low"; icon.setAttribute("aria-hidden", "true"); const content = document.createElement("div"); const category = document.createElement("strong"); category.textContent = `${textoAvisoCategoria(advisory.category)} — ${advisory.title || "Aviso Meteo Ituzaingó"}`; const summary = document.createElement("p"); summary.textContent = advisory.summary || "Condición meteorológica local destacada."; const period = document.createElement("p"); period.className = "advisory-meta"; period.textContent = `Período: ${formatoAlerta(advisory.startsAt)} a ${formatoAlerta(advisory.endsAt)}`; const values = document.createElement("p"); values.className = "advisory-meta"; values.textContent = formatoValorAviso(advisory.values); const source = document.createElement("p"); source.className = "advisory-meta"; source.textContent = advisory.basis?.some((item) => item.startsWith("observation_")) ? "Origen: pronóstico disponible y observación local." : "Origen: pronóstico disponible."; content.append(category, summary, period, values, source); article.append(icon, content); return article; })); } catch { box.textContent = "No fue posible evaluar los avisos locales con la cobertura de datos actual."; } }
 
 /** Calcula el punto de rocío en °C mediante la aproximación de Magnus. */
 function puntoDeRocio(temperatura, humedad) {
@@ -499,10 +503,10 @@ async function cargarResumenDiario() {
 
 async function cargarClima() {
   try {
-    const respuesta = await fetch(API_URL); if (!respuesta.ok) throw new Error(`Error HTTP ${respuesta.status}`);
-    const data = await respuesta.json(); const obs = data.observations && data.observations[0];
+    const respuesta = await fetch(CURRENT_URL); if (!respuesta.ok) throw new Error(`Error HTTP ${respuesta.status}`);
+    const data = await respuesta.json(); const observation = data && (data.observation || data.data); const obs = observation ? { metric: { temp: observation.temperature, windChill: observation.feelsLike, heatIndex: observation.feelsLike, pressure: observation.pressure, windSpeed: observation.windSpeed, windGust: observation.windGust, precipRate: observation.precipRate, precipTotal: observation.precipTotal, dewpt: observation.dewPoint }, humidity: observation.humidity, winddir: observation.windDirectionDegrees, wxPhraseMedium: observation.weatherCondition, obsTimeUtc: observation.observedAt } : null;
     if (!obs || !obs.metric) throw new Error("La API no devolvió una observación válida");
-    mostrarClima(obs);
+    mostrarClima(obs); if (data.sourceStatus === "stale") valor("actualizacion", `Última observación: ${DateTime.formatDateTime(observation.observedAt)} · datos sin actualizar`);
   } catch (error) {
     console.error("No se pudo cargar el clima:", error);
     document.querySelector(".status").textContent = "Datos no disponibles";
@@ -511,7 +515,8 @@ async function cargarClima() {
   }
 }
 
-cargarClima(); cargarPronosticos(); iniciarImagenesExternas(); iniciarSatelite(); iniciarHistoricos(); cargarResumenDiario(); cargarAlertasSmn();
+cargarClima(); cargarPronosticos(); iniciarImagenesExternas(); iniciarSatelite(); iniciarHistoricos(); cargarResumenDiario(); cargarAlertasSmn(); cargarAvisosLocales();
 setInterval(cargarClima, CONFIG.observacionesMs);
 setInterval(cargarResumenDiario, CONFIG.resumenDiarioMs);
 setInterval(cargarAlertasSmn, 300000);
+setInterval(cargarAvisosLocales, 300000);

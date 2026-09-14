@@ -507,3 +507,29 @@ Los paneles usan una columna en teléfono y dos en tablet/escritorio, con altura
 - La dirección del viento no está incluida en las agregaciones horarias largas, por lo que el tooltip la presenta únicamente en registros que la incluyen.
 - La precipitación se representa como intensidad; el acumulado requiere al menos dos lecturas de `precip_total` válidas.
 - Antes de v1.3 conviene validar visualmente la página publicada en 360, 390 y 430 px, tablet y escritorio, una vez que GitHub Pages reciba este commit.
+
+# Implementación v1.12 — Avisos Meteo Ituzaingó
+
+## Hardening de observación actual
+
+Se eliminó la consulta directa a Weather.com desde `dashboard.js`, incluyendo la credencial que estaba expuesta previamente en el recurso público. Home utiliza `GET /api/current`, una lectura de la última observación persistida en D1. La credencial no se rotó ni se trasladó: continúa únicamente como `WEATHER_API_KEY` en Cloudflare Worker.
+
+El endpoint conserva el campo `data` para compatibilidad e incorpora `source: "d1"`, `sourceStatus` (`available`, `stale`, `unavailable`) y `observation`. Una observación de más de 20 minutos se identifica como `stale`, sin inventar valores. El refresco de frontend es cada cinco minutos, por lo que no genera requests Weather.com por visitante.
+
+## Alcance
+
+Se implementó localmente un aviso automático y no oficial de bajas temperaturas. La evaluación es determinística, no conserva estado y no sustituye las Alertas Oficiales SMN.
+
+## Arquitectura
+
+`GET /api/advisories` consulta directamente en D1 la fila vigente `hourly` de `social_forecast_cache`, el estado `ema_health_state` y, sólo para contexto, las dos últimas filas de `weather_observations`. No importa ni invoca el refresco Meteored, Weather.com, la captura, los cron ni el monitor EMA.
+
+El pronóstico requiere al menos 18 horas locales futuras válidas del primer día elegible en `America/Argentina/Buenos_Aires`. La respuesta se cachea durante cinco minutos y distingue forecast `available`, `insufficient` o `unavailable`.
+
+## Reglas
+
+- `information`: mínima prevista ≤4 °C.
+- `attention`: mínima prevista ≤2 °C, o sensación prevista ≤0 °C durante dos horas consecutivas y con temperatura ≤10 °C.
+- La observación sólo agrega `basis` confirmatorio con EMA `FRESH` + `OK`, dos lecturas ≤20 minutos de antigüedad, separación ≤15 minutos y umbral cumplido en ambas.
+
+No hay avisos observacionales aislados, hysteresis, tablas nuevas, migraciones ni costos de API adicionales. Condición sostenida y los demás fenómenos permanecen fuera de v1.12.

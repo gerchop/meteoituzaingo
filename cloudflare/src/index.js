@@ -3,6 +3,7 @@ import { insertObservation, serializeObservation } from "./database.js";
 import { fetchWeatherObservation } from "./weather.js";
 import { argentinaDate as socialDate, buildSocialForecast, publicForecast, saveSocialForecast, serializeSocialForecast } from "./social-forecast.js";
 import { alertsResponse } from "./smn-alerts.js";
+import { advisoriesResponse } from "./advisories.js";
 import { classifyCaptureError, monitorEmaHealth } from "./ema-health.js";
 
 const ARGENTINA_TIME_ZONE = "America/Argentina/Buenos_Aires";
@@ -17,6 +18,7 @@ const CAPTURE_CRON = "*/10 * * * *";
 const SOCIAL_CRON = "1 3 * * *";
 const SOCIAL_COOKIE = "meteo_social_session";
 const SOCIAL_SESSION_MS = 12 * 60 * 60 * 1000;
+const CURRENT_STALE_MS = 20 * 60 * 1000;
 
 function badRequest(request, env, message) { return jsonResponse(request, env, { ok: false, error: message }, 400); }
 function dateParts(value) { return Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: ARGENTINA_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(value).filter((part) => part.type !== "literal").map((part) => [part.type, part.value])); }
@@ -273,6 +275,10 @@ async function getStatistics(request, env, url) {
 async function getStatisticsInfo(request, env) { return jsonResponse(request, env, { ok: true, timezone: ARGENTINA_TIME_ZONE, data: await statisticsInfo(env.HISTORY_DB) }); }
 async function getCurrent(request, env) {
   const row = await env.HISTORY_DB.prepare("SELECT * FROM weather_observations ORDER BY observed_at DESC LIMIT 1").first();
+  if (!row) return jsonResponse(request, env, { ok: true, updatedAt: new Date().toISOString(), source: "d1", sourceStatus: "unavailable", observation: null, data: null, message: "No hay observaciones históricas." });
+  const observation = serializeObservation(row); const observedAt = Date.parse(observation.observedAt || ""); const fresh = Number.isFinite(observedAt) && Date.now() - observedAt <= CURRENT_STALE_MS;
+  return jsonResponse(request, env, { ok: true, updatedAt: new Date().toISOString(), source: "d1", sourceStatus: fresh ? "available" : "stale", observation, data: observation });
+  /* Legacy response branch retained below only until it is removed from the next source normalization. */
   if (!row) return jsonResponse(request, env, { ok: true, data: null, message: "Aún no hay observaciones históricas." });
   return jsonResponse(request, env, { ok: true, data: serializeObservation(row) });
 }
@@ -367,6 +373,7 @@ async function route(request, env) {
   if (request.method === "PUT" && url.pathname === "/api/admin/social-forecast") return saveSocial(request, env);
   if (request.method === "GET" && url.pathname === "/api/current") return getCurrent(request, env);
   if (request.method === "GET" && url.pathname === "/api/alerts") { try { return withCors(request, env, await alertsResponse()); } catch (error) { console.error("[alerts] failure", error?.message || String(error)); return jsonResponse(request, env, { ok: false, alerts: [], error: "temporarily_unavailable" }, 503); } }
+  if (request.method === "GET" && url.pathname === "/api/advisories") return advisoriesResponse(request, env);
   if (request.method === "GET" && ["/api/forecast/hourly", "/api/forecast/daily"].includes(url.pathname)) return getForecast(request, env, url);
   if (request.method === "GET" && url.pathname === "/api/history") return getHistory(request, env, url);
   if (request.method === "GET" && url.pathname === "/api/history/info") return getHistoryInfo(request, env);
