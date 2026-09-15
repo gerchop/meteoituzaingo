@@ -1,7 +1,7 @@
 import { corsHeaders, jsonResponse } from "./cors.js";
 import { insertObservation, serializeObservation } from "./database.js";
 import { fetchWeatherObservation } from "./weather.js";
-import { argentinaDate as socialDate, buildSocialForecast, publicForecast, saveSocialForecast, serializeSocialForecast } from "./social-forecast.js";
+import { argentinaDate as socialDate, buildSocialForecast, maintainForecastCache, publicForecast, saveSocialForecast, serializeSocialForecast } from "./social-forecast.js";
 import { alertsResponse } from "./smn-alerts.js";
 import { advisoriesResponse } from "./advisories.js";
 import { classifyCaptureError, monitorEmaHealth } from "./ema-health.js";
@@ -389,4 +389,4 @@ async function route(request, env) {
   if (["GET", "POST"].includes(request.method)) return jsonResponse(request, env, { ok: false, error: "Ruta no encontrada." }, 404);
   return jsonResponse(request, env, { ok: false, error: "Método no permitido." }, 405);
 }
-export default { async fetch(request, env) { try { return await route(request, env); } catch (error) { console.error("Error de API histórica:", error instanceof Error ? error.message : "error desconocido"); return jsonResponse(request, env, { ok: false, error: "No fue posible procesar la solicitud." }, 500); } }, async scheduled(event, env, ctx) { if (event.cron === CAPTURE_CRON) { ctx.waitUntil(captureAndMonitorEma(env).catch((error) => console.error("Error de captura programada:", classifyCaptureError(error)))); return; } if (event.cron === SOCIAL_CRON) { ctx.waitUntil(buildSocialForecast(env.HISTORY_DB, env).then((forecast) => saveSocialForecast(env.HISTORY_DB, forecast)).catch((error) => console.error("Error de pronóstico social:", error instanceof Error ? error.message : "error desconocido"))); return; } console.error("Cron no reconocido"); } };
+export default { async fetch(request, env) { try { return await route(request, env); } catch (error) { console.error("Error de API histórica:", error instanceof Error ? error.message : "error desconocido"); return jsonResponse(request, env, { ok: false, error: "No fue posible procesar la solicitud." }, 500); } }, async scheduled(event, env, ctx) { if (event.cron === CAPTURE_CRON) { ctx.waitUntil(captureAndMonitorEma(env).catch((error) => console.error("Error de captura programada:", classifyCaptureError(error)))); ctx.waitUntil(maintainForecastCache(env.HISTORY_DB, env).catch((error) => console.error("Error de mantenimiento Meteored:", error instanceof Error ? error.message : "error desconocido"))); return; } if (event.cron === SOCIAL_CRON) { ctx.waitUntil(buildSocialForecast(env.HISTORY_DB, env).then((forecast) => saveSocialForecast(env.HISTORY_DB, forecast)).catch((error) => console.error("Error de pronóstico social:", error instanceof Error ? error.message : "error desconocido"))); return; } console.error("Cron no reconocido"); } };

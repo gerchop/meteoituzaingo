@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.12.1 - Avisos locales y mantenimiento Meteored
+
+- La mínima prevista usa el pronóstico diario de la jornada objetivo; ya no depende de 18 horas futuras del payload horario anclado al día calendario.
+- La sensación térmica usa exclusivamente las seis horas completas de 00:00–05:59 ART; su falta de cobertura no invalida una mínima diaria válida.
+- `/api/advisories` separa fuente diaria, horaria y PWS, e informa `advisory`, `no_advisory` o `partial`. Sigue sin llamar Meteored.
+- El cron existente de diez minutos mantiene el cache Meteored cerca del vencimiento con errores aislados de captura/EMA. No se agregaron Worker, tablas, migraciones, crons ni secretos; consumo estimado ~14/50 requests por día.
+
 ## v1.12 - Avisos locales por bajas temperaturas
 
 - Se retiró la consulta directa del navegador a Weather.com y su credencial embebida. Home ahora obtiene la observación actual desde `GET /api/current`, que lee exclusivamente la última fila de D1; la key existente no se rotó y permanece sólo como secret del Worker.

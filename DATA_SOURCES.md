@@ -1,5 +1,11 @@
 # Fuentes de datos
 
+## Avisos Meteo Ituzaingó (v1.12.1)
+
+`social_forecast_cache` conserva fuentes separadas `daily` y `hourly`: la mínima prevista se evalúa desde `daily.days[]` para la jornada térmica objetivo y la sensación sólo desde seis intervalos completos de 00:00–05:59 ART. `GET /api/advisories` sigue leyendo exclusivamente D1 y nunca llama Meteored.
+
+El cron existente `*/10 * * * *` revisa el vencimiento y refresca el cache en backend cerca de su expiración, sin depender de visitantes ni añadir cron, tabla, migración, Worker o secret. Con el TTL observado, la estimación es ~14 consultas Meteored/día frente al límite del proyecto de 50. El último cache no se borra si la renovación falla.
+
 ## Avisos Meteo Ituzaingó (v1.12)
 
 | Componente | Uso | Restricciones |

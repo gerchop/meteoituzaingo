@@ -13,6 +13,8 @@ const HOT_C = 30;
 const VERY_HOT_C = 35;
 // A sky description needs a validated symbol for most of the hours in its period.
 const MIN_SYMBOL_COVERAGE = .6;
+const CACHE_REFRESH_MARGIN_MS = 10 * 60 * 1000;
+const inFlightForecasts = new Map();
 
 const PERIODS = [
   { id: "dawn", label: "Madrugada", hours: [0, 1, 2, 3, 4, 5] },
@@ -139,15 +141,28 @@ export function buildSocialForecastFromData(hourly, daily, date = argentinaDate(
   return { date, status: "generated", generatedAt: new Date().toISOString(), originalText, parts: splitPosts(blocks), minTemp: temperatures.min, maxTemp: temperatures.max, sourceSummary: { generatorVersion: "1.10", hourlyHours: hours.length, sourceStart: hourly.start || null, relevant: periods.some((period) => period.relevant) ? "RELEVANT" : "NORMAL", symbols: hours.map((hour) => hour.symbol), unknownSymbols: unknown, periods } };
 }
 
-async function cachedForecast(database, env, type) {
-  const cached = await database.prepare("SELECT payload_json FROM social_forecast_cache WHERE source_type = ? AND expires_at > ?").bind(type, Date.now()).first();
-  if (cached) return JSON.parse(cached.payload_json);
+async function fetchAndStoreForecast(database, env, type) {
   if (!env.METEORED_API_KEY || !env.METEORED_LOCATION_HASH) throw new Error("Pronóstico Meteored no configurado");
   const response = await fetch(`https://api.meteored.com/api/forecast/v1/${type}/${env.METEORED_LOCATION_HASH}`, { headers: { "X-API-Key": env.METEORED_API_KEY, Accept: "application/json" } });
   if (!response.ok) throw new Error(`Meteored respondió ${response.status}`);
   const body = await response.json(); if (!body.ok || !body.data || !Number.isFinite(body.expiracion)) throw new Error("Respuesta Meteored inválida");
   await database.prepare("INSERT INTO social_forecast_cache (source_type, expires_at, payload_json, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(source_type) DO UPDATE SET expires_at=excluded.expires_at, payload_json=excluded.payload_json, updated_at=excluded.updated_at").bind(type, body.expiracion, JSON.stringify(body.data), new Date().toISOString()).run();
   return body.data;
+}
+
+async function cachedForecast(database, env, type, { refreshBeforeMs = 0, now = Date.now() } = {}) {
+  const cached = await database.prepare("SELECT payload_json, expires_at FROM social_forecast_cache WHERE source_type = ? LIMIT 1").bind(type).first();
+  if (cached && Number.isFinite(cached.expires_at) && cached.expires_at > now + refreshBeforeMs) return JSON.parse(cached.payload_json);
+  if (inFlightForecasts.has(type)) return inFlightForecasts.get(type);
+  const refresh = fetchAndStoreForecast(database, env, type).finally(() => inFlightForecasts.delete(type));
+  inFlightForecasts.set(type, refresh);
+  return refresh;
+}
+
+/** Runs from the existing capture schedule; it is intentionally isolated from EMA capture. */
+export async function maintainForecastCache(database, env, now = Date.now()) {
+  const results = await Promise.allSettled(["hourly", "daily"].map((type) => cachedForecast(database, env, type, { refreshBeforeMs: CACHE_REFRESH_MARGIN_MS, now })));
+  return results.map((result, index) => ({ type: ["hourly", "daily"][index], status: result.status }));
 }
 
 export async function publicForecast(database, env, type) { if (!["hourly", "daily"].includes(type)) throw new Error("Tipo de pronóstico inválido"); return cachedForecast(database, env, type); }

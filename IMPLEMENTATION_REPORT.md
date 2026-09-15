@@ -1,3 +1,13 @@
+# Informe de implementación v1.12.1
+
+## Hotfix de Avisos Meteo Ituzaingó
+
+La evaluación separa mínima diaria, sensación horaria y contexto PWS. La mínima usa `daily.days[]` para la jornada térmica objetivo; sensación exige seis slots continuos de 00:00–05:59 ART. El resultado distingue `advisory`, `no_advisory` y `partial`, sin convertir ausencia de cobertura en ausencia de aviso.
+
+El cron existente de captura verifica el cache Meteored y sólo solicita hourly/daily cerca de su vencimiento. La tarea está aislada: un error no bloquea la captura PWS ni EMA, no borra el último cache y no añade infraestructura.
+
+---
+
 # Informe de implementación v1.10
 
 ## Preparación local v1.11 — Monitor EMA
