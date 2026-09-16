@@ -16,6 +16,12 @@ assert.equal(evaluate({ daily: daily(5) }).status, "no_advisory");
 assert.equal(evaluate({ daily: daily(4) }).advisories[0].category, "information");
 assert.equal(evaluate({ daily: daily(2) }).advisories[0].category, "attention");
 assert.equal(evaluate({ daily: daily(1) }).advisories[0].category, "attention");
+const dailyInformation = evaluate({ daily: daily(4) }).advisories[0];
+assert.equal(dailyInformation.temporalPrecision, "daily");
+assert.equal(dailyInformation.targetLocalDate, TARGET);
+assert.deepEqual(dailyInformation.evidencePeriods, []);
+assert.equal(dailyInformation.displayValidity, "dynamic");
+assert.equal(dailyInformation.evaluationPeriod.startsAt, dailyInformation.startsAt);
 assert.equal(evaluate({ daily: { days: [{ start: at(TARGET, 0), temperature_min: null }] } }).sourceStatus.forecastDaily, "insufficient");
 assert.equal(evaluate({ daily: { days: [] } }).sourceStatus.forecastDaily, "insufficient");
 assert.equal(evaluate({ dailyAvailable: false }).sourceStatus.forecastDaily, "unavailable");
@@ -23,6 +29,10 @@ assert.equal(evaluate({ dailyAvailable: false }).sourceStatus.forecastDaily, "un
 // Hourly threshold, completeness, duplicates, invalid timestamps and gaps.
 assert.equal(evaluate({ hourly: dawn({ 1: { temperature_feels_like: 0 } }) }).status, "no_advisory");
 assert.equal(evaluate({ hourly: dawn({ 1: { temperature_feels_like: 0 }, 2: { temperature_feels_like: 0 } }) }).advisories[0].category, "attention");
+const hourlyOnly = evaluate({ daily: daily(5), hourly: dawn({ 1: { temperature_feels_like: 0 }, 2: { temperature_feels_like: 0 } }) }).advisories[0];
+assert.equal(hourlyOnly.temporalPrecision, "hourly");
+assert.deepEqual(hourlyOnly.evidencePeriods.map((item) => item.dayParts), [["dawn"]]);
+assert.equal(hourlyOnly.values.forecastMinimumFeelsLikeC, 0);
 assert.equal(evaluate({ hourly: dawn({ 1: { temperature_feels_like: 0 }, 3: { temperature_feels_like: 0 } }) }).status, "no_advisory");
 assert.equal(evaluate({ hourly: dawn({ 1: { temperature: 11, temperature_feels_like: 0 }, 2: { temperature_feels_like: 0 } }) }).status, "no_advisory");
 assert.equal(evaluate({ hourly: { hours: dawn().hours.filter((hour) => hour.end !== at(TARGET, 5)) } }).sourceStatus.forecastHourly, "insufficient");
@@ -34,12 +44,16 @@ assert.equal(evaluate({ hourlyAvailable: false }).sourceStatus.forecastHourly, "
 // Combination contract: advisory wins; absence is never inferred from missing coverage.
 assert.equal(evaluate({ daily: daily(2), hourlyAvailable: false }).status, "advisory");
 assert.equal(evaluate({ daily: daily(4), hourly: { hours: [] } }).status, "advisory");
+assert.equal(evaluate({ daily: daily(4), hourly: { hours: [] } }).advisories[0].values.forecastMinimumFeelsLikeC, null);
 assert.equal(evaluate({ daily: daily(5), hourly: dawn() }).status, "no_advisory");
 assert.equal(evaluate({ daily: daily(5), hourly: { hours: [] } }).status, "partial");
 assert.equal(evaluate({ dailyAvailable: false, hourly: dawn({ 1: { temperature_feels_like: 0 }, 2: { temperature_feels_like: 0 } }) }).status, "advisory");
 assert.equal(evaluate({ dailyAvailable: false, hourly: dawn() }).status, "partial");
 assert.equal(evaluate({ dailyAvailable: false, hourlyAvailable: false }).status, "partial");
 assert.equal(evaluate({ daily: daily(2), hourly: dawn(), ema: emaOk, observationRows: observations }).advisories[0].basis.includes("observation_temperature"), true);
+const combined = evaluate({ daily: daily(2), hourly: dawn({ 1: { temperature_feels_like: 0 }, 2: { temperature_feels_like: 0 } }) }).advisories[0];
+assert.equal(combined.temporalPrecision, "daily");
+assert.deepEqual(combined.supportingEvidencePeriods.map((item) => item.dayParts), [["dawn"]]);
 
 // Target policy is ART based, crosses dates/month/year, and has no server timezone dependency.
 assert.equal(selectLowTemperatureTargetPeriod(atLocal("2026-09-15", 0, 30)).targetLocalDate, "2026-09-15");
@@ -73,4 +87,4 @@ assert.equal(body.sourceStatus.forecastDaily, "available"); assert.equal(body.ev
 const unavailable = await advisoriesResponse(request, { ALLOWED_ORIGINS: "https://gerchop.github.io", HISTORY_DB: database() }, NOW);
 assert.equal((await unavailable.json()).sourceStatus.forecast, "unavailable");
 
-console.log("advisories tests: OK (39 deterministic scenarios)");
+console.log("advisories tests: OK (53 deterministic scenarios)");

@@ -1,3 +1,15 @@
+# Informe de implementación v1.12.2
+
+## Modelo temporal de Avisos Meteo Ituzaingó
+
+La respuesta de cada aviso conserva los límites legacy `startsAt` y `endsAt`, e incorpora el modelo temporal explícito: `targetLocalDate` identifica la jornada elegida por la política ART sin cambios (antes de las 12:00, hoy; desde las 12:00, mañana); `evaluationPeriod` representa lo que evalúa la regla; `evidencePeriods` describe los bloques realmente respaldados; `displayValidity` es `dynamic`; y `temporalPrecision` declara `daily` u `hourly`.
+
+La evidencia diaria no declara hora de mínima ni dayPart: Home muestra «Jornada prevista» con fecha humana en ART. La evidencia horaria se divide por los identificadores genéricos `dawn`, `morning`, `afternoon` y `night` (00:00–05:59, 06:00–11:59, 12:00–17:59 y 18:00–23:59), soporta múltiples días y resume los cuatro como «todo el día». Un intervalo cruzando medianoche conserva ambas fechas.
+
+La regla de bajas temperaturas no cambió. Sensación térmica requiere la cobertura completa existente de seis slots de madrugada; sólo entonces se entrega y presenta el mínimo representativo. No se añaden requests meteorológicos, persistencia, D1, migraciones, crons, Workers o secretos.
+
+---
+
 # Informe de implementación v1.12.1
 
 ## Hotfix de Avisos Meteo Ituzaingó

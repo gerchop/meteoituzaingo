@@ -1,5 +1,9 @@
 # Fuentes de datos
 
+## Avisos Meteo Ituzaingó (v1.12.2)
+
+No se incorporó una fuente nueva. `GET /api/advisories` sigue leyendo exclusivamente los payloads Meteored `daily` y `hourly` ya almacenados en `social_forecast_cache`, el contexto PWS de D1 y el estado EMA. La presentación temporal usa la zona `America/Argentina/Buenos_Aires`: daily sólo respalda una jornada; hourly puede respaldar bloques `dawn`, `morning`, `afternoon` y `night`. El endpoint continúa siendo dinámico, sin vigencia persistida ni consultas externas iniciadas por visitantes.
+
 ## Avisos Meteo Ituzaingó (v1.12.1)
 
 `social_forecast_cache` conserva fuentes separadas `daily` y `hourly`: la mínima prevista se evalúa desde `daily.days[]` para la jornada térmica objetivo y la sensación sólo desde seis intervalos completos de 00:00–05:59 ART. `GET /api/advisories` sigue leyendo exclusivamente D1 y nunca llama Meteored.

@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.12.2 - Modelo temporal de Avisos Meteo Ituzaingó
+
+- Los avisos distinguen ahora `targetLocalDate`, `evaluationPeriod`, `evidencePeriods`, `displayValidity` dinámico y `temporalPrecision` (`daily` u `hourly`). Los campos `startsAt` y `endsAt` permanecen como compatibilidad, pero dejan de comunicar una duración meteorológica para evidencia diaria.
+- Home presenta evidencia diaria como «Jornada prevista: [fecha en ART]», sin inferir madrugada ni mostrar el límite 00:00→00:00 como período. La evidencia horaria puede comunicar madrugada, mañana, tarde, noche, todo el día y cruces de medianoche.
+- Se añadió una utilidad temporal genérica en ART reutilizable por futuros evaluadores, sin incorporar nuevas familias meteorológicas ni alterar umbrales, política de jornada objetivo o rol confirmatorio de PWS.
+- La sensación térmica mínima sólo se muestra cuando están disponibles los seis slots horarios válidos, únicos y continuos de 00:00–05:59 ART; en cobertura incompleta se omite sin exponer diagnósticos técnicos al visitante.
+- No se agregaron consultas Meteored, infraestructura, D1, migraciones, crons, secrets ni proveedores.
+
 ## v1.12.1 - Avisos locales y mantenimiento Meteored
 
 - La mínima prevista usa el pronóstico diario de la jornada objetivo; ya no depende de 18 horas futuras del payload horario anclado al día calendario.

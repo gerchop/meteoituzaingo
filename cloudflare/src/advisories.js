@@ -1,6 +1,7 @@
 import { jsonResponse } from "./cors.js";
+import { ADVISORY_TIME_ZONE, getDayPartsForInterval, localDateTimeParts } from "./advisory-time.js";
 
-const TIME_ZONE = "America/Argentina/Buenos_Aires";
+const TIME_ZONE = ADVISORY_TIME_ZONE;
 const HOUR_MS = 60 * 60 * 1000;
 const OBSERVATION_MAX_AGE_MS = 20 * 60 * 1000;
 const OBSERVATION_MAX_GAP_MS = 15 * 60 * 1000;
@@ -9,7 +10,7 @@ const TARGET_HOUR = 12;
 const TARGET_DAWN_HOURS = [0, 1, 2, 3, 4, 5];
 
 function localParts(value) {
-  return Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" }).formatToParts(value).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+  return localDateTimeParts(value);
 }
 function localDate(value) { const parts = localParts(value); return `${parts.year}-${parts.month}-${parts.day}`; }
 function finite(value) { return Number.isFinite(value) ? value : null; }
@@ -65,6 +66,11 @@ function periodForHours(hours, fallback) {
   if (!hours?.length) return fallback;
   return { startsAt: iso(Math.min(...hours.map((hour) => hour.end))), endsAt: iso(Math.max(...hours.map((hour) => hour.end)) + HOUR_MS) };
 }
+function evidenceForHours(hours) {
+  if (!hours?.length) return [];
+  const timing = periodForHours(hours);
+  return getDayPartsForInterval(timing.startsAt, timing.endsAt);
+}
 function advisoryId(category, date) { return `low-temperature:${category}:${date}`; }
 
 export function observationContext(rows, ema, now = Date.now()) {
@@ -92,14 +98,29 @@ export function evaluateLowTemperature({ daily, hourly, dailyAvailable = true, h
   const status = category ? "advisory" : dailyResult.status === "available" && hourlyResult.status === "available" ? "no_advisory" : "partial";
   const sourceStatus = { forecastDaily: dailyResult.status, forecastHourly: hourlyResult.status, observation: observation.status };
   if (!category) return { type: "low_temperature", status, target, sourceStatus, advisories: [] };
-  const timing = hourlyAttention && !dailyAttention && !dailyInformation ? periodForHours(hourlyResult.feelsLikeRun, target) : { startsAt: target.startsAt, endsAt: target.endsAt };
+  const dailyTrigger = dailyAttention || dailyInformation;
+  const hourlyEvidencePeriods = evidenceForHours(hourlyResult.feelsLikeRun);
+  const timing = hourlyAttention && !dailyTrigger ? periodForHours(hourlyResult.feelsLikeRun, target) : { startsAt: target.startsAt, endsAt: target.endsAt };
   const basis = [dailyAttention || dailyInformation ? "forecast_daily_temperature" : "forecast_hourly_feels_like", ...observation.basis];
   const advisory = {
     id: advisoryId(category, target.targetLocalDate), type: "low_temperature", category,
     title: category === "attention" ? "Temperaturas muy bajas previstas" : "Bajas temperaturas previstas",
     summary: dailyAttention || dailyInformation ? "Se prevén temperaturas bajas durante la jornada indicada." : "Se prevé una sensación térmica muy baja durante el período indicado.",
+    // Legacy bounds remain for existing consumers. New clients must use the
+    // explicit temporal model below rather than treating a daily boundary as
+    // the duration of a weather event.
     ...timing, basis,
-    values: { forecastMinimumC: dailyResult.minimum, forecastMinimumFeelsLikeC: hourlyResult.hours.length ? Math.min(...hourlyResult.hours.map((hour) => hour.feelsLike)) : null, forecastUpdatedAt },
+    targetLocalDate: target.targetLocalDate,
+    evaluationPeriod: { startsAt: target.startsAt, endsAt: target.endsAt },
+    evidencePeriods: dailyTrigger ? [] : hourlyEvidencePeriods,
+    supportingEvidencePeriods: dailyTrigger && hourlyAttention ? hourlyEvidencePeriods : [],
+    displayValidity: "dynamic",
+    temporalPrecision: dailyTrigger ? "daily" : "hourly",
+    values: {
+      forecastMinimumC: dailyResult.minimum,
+      forecastMinimumFeelsLikeC: hourlyResult.status === "available" ? Math.min(...hourlyResult.hours.map((hour) => hour.feelsLike)) : null,
+      forecastUpdatedAt
+    },
     disclaimer: DISCLAIMER
   };
   return { type: "low_temperature", status, target, sourceStatus, advisories: [advisory] };
