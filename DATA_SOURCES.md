@@ -1,14 +1,18 @@
 # Fuentes de datos
 
+## Meteored: presupuesto persistente (v1.12.3)
+
+Meteored continúa siendo sólo la fuente de pronósticos. El `expires_at` informado por upstream se conserva como metadata, pero no autoriza otra consulta. La autorización local está en D1 (`meteored_refresh_state.next_refresh_at`) y el cron existente `*/10 * * * *` sólo evalúa ese estado: normalmente habilita un ciclo pareado cada 4 h (6 ciclos, 12 requests/día), no 288 requests/día.
+
+`GET /api/forecast/hourly`, `GET /api/forecast/daily`, `GET /api/advisories` y el panel social sólo leen D1. La caché puede entregarse marcada como stale durante 12 h (horaria) o 48 h (diaria), con `updatedAt`; después se responde indisponible en vez de presentar datos indefinidamente viejos. El lease persistente de cinco minutos coordina isolates. Un 429 no intenta el segundo endpoint y activa backoff de 24 h si no hay `Retry-After`; 401/403 usan el mismo período y 5xx/red una hora. No se guardan claves ni cuerpos de error.
+
 ## Avisos Meteo Ituzaingó (v1.12.2)
 
 No se incorporó una fuente nueva. `GET /api/advisories` sigue leyendo exclusivamente los payloads Meteored `daily` y `hourly` ya almacenados en `social_forecast_cache`, el contexto PWS de D1 y el estado EMA. La presentación temporal usa la zona `America/Argentina/Buenos_Aires`: daily sólo respalda una jornada; hourly puede respaldar bloques `dawn`, `morning`, `afternoon` y `night`. El endpoint continúa siendo dinámico, sin vigencia persistida ni consultas externas iniciadas por visitantes.
 
 ## Avisos Meteo Ituzaingó (v1.12.1)
 
-`social_forecast_cache` conserva fuentes separadas `daily` y `hourly`: la mínima prevista se evalúa desde `daily.days[]` para la jornada térmica objetivo y la sensación sólo desde seis intervalos completos de 00:00–05:59 ART. `GET /api/advisories` sigue leyendo exclusivamente D1 y nunca llama Meteored.
-
-El cron existente `*/10 * * * *` revisa el vencimiento y refresca el cache en backend cerca de su expiración, sin depender de visitantes ni añadir cron, tabla, migración, Worker o secret. Con el TTL observado, la estimación es ~14 consultas Meteored/día frente al límite del proyecto de 50. El último cache no se borra si la renovación falla.
+`social_forecast_cache` conserva fuentes separadas `daily` y `hourly`: la mínima prevista se evalúa desde `daily.days[]` para la jornada térmica objetivo y la sensación sólo desde seis intervalos completos de 00:00–05:59 ART. `GET /api/advisories` sigue leyendo exclusivamente D1 y nunca llama Meteored. La política de refresh indicada originalmente fue sustituida por el presupuesto persistente de v1.12.3.
 
 ## Avisos Meteo Ituzaingó (v1.12)
 

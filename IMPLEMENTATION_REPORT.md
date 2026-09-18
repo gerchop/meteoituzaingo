@@ -1,3 +1,19 @@
+# Informe de implementación v1.12.3
+
+## Corrección estructural de la cuota Meteored
+
+El incidente quedó atribuido a una incompatibilidad entre TTL upstream y scheduler: Meteored entregaba `expiracion` de aproximadamente 59 segundos, mientras el cron `*/10` consideraba insuficiente todo payload que no excediera diez minutos. Cada tick ejecutaba ambos endpoints y podía alcanzar 288 requests/día; el 18/09/2026 se confirmó `HTTP 429` después de 50 solicitudes teóricas entre 00:00 y 04:00 ART.
+
+v1.12.3 desacopla `expires_at` de la autorización de consumo. La tabla singleton `meteored_refresh_state` contiene el próximo intento, último intento/éxito, estado técnico sanitizado, backoff y lease. La adquisición se realiza con `UPDATE ... WHERE` atómico y lease de cinco minutos. Sólo el cron existente puede obtener ese lease; visitantes, social y avisos no importan ni invocan el fetch upstream.
+
+Un ciclo sano consulta como máximo `hourly` y `daily` cada cuatro horas: seis ciclos, doce requests/día. El resultado válido se persiste de manera independiente; un éxito parcial conserva la otra caché y usa backoff de una hora. Un 429 corta el ciclo antes de `daily` y usa `Retry-After` o 24 h; 401/403 usan 24 h; 5xx o red usan una hora. No se registra cuerpo de error ni secreto.
+
+Las rutas públicas mantienen `data` y `expiracion` por compatibilidad y añaden `cache` (`stale`, `updatedAt`, `upstreamExpiresAt`). La Home sólo muestra una nota discreta cuando corresponde. Se permiten hasta 12 h stale para el pronóstico horario y 48 h para el diario; luego el endpoint falla de forma controlada. El bootstrap de migración espera 24 h, evitando una llamada inmediata tras un incidente de cuota.
+
+Las pruebas determinísticas cubren presupuesto de 24 h, TTL upstream de 60 s, 100 lecturas públicas stale, lectura social, lease concurrente/vencido, 429, 401, 403, 5xx y éxitos parciales. No se ejecutaron consultas reales a Meteored durante implementación o pruebas.
+
+---
+
 # Informe de implementación v1.12.2
 
 ## Modelo temporal de Avisos Meteo Ituzaingó

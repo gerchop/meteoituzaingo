@@ -335,19 +335,27 @@ function guardarCacheMeteored(tipo, respuesta) {
 
 async function obtenerPronosticoMeteored(tipo) {
   const cache = leerCacheMeteored(tipo);
-  if (cache && cache.expiracion > Date.now() && cache.data) return cache.data;
+  if (cache && cache.expiracion > Date.now() && cache.data) return cache;
   const respuesta = await fetch(`${window.MeteoHistoryConfig.API_BASE_URL}/api/forecast/${tipo}`, { cache: "no-store" });
   if (!respuesta.ok) throw new Error(`Meteored respondió ${respuesta.status}`);
   const cuerpo = await respuesta.json();
   if (!cuerpo.ok || !cuerpo.data || !Number.isFinite(cuerpo.expiracion)) throw new Error("Meteored devolvió una respuesta inválida");
   guardarCacheMeteored(tipo, cuerpo);
-  return cuerpo.data;
+  return cuerpo;
 }
 
-/** Consulta Meteored solo cuando su expiración haya vencido; no usa polling. */
+function fuenteCachePronostico(tipo, cache) {
+  const sourceId = tipo === "hourly" ? "hourlySource" : "dailySource";
+  fuentePronostico(sourceId, true);
+  const fuente = document.getElementById(sourceId);
+  if (cache?.cache?.stale && cache.cache.updatedAt) fuente.textContent = `Fuente: Meteored · Pronóstico actualizado por última vez a las ${DateTime.formatTime(new Date(cache.cache.updatedAt))}.`;
+  else fuente.textContent = "Fuente: Meteored";
+}
+
+/** Lee la caché D1 publicada; el navegador nunca solicita Meteored directamente. */
 async function cargarPronosticos() {
-  try { renderizarHorario(await obtenerPronosticoMeteored("hourly")); } catch (error) { console.error("No se pudo cargar el pronóstico horario:", error); mensajePronostico("hourlyForecast", "No se pudo actualizar el pronóstico horario de Meteored."); fuentePronostico("hourlySource", false); }
-  try { renderizarDiario(await obtenerPronosticoMeteored("daily")); } catch (error) { console.error("No se pudo cargar el pronóstico extendido:", error); mensajePronostico("dailyForecast", "No se pudo actualizar el pronóstico extendido de Meteored."); fuentePronostico("dailySource", false); }
+  try { const forecast = await obtenerPronosticoMeteored("hourly"); renderizarHorario(forecast.data); fuenteCachePronostico("hourly", forecast); } catch (error) { console.error("No se pudo cargar el pronóstico horario:", error); mensajePronostico("hourlyForecast", "No se pudo actualizar el pronóstico horario de Meteored."); fuentePronostico("hourlySource", false); }
+  try { const forecast = await obtenerPronosticoMeteored("daily"); renderizarDiario(forecast.data); fuenteCachePronostico("daily", forecast); } catch (error) { console.error("No se pudo cargar el pronóstico extendido:", error); mensajePronostico("dailyForecast", "No se pudo actualizar el pronóstico extendido de Meteored."); fuentePronostico("dailySource", false); }
 }
 
 function horaActualizacion() { return DateTime.formatTime(new Date()); }

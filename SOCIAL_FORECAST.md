@@ -4,7 +4,7 @@ v1.8 prepara publicaciones manuales para redes; no integra ni automatiza X, Twit
 
 ## Fuente, horario y datos
 
-El Worker obtiene `hourly` y `daily` de Meteored con `METEORED_API_KEY` como Cloudflare Secret. El resultado se guarda temporalmente en D1 y se reutiliza hasta su expiración declarada por Meteored; el dashboard público usa el mismo proxy. La generación automática corre con `1 3 * * *`, equivalente a las 00:01 de Argentina (UTC-3 vigente); la fecha, franjas y presentación usan `America/Argentina/Buenos_Aires`.
+El Worker obtiene `hourly` y `daily` de Meteored con `METEORED_API_KEY` como Cloudflare Secret únicamente desde el scheduler existente. El resultado se guarda en D1; `expiracion` de upstream es metadata, no permiso para volver a consumirlo. Un estado persistente habilita un ciclo pareado cada cuatro horas (12 requests/día normales), con lease y backoff. Dashboard, panel y generación social sólo leen D1 y nunca pueden disparar Meteored. La generación automática corre con `1 3 * * *`, equivalente a las 00:01 de Argentina (UTC-3 vigente); la fecha, franjas y presentación usan `America/Argentina/Buenos_Aires`.
 
 La franja «Mañana y tarde» toma horas reales de 06:00 a 19:59 y «Noche» las de 20:00 a 23:59. Si Meteored no ofrece las franjas o temperaturas necesarias se guarda `incomplete`, sin inventar texto. El cron de observaciones `*/10 * * * *` permanece independiente.
 
@@ -24,7 +24,7 @@ El texto conserva el enlace `https://meteoituzaingo.blogspot.com/`. Los bloques 
 
 ## D1 y seguridad
 
-La migración `0002_create_social_forecasts.sql` añade `social_forecasts` con `forecast_date UNIQUE`, texto original/final, partes, estado y contexto resumido. La ejecución automática es idempotente y conserva una edición manual existente; la regeneración autenticada la reemplaza explícitamente. El historial está limitado a 30 registros.
+La migración `0002_create_social_forecasts.sql` añade `social_forecasts` con `forecast_date UNIQUE`, texto original/final, partes, estado y contexto resumido. `0005_create_meteored_refresh_state.sql` añade el singleton no sensible para la coordinación de refresh y lo inicia con una espera conservadora de 24 horas. La ejecución automática es idempotente y conserva una edición manual existente; la regeneración autenticada la reemplaza explícitamente. El historial está limitado a 30 registros.
 
 El panel se sirve same-origin desde Workers para que una cookie `HttpOnly; Secure; SameSite=Strict` de 12 horas no dependa de cookies cross-site de GitHub Pages. El token firmado contiene expiración y CSRF aleatorio, nunca la contraseña. Todas las rutas privadas requieren sesión; mutaciones requieren CSRF. Los intentos fallidos se limitan por hash de IP (cinco por quince minutos). Las respuestas privadas usan `no-store`, CSP y cabeceras de seguridad.
 

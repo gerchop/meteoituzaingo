@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.12.3 - Control de cuota y resiliencia Meteored
+
+- Se corrigió el agotamiento de cuota confirmado por `HTTP 429`: el cron existente sigue ejecutándose cada diez minutos, pero ahora sólo agenda un ciclo pareado `hourly` + `daily` cada cuatro horas. El presupuesto normal es de 6 ciclos y 12 requests diarios, con margen frente al límite documentado de 50.
+- Las rutas públicas de pronóstico, la generación social automática/manual y los avisos leen exclusivamente la caché válida de D1; una visita no puede iniciar un fetch a Meteored.
+- Se añadió estado persistente de scheduler con lease atómico, próximo refresh y backoff. Un 429 evita pedir `daily`, respeta `Retry-After` cuando exista o aplica 24 horas conservadoras; 401/403, 5xx y red también quedan protegidos contra tormentas de reintentos.
+- El último payload válido se conserva sin fingir vigencia: Home recibe metadata `cache.stale` y muestra discretamente la hora de su última actualización. El límite de presentación stale es 12 h para horario y 48 h para diario.
+- Se agregó la migración no destructiva `0005_create_meteored_refresh_state.sql`; su bootstrap espera 24 horas antes del primer intento, para no reintentar la cuota agotada inmediatamente después del deploy.
+
 ## v1.12.2 - Modelo temporal de Avisos Meteo Ituzaingó
 
 - Los avisos distinguen ahora `targetLocalDate`, `evaluationPeriod`, `evidencePeriods`, `displayValidity` dinámico y `temporalPrecision` (`daily` u `hourly`). Los campos `startsAt` y `endsAt` permanecen como compatibilidad, pero dejan de comunicar una duración meteorológica para evidencia diaria.

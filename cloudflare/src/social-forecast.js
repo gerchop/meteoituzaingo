@@ -13,8 +13,16 @@ const HOT_C = 30;
 const VERY_HOT_C = 35;
 // A sky description needs a validated symbol for most of the hours in its period.
 const MIN_SYMBOL_COVERAGE = .6;
-const CACHE_REFRESH_MARGIN_MS = 10 * 60 * 1000;
-const inFlightForecasts = new Map();
+// Meteored is a budgeted upstream: the existing ten-minute cron is only a
+// scheduler.  A complete cycle is at most one hourly + one daily request.
+export const METEORED_REFRESH_INTERVAL_MS = 4 * 60 * 60 * 1000;
+export const METEORED_NORMAL_CYCLES_PER_DAY = 6;
+export const METEORED_NORMAL_REQUESTS_PER_DAY = 12;
+export const METEORED_LOCK_MS = 5 * 60 * 1000;
+export const METEORED_QUOTA_BACKOFF_MS = 24 * 60 * 60 * 1000;
+export const METEORED_AUTH_BACKOFF_MS = 24 * 60 * 60 * 1000;
+export const METEORED_FAILURE_BACKOFF_MS = 60 * 60 * 1000;
+export const METEORED_MAX_STALE_MS = { hourly: 12 * 60 * 60 * 1000, daily: 48 * 60 * 60 * 1000 };
 
 const PERIODS = [
   { id: "dawn", label: "Madrugada", hours: [0, 1, 2, 3, 4, 5] },
@@ -141,34 +149,79 @@ export function buildSocialForecastFromData(hourly, daily, date = argentinaDate(
   return { date, status: "generated", generatedAt: new Date().toISOString(), originalText, parts: splitPosts(blocks), minTemp: temperatures.min, maxTemp: temperatures.max, sourceSummary: { generatorVersion: "1.10", hourlyHours: hours.length, sourceStart: hourly.start || null, relevant: periods.some((period) => period.relevant) ? "RELEVANT" : "NORMAL", symbols: hours.map((hour) => hour.symbol), unknownSymbols: unknown, periods } };
 }
 
-async function fetchAndStoreForecast(database, env, type) {
+class MeteoredUpstreamError extends Error {
+  constructor(status, retryAfterMs = null) { super(`Meteored respondió ${status}`); this.status = status; this.retryAfterMs = retryAfterMs; }
+}
+
+function retryAfterMilliseconds(value, now) {
+  if (!value) return null;
+  if (/^\d+$/.test(value)) return Math.max(0, Number(value) * 1000);
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? Math.max(0, parsed - now) : null;
+}
+
+async function fetchAndStoreForecast(database, env, type, now) {
   if (!env.METEORED_API_KEY || !env.METEORED_LOCATION_HASH) throw new Error("Pronóstico Meteored no configurado");
   const response = await fetch(`https://api.meteored.com/api/forecast/v1/${type}/${env.METEORED_LOCATION_HASH}`, { headers: { "X-API-Key": env.METEORED_API_KEY, Accept: "application/json" } });
-  if (!response.ok) throw new Error(`Meteored respondió ${response.status}`);
+  if (!response.ok) throw new MeteoredUpstreamError(response.status, retryAfterMilliseconds(response.headers.get("Retry-After"), now));
   const body = await response.json(); if (!body.ok || !body.data || !Number.isFinite(body.expiracion)) throw new Error("Respuesta Meteored inválida");
   await database.prepare("INSERT INTO social_forecast_cache (source_type, expires_at, payload_json, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(source_type) DO UPDATE SET expires_at=excluded.expires_at, payload_json=excluded.payload_json, updated_at=excluded.updated_at").bind(type, body.expiracion, JSON.stringify(body.data), new Date().toISOString()).run();
   return body.data;
 }
 
-async function cachedForecast(database, env, type, { refreshBeforeMs = 0, now = Date.now() } = {}) {
-  const cached = await database.prepare("SELECT payload_json, expires_at FROM social_forecast_cache WHERE source_type = ? LIMIT 1").bind(type).first();
-  if (cached && Number.isFinite(cached.expires_at) && cached.expires_at > now + refreshBeforeMs) return JSON.parse(cached.payload_json);
-  if (inFlightForecasts.has(type)) return inFlightForecasts.get(type);
-  const refresh = fetchAndStoreForecast(database, env, type).finally(() => inFlightForecasts.delete(type));
-  inFlightForecasts.set(type, refresh);
-  return refresh;
+function cacheAge(row, now) { const updated = Date.parse(row?.updated_at || ""); return Number.isFinite(updated) ? Math.max(0, now - updated) : Infinity; }
+
+/** Read-only cache access. This function must never invoke Meteored. */
+export async function readForecastCache(database, type, now = Date.now()) {
+  if (!Object.hasOwn(METEORED_MAX_STALE_MS, type)) throw new Error("Tipo de pronóstico inválido");
+  const row = await database.prepare("SELECT payload_json, expires_at, updated_at FROM social_forecast_cache WHERE source_type = ? LIMIT 1").bind(type).first();
+  if (!row || cacheAge(row, now) > METEORED_MAX_STALE_MS[type]) return null;
+  try {
+    return { data: JSON.parse(row.payload_json), cache: { stale: !Number.isFinite(row.expires_at) || row.expires_at <= now, updatedAt: row.updated_at, upstreamExpiresAt: Number.isFinite(row.expires_at) ? new Date(row.expires_at).toISOString() : null } };
+  } catch { return null; }
 }
 
-/** Runs from the existing capture schedule; it is intentionally isolated from EMA capture. */
+async function ensureRefreshState(database, now) {
+  await database.prepare("INSERT OR IGNORE INTO meteored_refresh_state (id, next_refresh_at, updated_at) VALUES (1, ?, ?)").bind(now + METEORED_REFRESH_INTERVAL_MS, new Date(now).toISOString()).run();
+}
+async function refreshState(database) { return database.prepare("SELECT * FROM meteored_refresh_state WHERE id = 1 LIMIT 1").first(); }
+async function finalizeRefresh(database, fields, now) {
+  await database.prepare("UPDATE meteored_refresh_state SET last_attempt_at = ?, last_success_at = ?, next_refresh_at = ?, backoff_until = ?, last_status = ?, lock_until = NULL, updated_at = ? WHERE id = 1").bind(now, fields.lastSuccessAt || null, fields.nextRefreshAt, fields.backoffUntil || null, fields.lastStatus || null, new Date(now).toISOString()).run();
+}
+function failurePlan(error, now) {
+  const status = error instanceof MeteoredUpstreamError ? error.status : null;
+  if (status === 429) { const until = now + (error.retryAfterMs || METEORED_QUOTA_BACKOFF_MS); return { status, until, skipPair: true }; }
+  if (status === 401 || status === 403) return { status, until: now + METEORED_AUTH_BACKOFF_MS, skipPair: true };
+  return { status, until: now + METEORED_FAILURE_BACKOFF_MS, skipPair: false };
+}
+
+/** Runs only from the existing capture scheduler; public and social reads are D1-only. */
 export async function maintainForecastCache(database, env, now = Date.now()) {
-  const results = await Promise.allSettled(["hourly", "daily"].map((type) => cachedForecast(database, env, type, { refreshBeforeMs: CACHE_REFRESH_MARGIN_MS, now })));
-  return results.map((result, index) => ({ type: ["hourly", "daily"][index], status: result.status }));
+  await ensureRefreshState(database, now);
+  const before = await refreshState(database);
+  if (!before || before.next_refresh_at > now || before.backoff_until > now) return { status: "not_due" };
+  const leaseUntil = now + METEORED_LOCK_MS;
+  const lock = await database.prepare("UPDATE meteored_refresh_state SET lock_until = ?, last_attempt_at = ?, updated_at = ? WHERE id = 1 AND (lock_until IS NULL OR lock_until <= ?) AND next_refresh_at <= ? AND (backoff_until IS NULL OR backoff_until <= ?)").bind(leaseUntil, now, new Date(now).toISOString(), now, now, now).run();
+  if (!(lock?.meta?.changes > 0 || lock?.changes > 0)) return { status: "locked" };
+  let hourly;
+  try { hourly = { ok: true, data: await fetchAndStoreForecast(database, env, "hourly", now) }; }
+  catch (error) { hourly = { ok: false, error }; }
+  const hourlyFailure = hourly.ok ? null : failurePlan(hourly.error, now);
+  let daily = { ok: false, skipped: Boolean(hourlyFailure?.skipPair) };
+  if (!daily.skipped) { try { daily = { ok: true, data: await fetchAndStoreForecast(database, env, "daily", now) }; } catch (error) { daily = { ok: false, error }; } }
+  const failed = [hourly, daily].find((item) => !item.ok && !item.skipped);
+  const plan = failed ? failurePlan(failed.error, now) : hourlyFailure;
+  const successes = [hourly, daily].filter((item) => item.ok).length;
+  if (successes === 2) await finalizeRefresh(database, { lastSuccessAt: now, nextRefreshAt: now + METEORED_REFRESH_INTERVAL_MS, lastStatus: 200 }, now);
+  else if (successes) await finalizeRefresh(database, { lastSuccessAt: now, nextRefreshAt: plan.until, backoffUntil: plan.until, lastStatus: plan.status || 599 }, now);
+  else await finalizeRefresh(database, { nextRefreshAt: plan.until, backoffUntil: plan.until, lastStatus: plan.status || 599 }, now);
+  return { status: successes === 2 ? "refreshed" : successes ? "partial" : "failed", hourly: hourly.ok ? "fulfilled" : "rejected", daily: daily.ok ? "fulfilled" : daily.skipped ? "skipped" : "rejected" };
 }
 
-export async function publicForecast(database, env, type) { if (!["hourly", "daily"].includes(type)) throw new Error("Tipo de pronóstico inválido"); return cachedForecast(database, env, type); }
+export async function publicForecast(database, type, now = Date.now()) { const cached = await readForecastCache(database, type, now); if (!cached) throw new Error("Pronóstico no disponible en caché"); return cached; }
 export async function buildSocialForecast(database, env, date = argentinaDate()) {
-  const [hourly, daily] = await Promise.all([cachedForecast(database, env, "hourly"), cachedForecast(database, env, "daily")]);
-  const forecast = buildSocialForecastFromData(hourly, daily, date);
+  const [hourly, daily] = await Promise.all([readForecastCache(database, "hourly"), readForecastCache(database, "daily")]);
+  const forecast = buildSocialForecastFromData(hourly?.data || { hours: [] }, daily?.data || { days: [] }, date);
   forecast.sourceSummary.unknownSymbols.forEach((symbol) => console.warn(JSON.stringify({ event: "unknown_meteored_symbol", symbol, localDate: date })));
   return forecast;
 }

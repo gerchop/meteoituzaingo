@@ -282,7 +282,7 @@ async function getCurrent(request, env) {
   if (!row) return jsonResponse(request, env, { ok: true, data: null, message: "Aún no hay observaciones históricas." });
   return jsonResponse(request, env, { ok: true, data: serializeObservation(row) });
 }
-async function getForecast(request, env, url) { const type = url.pathname.split("/").at(-1); try { return jsonResponse(request, env, { ok: true, data: await publicForecast(env.HISTORY_DB, env, type), expiracion: Date.now() + 60000 }); } catch { return jsonResponse(request, env, { ok: false, error: "Pronóstico no disponible." }, 503); } }
+async function getForecast(request, env, url) { const type = url.pathname.split("/").at(-1); try { const forecast = await publicForecast(env.HISTORY_DB, type); return jsonResponse(request, env, { ok: true, data: forecast.data, cache: forecast.cache, expiracion: Date.now() + 5 * 60 * 1000 }); } catch { return jsonResponse(request, env, { ok: false, error: "Pronóstico no disponible." }, 503); } }
 async function getHistory(request, env, url) {
   const date = url.searchParams.get("date");
   if (date !== null) {
