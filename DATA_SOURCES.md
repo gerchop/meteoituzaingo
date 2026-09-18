@@ -1,5 +1,11 @@
 # Fuentes de datos
 
+## Meteored hourly: utilidad temporal (v1.12.4)
+
+La publicación pública horaria distingue `FRESH`, `STALE_USABLE`, `EXHAUSTED` y `UNAVAILABLE`. La antigüedad de doce horas conserva el rol de clasificar fresco/stale, pero ya no descarta por sí sola un payload: se publican únicamente cuatro o más slots futuros reales de `hours[].end`. Con menos de cuatro, el payload queda agotado y no se presentan horas pasadas. Se validan `start`/`end` epoch ms, unicidad, orden y la ventana diaria esperable antes de publicar un payload stale; esto impide que un timestamp corrupto prolongue indefinidamente su vida útil.
+
+Daily permanece con su límite stale de 48 horas. Social y Avisos continúan leyendo sus fuentes D1 mediante sus propios criterios de calidad; esta política visual no los relaja ni inicia fetch upstream.
+
 ## Meteored: presupuesto persistente (v1.12.3)
 
 Meteored continúa siendo sólo la fuente de pronósticos. El `expires_at` informado por upstream se conserva como metadata, pero no autoriza otra consulta. La autorización local está en D1 (`meteored_refresh_state.next_refresh_at`) y el cron existente `*/10 * * * *` sólo evalúa ese estado: normalmente habilita un ciclo pareado cada 4 h (6 ciclos, 12 requests/día), no 288 requests/día.

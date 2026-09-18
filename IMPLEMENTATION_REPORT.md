@@ -1,3 +1,15 @@
+# Informe de implementación v1.12.4
+
+## Pronóstico horario stale utilizable
+
+La disponibilidad pública hourly ya no termina sólo al superar doce horas desde `updated_at`. La respuesta analiza el payload persistido en D1, valida `start` y los `end` epoch ms, elimina duplicados, ordena los slots y conserva exclusivamente aquellos con `end > now`. Cuatro slots futuros es la cobertura mínima para Home; con esa cobertura, la API responde `FRESH` o `STALE_USABLE` según la antigüedad. Con cero a tres, responde `EXHAUSTED` y no expone horas pasadas; sin payload parseable, responde `UNAVAILABLE`.
+
+La guardia temporal conserva coherencia con el contrato observado de horizonte diario: `start` debe ser razonable respecto de la actualización y cada slot debe caer en la ventana horaria esperable. Así, un timestamp anormalmente futuro no puede convertir un cache antiguo en utilizable. A medianoche no se extiende ni duplica el payload: al agotarse los `end` futuros, el estado pasa naturalmente a `EXHAUSTED`.
+
+El navegador mantiene la presentación actual de hasta doce tarjetas futuras y muestra una nota discreta para `STALE_USABLE`. Para `EXHAUSTED` informa falta de actualización reciente, sin atribuir erróneamente un fallo a Meteored. No se modificaron daily, Social, Avisos, scheduler, crons, lease, backoff, D1 ni presupuesto. Las pruebas cubren frescura, 12/8/4 y 3/2/1/0 slots, instante exacto, medianoche, duplicados, orden, payload inválido y guardia temporal, además de las regresiones v1.12.3.
+
+---
+
 # Informe de implementación v1.12.3
 
 ## Corrección estructural de la cuota Meteored

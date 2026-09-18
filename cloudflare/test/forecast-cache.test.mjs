@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { buildSocialForecast, maintainForecastCache, publicForecast, readForecastCache, METEORED_REFRESH_INTERVAL_MS, METEORED_QUOTA_BACKOFF_MS } from "../src/social-forecast.js";
+import { buildSocialForecast, ForecastAvailabilityError, maintainForecastCache, publicForecast, readForecastCache, METEORED_REFRESH_INTERVAL_MS, METEORED_QUOTA_BACKOFF_MS } from "../src/social-forecast.js";
 
 const NOW = Date.parse("2026-09-18T15:00:00.000Z");
 const env = { METEORED_API_KEY: "test", METEORED_LOCATION_HASH: "location" };
@@ -36,7 +36,7 @@ const originalFetch = globalThis.fetch;
   setFetch(() => { calls += 1; throw new Error("no corresponde"); }); await maintainForecastCache(db, env, NOW + 600000); assert.equal(calls, 0);
 }
 {
-  const cache = { hourly: { expires_at: NOW - 1, payload_json: '{"hours":[]}', updated_at: new Date(NOW - 1000).toISOString() }, daily: { expires_at: NOW - 1, payload_json: '{"days":[]}', updated_at: new Date(NOW - 1000).toISOString() } }; const db = database({ cache }); let calls = 0;
+  const cache = { hourly: { expires_at: NOW - 1, payload_json: JSON.stringify({ start: NOW - 14 * 3600000, hours: Array.from({ length: 4 }, (_, index) => ({ end: NOW + (index + 1) * 3600000 })) }), updated_at: new Date(NOW - 13 * 3600000).toISOString() }, daily: { expires_at: NOW - 1, payload_json: '{"days":[]}', updated_at: new Date(NOW - 1000).toISOString() } }; const db = database({ cache }); let calls = 0;
   setFetch(() => { calls += 1; throw new Error("prohibido"); }); for (let index = 0; index < 100; index += 1) assert.equal((await publicForecast(db, "hourly", NOW)).cache.stale, true); assert.equal((await readForecastCache(db, "daily", NOW)).cache.stale, true); await buildSocialForecast(db, env, "2026-09-18"); assert.equal(calls, 0);
 }
 {
@@ -54,5 +54,38 @@ for (const failedType of ["hourly", "daily"]) { const db = database({ state: { i
 {
   const db = database({ state: { id: 1, next_refresh_at: NOW, lock_until: NOW - 1, backoff_until: null } }); let calls = 0; setFetch((type) => { calls += 1; return response(type); }); await maintainForecastCache(db, env, NOW); assert.equal(calls, 2);
 }
+
+function hourlyRow({ updatedAt = NOW, start = NOW - 3600000, ends = [] } = {}) { return { expires_at: NOW - 1, updated_at: new Date(updatedAt).toISOString(), payload_json: JSON.stringify({ start, hours: ends.map((end) => ({ end, symbol: 3 })) }) }; }
+async function hourlyState(row, now = NOW) { return publicForecast(database({ cache: { hourly: row } }), "hourly", now); }
+function futureEnds(count, now = NOW, firstOffset = 3600000) { return Array.from({ length: count }, (_, index) => now + firstOffset + index * 3600000); }
+{
+  const result = await hourlyState(hourlyRow({ ends: futureEnds(12) })); assert.equal(result.cache.state, "FRESH"); assert.equal(result.cache.futureSlots, 12); assert.equal(result.data.hours.length, 12);
+}
+for (const count of [12, 8, 4]) {
+  const result = await hourlyState(hourlyRow({ updatedAt: NOW - 13 * 3600000, start: NOW - 14 * 3600000, ends: futureEnds(count) })); assert.equal(result.cache.state, "STALE_USABLE"); assert.equal(result.cache.stale, true); assert.equal(result.cache.futureSlots, count);
+}
+for (const count of [3, 2, 1, 0]) {
+  const ends = count ? futureEnds(count) : [NOW - 3600000]; await assert.rejects(() => hourlyState(hourlyRow({ updatedAt: NOW - 13 * 3600000, start: NOW - 14 * 3600000, ends })), (error) => error instanceof ForecastAvailabilityError && error.state === "EXHAUSTED" && error.cache.futureSlots === count);
+}
+{
+  const result = await hourlyState(hourlyRow({ updatedAt: NOW - 13 * 3600000, start: NOW - 14 * 3600000, ends: [NOW, ...futureEnds(4)] })); assert.equal(result.cache.futureSlots, 4, "un slot exactamente now no es futuro"); assert.ok(result.data.hours.every((slot) => slot.end > NOW));
+}
+{
+  const midnight = Date.parse("2026-09-19T00:00:00-03:00"); const row = hourlyRow({ updatedAt: midnight - 13 * 3600000, start: midnight - 14 * 3600000, ends: [midnight - 10800000, midnight - 7200000, midnight - 3600000, midnight] });
+  await assert.rejects(() => hourlyState(row, midnight - 1), (error) => error.state === "EXHAUSTED" && error.cache.futureSlots === 1); await assert.rejects(() => hourlyState(row, midnight), (error) => error.state === "EXHAUSTED" && error.cache.futureSlots === 0);
+}
+{
+  const row = hourlyRow({ updatedAt: NOW - 13 * 3600000, start: NOW - 14 * 3600000, ends: [NOW + 7200000, NOW + 3600000, NOW + 3600000, NOW + 10800000, NOW + 14400000] }); const result = await hourlyState(row); assert.equal(result.cache.futureSlots, 4); assert.deepEqual(result.data.hours.map((slot) => slot.end), futureEnds(4));
+}
+for (const row of [
+  { expires_at: NOW, updated_at: new Date(NOW).toISOString(), payload_json: "{" },
+  hourlyRow({ ends: [] }),
+  hourlyRow({ ends: ["invalid"] }),
+  hourlyRow({ start: NOW + 3 * 3600000, ends: futureEnds(12) }),
+  hourlyRow({ ends: Array.from({ length: 4 }, (_, index) => NOW + (365 + index) * 86400000) })
+]) await assert.rejects(() => hourlyState(row), (error) => error instanceof ForecastAvailabilityError && error.state === "UNAVAILABLE");
+{
+  const daily = { expires_at: NOW - 1, updated_at: new Date(NOW - 47 * 3600000).toISOString(), payload_json: '{"days":[]}' }; const result = await publicForecast(database({ cache: { daily } }), "daily", NOW); assert.equal(result.cache.stale, true, "daily conserva su límite de 48h");
+}
 globalThis.fetch = originalFetch;
-console.log("forecast cache tests: OK (scheduler, stale cache, lock, quota, auth, failures and partial recovery)");
+console.log("forecast cache tests: OK (scheduler, stale utility, lock, quota, auth, failures and partial recovery)");

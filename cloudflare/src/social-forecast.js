@@ -23,6 +23,12 @@ export const METEORED_QUOTA_BACKOFF_MS = 24 * 60 * 60 * 1000;
 export const METEORED_AUTH_BACKOFF_MS = 24 * 60 * 60 * 1000;
 export const METEORED_FAILURE_BACKOFF_MS = 60 * 60 * 1000;
 export const METEORED_MAX_STALE_MS = { hourly: 12 * 60 * 60 * 1000, daily: 48 * 60 * 60 * 1000 };
+export const MIN_HOURLY_FUTURE_SLOTS = 4;
+// Meteored hourly payloads are a daily, 24-slot horizon. These bounds reject
+// corrupt future timestamps without using freshness as the publication gate.
+export const HOURLY_MAX_START_AGE_AT_UPDATE_MS = 24 * 60 * 60 * 1000;
+export const HOURLY_MAX_START_FUTURE_AT_UPDATE_MS = 2 * 60 * 60 * 1000;
+export const HOURLY_MAX_SLOT_HORIZON_MS = 30 * 60 * 60 * 1000;
 
 const PERIODS = [
   { id: "dawn", label: "Madrugada", hours: [0, 1, 2, 3, 4, 5] },
@@ -171,6 +177,36 @@ async function fetchAndStoreForecast(database, env, type, now) {
 
 function cacheAge(row, now) { const updated = Date.parse(row?.updated_at || ""); return Number.isFinite(updated) ? Math.max(0, now - updated) : Infinity; }
 
+export class ForecastAvailabilityError extends Error {
+  constructor(state, cache, message) { super(message); this.state = state; this.cache = cache; }
+}
+
+function hourlyTimestamp(value) { return typeof value === "number" && Number.isFinite(value) ? value : NaN; }
+function hourlyCacheMetadata(row, stale, state, futureSlots) { return { state, stale, futureSlots, updatedAt: row.updated_at, upstreamExpiresAt: Number.isFinite(row.expires_at) ? new Date(row.expires_at).toISOString() : null }; }
+
+/** Public-only hourly policy: real future slots determine utility, not cache age alone. */
+async function readPublicHourlyForecast(database, now) {
+  const row = await database.prepare("SELECT payload_json, expires_at, updated_at FROM social_forecast_cache WHERE source_type = ? LIMIT 1").bind("hourly").first();
+  if (!row) return null;
+  const updatedAt = Date.parse(row.updated_at || "");
+  let payload;
+  try { payload = JSON.parse(row.payload_json); } catch { return null; }
+  const start = hourlyTimestamp(payload?.start);
+  if (!Number.isFinite(updatedAt) || !Number.isFinite(start) || !Array.isArray(payload?.hours) || !payload.hours.length || start < updatedAt - HOURLY_MAX_START_AGE_AT_UPDATE_MS || start > updatedAt + HOURLY_MAX_START_FUTURE_AT_UPDATE_MS) return null;
+  const slots = new Map();
+  payload.hours.forEach((slot) => {
+    const end = hourlyTimestamp(slot?.end);
+    if (Number.isFinite(end) && end > start && end <= start + HOURLY_MAX_SLOT_HORIZON_MS && !slots.has(end)) slots.set(end, slot);
+  });
+  if (!slots.size) return null;
+  const future = [...slots.entries()].filter(([end]) => end > now).sort(([left], [right]) => left - right).map(([, slot]) => slot);
+  const stale = cacheAge(row, now) > METEORED_MAX_STALE_MS.hourly;
+  const state = future.length >= MIN_HOURLY_FUTURE_SLOTS ? (stale ? "STALE_USABLE" : "FRESH") : "EXHAUSTED";
+  const cache = hourlyCacheMetadata(row, stale, state, future.length);
+  if (state === "EXHAUSTED") return { state, cache };
+  return { state, data: { ...payload, hours: future }, cache };
+}
+
 /** Read-only cache access. This function must never invoke Meteored. */
 export async function readForecastCache(database, type, now = Date.now()) {
   if (!Object.hasOwn(METEORED_MAX_STALE_MS, type)) throw new Error("Tipo de pronóstico inválido");
@@ -218,7 +254,17 @@ export async function maintainForecastCache(database, env, now = Date.now()) {
   return { status: successes === 2 ? "refreshed" : successes ? "partial" : "failed", hourly: hourly.ok ? "fulfilled" : "rejected", daily: daily.ok ? "fulfilled" : daily.skipped ? "skipped" : "rejected" };
 }
 
-export async function publicForecast(database, type, now = Date.now()) { const cached = await readForecastCache(database, type, now); if (!cached) throw new Error("Pronóstico no disponible en caché"); return cached; }
+export async function publicForecast(database, type, now = Date.now()) {
+  if (type === "hourly") {
+    const hourly = await readPublicHourlyForecast(database, now);
+    if (!hourly) throw new ForecastAvailabilityError("UNAVAILABLE", null, "Pronóstico no disponible.");
+    if (hourly.state === "EXHAUSTED") throw new ForecastAvailabilityError("EXHAUSTED", hourly.cache, "Pronóstico horario temporalmente sin actualización reciente.");
+    return { data: hourly.data, cache: hourly.cache };
+  }
+  const cached = await readForecastCache(database, type, now);
+  if (!cached) throw new ForecastAvailabilityError("UNAVAILABLE", null, "Pronóstico no disponible.");
+  return cached;
+}
 export async function buildSocialForecast(database, env, date = argentinaDate()) {
   const [hourly, daily] = await Promise.all([readForecastCache(database, "hourly"), readForecastCache(database, "daily")]);
   const forecast = buildSocialForecastFromData(hourly?.data || { hours: [] }, daily?.data || { days: [] }, date);

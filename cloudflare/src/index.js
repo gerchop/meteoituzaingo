@@ -1,7 +1,7 @@
 import { corsHeaders, jsonResponse } from "./cors.js";
 import { insertObservation, serializeObservation } from "./database.js";
 import { fetchWeatherObservation } from "./weather.js";
-import { argentinaDate as socialDate, buildSocialForecast, maintainForecastCache, publicForecast, saveSocialForecast, serializeSocialForecast } from "./social-forecast.js";
+import { argentinaDate as socialDate, buildSocialForecast, ForecastAvailabilityError, maintainForecastCache, publicForecast, saveSocialForecast, serializeSocialForecast } from "./social-forecast.js";
 import { alertsResponse } from "./smn-alerts.js";
 import { advisoriesResponse } from "./advisories.js";
 import { classifyCaptureError, monitorEmaHealth } from "./ema-health.js";
@@ -282,7 +282,7 @@ async function getCurrent(request, env) {
   if (!row) return jsonResponse(request, env, { ok: true, data: null, message: "Aún no hay observaciones históricas." });
   return jsonResponse(request, env, { ok: true, data: serializeObservation(row) });
 }
-async function getForecast(request, env, url) { const type = url.pathname.split("/").at(-1); try { const forecast = await publicForecast(env.HISTORY_DB, type); return jsonResponse(request, env, { ok: true, data: forecast.data, cache: forecast.cache, expiracion: Date.now() + 5 * 60 * 1000 }); } catch { return jsonResponse(request, env, { ok: false, error: "Pronóstico no disponible." }, 503); } }
+async function getForecast(request, env, url) { const type = url.pathname.split("/").at(-1); try { const forecast = await publicForecast(env.HISTORY_DB, type); return jsonResponse(request, env, { ok: true, data: forecast.data, cache: forecast.cache, expiracion: Date.now() + 5 * 60 * 1000 }); } catch (error) { if (error instanceof ForecastAvailabilityError) return jsonResponse(request, env, { ok: false, error: error.message, cache: error.cache || { state: error.state } }, 503); return jsonResponse(request, env, { ok: false, error: "Pronóstico no disponible." }, 503); } }
 async function getHistory(request, env, url) {
   const date = url.searchParams.get("date");
   if (date !== null) {

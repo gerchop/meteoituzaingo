@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.12.4 - Pronóstico horario stale utilizable
+
+- El pronóstico horario separa ahora frescura y utilidad temporal: con cuatro o más slots horarios futuros reales, únicos y válidos, Home puede publicar `STALE_USABLE` aunque la actualización supere doce horas. Sólo se entregan slots futuros, ordenados y limitados a doce.
+- Con menos de cuatro slots futuros, el estado es `EXHAUSTED` y comunica que el pronóstico horario está temporalmente sin actualización reciente, sin mostrar tarjetas pasadas ni confundirlo con un error técnico.
+- Se añadió una guardia de integridad para `start` y `end` epoch ms: rechaza payload vacío, malformado, incoherente o con timestamps anormalmente lejanos. La política diaria, Social, Avisos, D1, cron, lease, backoff y presupuesto Meteored no cambian.
+
 ## v1.12.3 - Control de cuota y resiliencia Meteored
 
 - Se corrigió el agotamiento de cuota confirmado por `HTTP 429`: el cron existente sigue ejecutándose cada diez minutos, pero ahora sólo agenda un ciclo pareado `hourly` + `daily` cada cuatro horas. El presupuesto normal es de 6 ciclos y 12 requests diarios, con margen frente al límite documentado de 50.
