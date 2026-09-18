@@ -1,5 +1,11 @@
 # Fuentes de datos
 
+## Meteored: catálogo de símbolos y avisos locales (v1.13)
+
+La documentación Meteored `GET /api/doc/v1/forecast/symbol` (ejemplo `DocForecastSymbolV1`) define el catálogo JSON v1 compartido por `daily.days[].symbol` y `hourly.hours[].symbol`. Para avisos locales se usan exclusivamente 34 («Thunderstorm with partly cloudy sky») y 35 («Thunderstorm with cloudy sky»). Los códigos 10/11 («Dry thunderstorm») y 38/39 («Thunderstorm with hail») son símbolos validados reservados: no activan avisos v1.13.
+
+`GET /api/advisories` lee sólo los payloads D1 existentes. La familia de tormentas usa daily con horizonte hoy/mañana ART y `updated_at` de hasta ocho horas; `expires_at` sólo es metadata upstream. Hourly fresco puede aportar dayParts, pero no es requisito. Lluvia, POP, ráfagas, PWS y radar no son triggers. La incorporación no crea requests Meteored, no modifica crons ni el presupuesto normal de seis ciclos / doce requests diarios.
+
 ## Meteored hourly: utilidad temporal (v1.12.4)
 
 La publicación pública horaria distingue `FRESH`, `STALE_USABLE`, `EXHAUSTED` y `UNAVAILABLE`. La antigüedad de doce horas conserva el rol de clasificar fresco/stale, pero ya no descarta por sí sola un payload: se publican únicamente cuatro o más slots futuros reales de `hours[].end`. Con menos de cuatro, el payload queda agotado y no se presentan horas pasadas. Se validan `start`/`end` epoch ms, unicidad, orden y la ventana diaria esperable antes de publicar un payload stale; esto impide que un timestamp corrupto prolongue indefinidamente su vida útil.

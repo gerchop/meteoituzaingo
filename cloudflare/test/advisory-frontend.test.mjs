@@ -17,5 +17,15 @@ assert.equal(context.textoTemporalAviso({ temporalPrecision: "hourly", evidenceP
 assert.equal(context.textoTemporalAviso({ temporalPrecision: "hourly", evidencePeriods: [{ date: "2026-09-16", dayParts: ["night"] }, { date: "2026-09-17", dayParts: ["dawn"] }] }), "Período previsto: miércoles 16 de septiembre — noche / jueves 17 de septiembre — madrugada");
 assert.equal(context.formatoSensacionAviso({ forecastMinimumFeelsLikeC: -1 }), "Sensación térmica mínima prevista: -1 °C");
 assert.equal(context.formatoSensacionAviso({}), "");
+assert.equal(context.estadoPublicoAviso("no_advisory"), "Sin aviso");
+assert.equal(context.estadoPublicoAviso("advisory"), "Aviso vigente");
+assert.equal(context.estadoPublicoAviso("insufficient_data"), "Sin datos suficientes");
+assert.equal(context.iconoFamiliaAviso("thunderstorm"), "fa-cloud-bolt");
+assert.equal(context.familiasAvisos({ families: [{ id: "thunderstorm" }] }).length, 1);
+assert.equal(context.familiasAvisos({ advisories: [] })[0].publicStatus, "no_advisory");
+const thunderstormDetails = context.detalleTormenta({ values: { forecastDays: [{ date: "2026-09-16", dayParts: ["afternoon", "night"], precipitationProbability: 80, rainMm: 6.1 }] } }).flat();
+assert.ok(thunderstormDetails.includes("Señal de tormenta prevista durante la tarde y noche."));
+assert.ok(thunderstormDetails.includes("Probabilidad de precipitaciones: 80 %."));
+assert.ok(thunderstormDetails.includes("Precipitación prevista: 6,1 mm."));
 
-console.log("advisory frontend tests: OK (7 deterministic scenarios)");
+console.log("advisory frontend tests: OK (15 deterministic scenarios)");

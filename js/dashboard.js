@@ -80,8 +80,44 @@ function textoTemporalAviso(advisory) {
   }
   return `Período: ${formatoAlerta(advisory.startsAt)} a ${formatoAlerta(advisory.endsAt)}`;
 }
-function mensajeAvisosLocales() { return "No hay avisos vigentes."; }
-async function cargarAvisosLocales() { const box = document.getElementById("localAdvisories"); if (!box) return; try { const response = await fetch(ADVISORIES_URL); const data = await response.json(); if (!response.ok || !data || !data.ok) throw new Error(); if (!Array.isArray(data.advisories) || !data.advisories.length) { box.textContent = mensajeAvisosLocales(data); return; } box.replaceChildren(...data.advisories.map((advisory) => { const article = document.createElement("article"); article.className = "advisory-item"; const icon = document.createElement("i"); icon.className = "fa-solid fa-temperature-low"; icon.setAttribute("aria-hidden", "true"); const content = document.createElement("div"); const category = document.createElement("strong"); category.textContent = `${textoAvisoCategoria(advisory.category)} — ${advisory.title || "Aviso Meteo Ituzaingó"}`; const summary = document.createElement("p"); summary.textContent = advisory.summary || "Condición meteorológica local destacada."; const period = document.createElement("p"); period.className = "advisory-meta"; period.textContent = textoTemporalAviso(advisory); const values = document.createElement("p"); values.className = "advisory-meta"; values.textContent = formatoValorAviso(advisory.values); const feelsLike = document.createElement("p"); feelsLike.className = "advisory-meta"; feelsLike.textContent = formatoSensacionAviso(advisory.values); const source = document.createElement("p"); source.className = "advisory-meta"; source.textContent = advisory.basis?.some((item) => item.startsWith("observation_")) ? "Origen: pronóstico disponible y observación local." : "Origen: pronóstico disponible."; content.append(category, summary, period, values); if (feelsLike.textContent) content.append(feelsLike); content.append(source); article.append(icon, content); return article; })); } catch { box.textContent = "El pronóstico necesario para evaluar los avisos locales no está disponible temporalmente."; } }
+function estadoPublicoAviso(status) { return ({ no_advisory: "Sin aviso", advisory: "Aviso vigente", insufficient_data: "Sin datos suficientes" })[status] || "Sin datos suficientes"; }
+function iconoFamiliaAviso(id) { return id === "thunderstorm" ? "fa-cloud-bolt" : "fa-temperature-low"; }
+function detalleTormenta(advisory) {
+  const days = Array.isArray(advisory.values?.forecastDays) ? advisory.values.forecastDays : [];
+  const blocks = days.map((day) => {
+    const values = [`Jornada prevista: ${fechaAvisoLocal(day.date)}.`];
+    const parts = (day.dayParts || []).map((part) => ({ dawn: "madrugada", morning: "mañana", afternoon: "tarde", night: "noche" })[part]).filter(Boolean);
+    if (parts.length) values.push(`Señal de tormenta prevista durante la ${listaNatural(parts)}.`);
+    if (Number.isFinite(day.precipitationProbability)) values.push(`Probabilidad de precipitaciones: ${Math.round(day.precipitationProbability)} %.`);
+    if (Number.isFinite(day.rainMm)) values.push(`Precipitación prevista: ${String(day.rainMm).replace(".", ",")} mm.`);
+    return values;
+  });
+  return blocks.length ? blocks : [[textoTemporalAviso(advisory)]];
+}
+function familiasAvisos(data) {
+  if (Array.isArray(data?.families) && data.families.length) return data.families;
+  const advisories = Array.isArray(data?.advisories) ? data.advisories : [];
+  return [{ id: "low_temperature", label: "Bajas temperaturas", publicStatus: advisories.length ? "advisory" : "no_advisory", advisories }];
+}
+function renderFamiliaAviso(family) {
+  const item = document.createElement("article"); item.className = "advisory-family";
+  const row = document.createElement("div"); row.className = "advisory-family-row";
+  const icon = document.createElement("i"); icon.className = `fa-solid ${iconoFamiliaAviso(family.id)}`; icon.setAttribute("aria-hidden", "true");
+  const label = document.createElement("strong"); label.textContent = family.label || "Aviso local";
+  const status = document.createElement("span"); status.className = `advisory-family-status${family.publicStatus === "advisory" ? " is-active" : family.publicStatus === "insufficient_data" ? " is-insufficient" : ""}`; status.textContent = estadoPublicoAviso(family.publicStatus);
+  row.append(icon, label, status); item.append(row);
+  if (family.publicStatus !== "advisory") return item;
+  const detail = document.createElement("div"); detail.className = "advisory-detail";
+  const advisory = Array.isArray(family.advisories) ? family.advisories[0] : null;
+  if (!advisory) return item;
+  const title = document.createElement("p"); title.textContent = advisory.title || "Aviso local"; detail.append(title);
+  const lines = advisory.type === "thunderstorm" ? detalleTormenta(advisory).flat() : [advisory.summary || "Condición meteorológica local destacada.", textoTemporalAviso(advisory), formatoValorAviso(advisory.values), formatoSensacionAviso(advisory.values)].filter(Boolean);
+  lines.forEach((line) => { const paragraph = document.createElement("p"); paragraph.className = "advisory-meta"; paragraph.textContent = line; detail.append(paragraph); });
+  const source = document.createElement("p"); source.className = "advisory-meta"; source.textContent = advisory.basis?.some((basis) => basis.startsWith("observation_")) ? "Origen: pronóstico disponible y observación local." : "Origen: pronóstico disponible."; detail.append(source); item.append(detail);
+  return item;
+}
+function mensajeAvisosLocales() { return "Sin datos suficientes"; }
+async function cargarAvisosLocales() { const box = document.getElementById("localAdvisories"); if (!box) return; try { const response = await fetch(ADVISORIES_URL); const data = await response.json(); if (!response.ok || !data || !data.ok) throw new Error(); box.replaceChildren(...familiasAvisos(data).map(renderFamiliaAviso)); } catch { box.textContent = mensajeAvisosLocales(); } }
 
 /** Calcula el punto de rocío en °C mediante la aproximación de Magnus. */
 function puntoDeRocio(temperatura, humedad) {

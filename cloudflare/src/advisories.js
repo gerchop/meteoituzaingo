@@ -8,6 +8,10 @@ const OBSERVATION_MAX_GAP_MS = 15 * 60 * 1000;
 const DISCLAIMER = "Aviso automático no oficial.";
 const TARGET_HOUR = 12;
 const TARGET_DAWN_HOURS = [0, 1, 2, 3, 4, 5];
+export const THUNDERSTORM_SYMBOLS = [34, 35];
+export const RESERVED_DRY_THUNDERSTORM_SYMBOLS = [10, 11];
+export const RESERVED_THUNDERSTORM_HAIL_SYMBOLS = [38, 39];
+export const THUNDERSTORM_MAX_FORECAST_AGE_MS = 8 * HOUR_MS;
 
 function localParts(value) {
   return localDateTimeParts(value);
@@ -18,6 +22,10 @@ function timestamp(value) { const parsed = typeof value === "number" ? value : D
 function iso(value) { return new Date(value).toISOString(); }
 function dateAfter(date, days) { const [year, month, day] = date.split("-").map(Number); return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10); }
 function localMidnight(date) { return Date.parse(`${date}T00:00:00-03:00`); }
+function todayAndTomorrow(now = Date.now()) {
+  const today = localDate(new Date(now));
+  return [today, dateAfter(today, 1)];
+}
 
 /** A deterministic policy: after local noon, the next thermal day is relevant. */
 export function selectLowTemperatureTargetPeriod(now = Date.now()) {
@@ -126,17 +134,97 @@ export function evaluateLowTemperature({ daily, hourly, dailyAvailable = true, h
   return { type: "low_temperature", status, target, sourceStatus, advisories: [advisory] };
 }
 
+function forecastFreshness(updatedAt, now) {
+  const updated = timestamp(updatedAt);
+  if (updated === null || updated > now || now - updated > THUNDERSTORM_MAX_FORECAST_AGE_MS) return false;
+  return true;
+}
+
+function stormDailyTargets(daily, targetDates) {
+  if (!Array.isArray(daily?.days)) return { status: "insufficient", days: [] };
+  const byDate = new Map();
+  for (const item of daily.days) {
+    const start = timestamp(item?.start);
+    if (start === null) continue;
+    const date = localDate(new Date(start));
+    if (targetDates.includes(date) && !byDate.has(date)) byDate.set(date, item);
+  }
+  if (targetDates.some((date) => !byDate.has(date))) return { status: "insufficient", days: [] };
+  const days = targetDates.map((date) => ({ date, item: byDate.get(date), symbol: finite(byDate.get(date)?.symbol) }));
+  if (days.some((day) => day.symbol === null)) return { status: "insufficient", days: [] };
+  return { status: "available", days };
+}
+
+function stormHourlyEvidence(hourly, updatedAt, targetDates, now) {
+  if (!forecastFreshness(updatedAt, now) || !Array.isArray(hourly?.hours)) return [];
+  const evidence = new Map();
+  for (const hour of hourly.hours) {
+    const end = timestamp(hour?.end); const symbol = finite(hour?.symbol);
+    if (end === null || symbol === null || !THUNDERSTORM_SYMBOLS.includes(symbol)) continue;
+    const date = localDate(new Date(end));
+    if (!targetDates.includes(date)) continue;
+    const dayPart = getDayPartsForInterval(iso(end), iso(end + HOUR_MS))[0]?.dayParts?.[0];
+    if (!dayPart) continue;
+    if (!evidence.has(date)) evidence.set(date, []);
+    const items = evidence.get(date);
+    if (!items.includes(dayPart)) items.push(dayPart);
+  }
+  return targetDates.filter((date) => evidence.has(date)).map((date) => ({ date, dayParts: evidence.get(date) }));
+}
+
+/**
+ * Conservative local thunderstorm evaluator. It reads only supplied cached
+ * forecast data: daily symbols activate it, hourly symbols merely refine time.
+ */
+export function evaluateThunderstorm({ daily, hourly, dailyAvailable = true, dailyUpdatedAt = null, hourlyUpdatedAt = null, now = Date.now() } = {}) {
+  const targetLocalDates = todayAndTomorrow(now);
+  const target = { targetLocalDates, startsAt: iso(localMidnight(targetLocalDates[0])), endsAt: iso(localMidnight(dateAfter(targetLocalDates[1], 1)) ) };
+  if (!dailyAvailable || !forecastFreshness(dailyUpdatedAt, now)) return { type: "thunderstorm", status: "insufficient_data", target, sourceStatus: { forecastDaily: "insufficient", forecastHourly: "unavailable" }, advisories: [] };
+  const dailyResult = stormDailyTargets(daily, targetLocalDates);
+  if (dailyResult.status !== "available") return { type: "thunderstorm", status: "insufficient_data", target, sourceStatus: { forecastDaily: "insufficient", forecastHourly: Array.isArray(hourly?.hours) ? "available" : "unavailable" }, advisories: [] };
+  const positive = dailyResult.days.filter((day) => THUNDERSTORM_SYMBOLS.includes(day.symbol));
+  const sourceStatus = { forecastDaily: "available", forecastHourly: forecastFreshness(hourlyUpdatedAt, now) && Array.isArray(hourly?.hours) ? "available" : "unavailable" };
+  if (!positive.length) return { type: "thunderstorm", status: "no_advisory", target, sourceStatus, advisories: [] };
+  const hourlyEvidence = stormHourlyEvidence(hourly, hourlyUpdatedAt, positive.map((day) => day.date), now);
+  const dayPartsByDate = new Map(hourlyEvidence.map((period) => [period.date, period.dayParts]));
+  const evidencePeriods = positive.map((day) => ({ date: day.date, dayParts: dayPartsByDate.get(day.date) || [] }));
+  const forecastDays = positive.map((day) => ({
+    date: day.date,
+    precipitationProbability: finite(day.item?.rain_probability),
+    rainMm: finite(day.item?.rain),
+    dayParts: dayPartsByDate.get(day.date) || []
+  }));
+  const advisory = {
+    id: "thunderstorm:local", type: "thunderstorm", category: "information",
+    title: "Tormentas previstas", summary: "El pronóstico disponible indica tormentas para la jornada señalada.",
+    startsAt: target.startsAt, endsAt: target.endsAt, targetLocalDate: positive[0].date,
+    targetLocalDates: positive.map((day) => day.date), temporalPrecision: "daily",
+    evaluationPeriod: target, evidencePeriods, supportingEvidencePeriods: hourlyEvidence,
+    displayValidity: "dynamic", basis: ["forecast_daily_symbol"],
+    values: { forecastDays, forecastUpdatedAt: dailyUpdatedAt }, disclaimer: DISCLAIMER
+  };
+  return { type: "thunderstorm", status: "advisory", target, sourceStatus, advisories: [advisory] };
+}
+
 /** Extensible aggregation point: future families register independent evaluators here. */
 export function evaluateAdvisories(context) {
-  const evaluators = context?.evaluators || [evaluateLowTemperature];
+  const evaluators = context?.evaluators || [evaluateLowTemperature, evaluateThunderstorm];
   const evaluations = evaluators.map((evaluator) => evaluator(context));
   const advisories = evaluations.flatMap((evaluation) => evaluation.advisories).sort((left, right) => (left.category === "attention" ? -1 : 0) - (right.category === "attention" ? -1 : 0));
   const lowTemperature = evaluations.find((evaluation) => evaluation.type === "low_temperature") || { sourceStatus: {}, status: "partial", target: { targetLocalDate: null } };
-  return { evaluations, advisories, sourceStatus: lowTemperature.sourceStatus, evaluation: { status: lowTemperature.status, targetLocalDate: lowTemperature.target.targetLocalDate } };
+  const labels = { low_temperature: "Bajas temperaturas", thunderstorm: "Tormentas" };
+  const families = evaluations.filter((evaluation) => labels[evaluation.type]).map((evaluation) => ({ id: evaluation.type, label: labels[evaluation.type], publicStatus: evaluation.status === "partial" ? "insufficient_data" : evaluation.status, advisories: evaluation.advisories }));
+  return { evaluations, families, advisories, sourceStatus: lowTemperature.sourceStatus, evaluation: { status: lowTemperature.status, targetLocalDate: lowTemperature.target.targetLocalDate } };
 }
 
 function usableCache(row, now) {
   if (!row || !Number.isFinite(row.expires_at) || row.expires_at <= now) return { available: false, data: null, updatedAt: null };
+  try { return { available: true, data: JSON.parse(row.payload_json), updatedAt: row.updated_at || null }; } catch { return { available: false, data: null, updatedAt: null }; }
+}
+
+/** Parses D1 cache without treating the upstream TTL as meteorological validity. */
+function storedCache(row) {
+  if (!row) return { available: false, data: null, updatedAt: null };
   try { return { available: true, data: JSON.parse(row.payload_json), updatedAt: row.updated_at || null }; } catch { return { available: false, data: null, updatedAt: null }; }
 }
 
@@ -146,13 +234,18 @@ export async function advisoriesResponse(request, env, now = Date.now()) {
     env.HISTORY_DB.prepare("SELECT payload_json, updated_at, expires_at FROM social_forecast_cache WHERE source_type = 'hourly' LIMIT 1").first()
   ]);
   const daily = usableCache(dailyRow, now); const hourly = usableCache(hourlyRow, now);
+  const stormDaily = storedCache(dailyRow); const stormHourly = storedCache(hourlyRow);
   const [ema, observations] = await Promise.all([
     env.HISTORY_DB.prepare("SELECT data_freshness, capture_health, latest_observed_at FROM ema_health_state WHERE id = 1").first(),
     env.HISTORY_DB.prepare("SELECT observed_at, temperature, feels_like FROM weather_observations ORDER BY observed_at DESC LIMIT 2").all()
   ]);
-  const outcome = evaluateAdvisories({ daily: daily.data, hourly: hourly.data, dailyAvailable: daily.available, hourlyAvailable: hourly.available, forecastUpdatedAt: daily.updatedAt || hourly.updatedAt, observationRows: observations.results || [], ema, now });
+  const outcome = evaluateAdvisories({ daily: daily.data, hourly: hourly.data, dailyAvailable: daily.available, hourlyAvailable: hourly.available, forecastUpdatedAt: daily.updatedAt || hourly.updatedAt, stormDaily: stormDaily.data, stormHourly: stormHourly.data, stormDailyAvailable: stormDaily.available, stormDailyUpdatedAt: stormDaily.updatedAt, stormHourlyUpdatedAt: stormHourly.updatedAt, observationRows: observations.results || [], ema, now,
+    evaluators: [
+      (context) => evaluateLowTemperature(context),
+      (context) => evaluateThunderstorm({ daily: context.stormDaily, hourly: context.stormHourly, dailyAvailable: context.stormDailyAvailable, dailyUpdatedAt: context.stormDailyUpdatedAt, hourlyUpdatedAt: context.stormHourlyUpdatedAt, now: context.now })
+    ] });
   const legacyForecast = outcome.sourceStatus.forecastDaily === "available" ? "available" : outcome.sourceStatus.forecastDaily === "unavailable" && outcome.sourceStatus.forecastHourly === "unavailable" ? "unavailable" : "insufficient";
-  const response = jsonResponse(request, env, { ok: true, updatedAt: iso(now), sourceStatus: { ...outcome.sourceStatus, forecast: legacyForecast }, evaluation: outcome.evaluation, advisories: outcome.advisories });
+  const response = jsonResponse(request, env, { ok: true, updatedAt: iso(now), sourceStatus: { ...outcome.sourceStatus, forecast: legacyForecast }, evaluation: outcome.evaluation, families: outcome.families, advisories: outcome.advisories });
   const headers = new Headers(response.headers); headers.set("Cache-Control", "public, max-age=300");
   return new Response(response.body, { status: response.status, headers });
 }

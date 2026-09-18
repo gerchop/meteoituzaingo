@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.13 - Avisos locales multifamilia y tormentas
+
+- `GET /api/advisories` incorpora el contrato extensible `families` con Bajas temperaturas y Tormentas, conservando `advisories`, `sourceStatus` y `evaluation` para consumidores existentes.
+- La familia Tormentas se activa exclusivamente con `daily.days[].symbol` 34 o 35 del catálogo JSON v1 documentado de Meteored: tormenta con cielo parcialmente nuboso o cubierto. Los símbolos 10/11 (tormenta seca) y 38/39 (tormenta con granizo) quedan validados pero reservados, sin activar avisos.
+- El aviso local de tormentas es solamente `information`, evalúa hoy y mañana en `America/Argentina/Buenos_Aires` y requiere un daily capturado hace ocho horas o menos. `expires_at` upstream no se utiliza como vigencia meteorológica.
+- Daily basta para activar el aviso; hourly sólo puede añadir evidencia de madrugada, mañana, tarde o noche cuando está disponible y fresco. Lluvia, POP, ráfagas, PWS y radar no activan, desactivan ni elevan el aviso.
+- Home pasa a mostrar «Avisos locales» como filas responsive por familia, con estados Sin aviso, Aviso vigente y Sin datos suficientes, detalle no oficial expandido en contexto y un único disclaimer. Alertas oficiales SMN permanece separado.
+- No se agregaron migraciones, crons, consultas Meteored, cambios de cuota, ni cambios a Social, EMA, Resend, SMN o la política horaria pública v1.12.4.
+
 ## v1.12.4 - Pronóstico horario stale utilizable
 
 - El pronóstico horario separa ahora frescura y utilidad temporal: con cuatro o más slots horarios futuros reales, únicos y válidos, Home puede publicar `STALE_USABLE` aunque la actualización supere doce horas. Sólo se entregan slots futuros, ordenados y limitados a doce.

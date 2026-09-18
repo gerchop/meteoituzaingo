@@ -1,3 +1,17 @@
+# Informe de implementación v1.13
+
+## Avisos locales multifamilia y tormentas
+
+La respuesta de `GET /api/advisories` ahora añade `families`: `low_temperature` y `thunderstorm` exponen por separado `no_advisory`, `advisory` o `insufficient_data`. Los campos legacy de bajas temperaturas se conservan para no romper clientes existentes. La Home presenta ambas familias en el panel «Avisos locales» y reserva «Alertas oficiales» exclusivamente para el SMN.
+
+La familia `thunderstorm` es un evaluador puro sin fetch ni escrituras. Usa únicamente daily ya almacenado en D1 y activa sólo con `THUNDERSTORM_SYMBOLS = [34, 35]`, conforme a `GET /api/doc/v1/forecast/symbol` / `DocForecastSymbolV1`: tormenta con cielo parcialmente nuboso o cubierto. Los símbolos 10/11 (tormenta seca) y 38/39 (tormenta con granizo) están explícitamente reservados para una decisión futura de producto.
+
+La evaluación alcanza hoy y mañana ART, requiere `updated_at` de ocho horas o menos y no interpreta `expires_at` upstream como vigencia meteorológica. Daily es suficiente para activar `information`; hourly fresco sólo agrega dayParts respaldados por slots 34/35, sin afirmar duración de seis horas. Lluvia, POP, ráfagas, presión, humedad, PWS y radar no intervienen en trigger ni nivel. Ante información vieja o incompleta se devuelve `insufficient_data`, nunca un falso «Sin aviso».
+
+No se modificaron scheduler, lease, backoff, 429, crons, presupuesto, D1, Social, EMA, Resend, SMN ni Home hourly v1.12.4. Los tests determinísticos cubren símbolos de trigger y reservados, frescura exacta y vencida, horizonte, daily-only, dayParts, medianoche, multiday, familias y la presentación pública; no realizan llamadas Meteored reales.
+
+---
+
 # Informe de implementación v1.12.4
 
 ## Pronóstico horario stale utilizable

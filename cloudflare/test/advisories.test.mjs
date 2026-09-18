@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { advisoriesResponse, evaluateAdvisories, evaluateLowTemperature, selectLowTemperatureTargetPeriod } from "../src/advisories.js";
+import { advisoriesResponse, evaluateAdvisories, evaluateLowTemperature, evaluateThunderstorm, selectLowTemperatureTargetPeriod } from "../src/advisories.js";
 
 const at = (date, hour) => Date.parse(`${date}T${String(hour).padStart(2, "0")}:00:00-03:00`);
 const atLocal = (date, hour, minute = 0) => Date.parse(`${date}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00-03:00`);
@@ -66,6 +66,42 @@ assert.equal(selectLowTemperatureTargetPeriod(atLocal("2026-09-15", 23, 59)).tar
 assert.equal(selectLowTemperatureTargetPeriod(atLocal("2026-12-31", 23, 30)).targetLocalDate, "2027-01-01");
 assert.equal(selectLowTemperatureTargetPeriod(atLocal("2026-01-31", 23, 30)).targetLocalDate, "2026-02-01");
 
+// Thunderstorm is daily-only for activation. Freshness is based on the local
+// capture time, never on Meteored's short upstream expiration metadata.
+const TOMORROW = "2026-09-16";
+const stormDaily = (todaySymbol = 3, tomorrowSymbol = 3, extra = {}) => ({ days: [
+  { start: at(TARGET, 0), symbol: todaySymbol, ...extra },
+  { start: at(TOMORROW, 0), symbol: tomorrowSymbol, ...extra }
+] });
+const stormHour = (date, hour, symbol) => ({ end: at(date, hour), symbol });
+const storm = (extra = {}) => evaluateThunderstorm({ daily: stormDaily(), dailyUpdatedAt: new Date(NOW).toISOString(), hourly: { hours: [] }, hourlyUpdatedAt: new Date(NOW).toISOString(), now: NOW, ...extra });
+for (const symbol of [34, 35]) assert.equal(storm({ daily: stormDaily(symbol) }).status, "advisory", `symbol ${symbol}`);
+for (const symbol of [3, 12, 13, 28, 29, 10, 11, 38, 39]) assert.equal(storm({ daily: stormDaily(symbol) }).status, "no_advisory", `reserved/non-trigger symbol ${symbol}`);
+assert.equal(storm({ daily: stormDaily(3, 3, { rain: 80 }) }).status, "no_advisory");
+assert.equal(storm({ daily: stormDaily(3, 3, { rain_probability: 100 }) }).status, "no_advisory");
+assert.equal(storm({ daily: stormDaily(3, 3, { wind_gust: 120 }) }).status, "no_advisory");
+assert.equal(storm({ daily: stormDaily(34), dailyUpdatedAt: new Date(NOW - 8 * 3600000).toISOString() }).status, "advisory");
+assert.equal(storm({ daily: stormDaily(34), dailyUpdatedAt: new Date(NOW - 8 * 3600000 - 1).toISOString() }).status, "insufficient_data");
+assert.equal(storm({ daily: stormDaily(3, 34) }).status, "advisory");
+assert.equal(storm({ daily: stormDaily(3, 3), hourlyAvailable: false }).status, "no_advisory");
+assert.equal(storm({ daily: { days: [{ start: at(TARGET, 0), symbol: 3 }, { start: at(TOMORROW, 0), symbol: 3 }, { start: at("2026-09-17", 0), symbol: 34 }] } }).status, "no_advisory");
+assert.equal(storm({ daily: { days: [{ start: at("2026-09-14", 0), symbol: 34 }, { start: at(TARGET, 0), symbol: 3 }, { start: at(TOMORROW, 0), symbol: 3 }] } }).status, "no_advisory");
+assert.equal(storm({ daily: { days: [] } }).status, "insufficient_data");
+assert.equal(storm({ daily: { days: [{ start: at(TARGET, 0), symbol: 34 }, { start: at(TOMORROW, 0), symbol: "invalid" }] } }).status, "insufficient_data");
+assert.equal(storm({ daily: stormDaily(34), dailyUpdatedAt: null }).status, "insufficient_data");
+const dailyOnlyStorm = storm({ daily: stormDaily(34, 3, { rain: 6.1, rain_probability: 80 }), hourly: null, hourlyUpdatedAt: null }).advisories[0];
+assert.equal(dailyOnlyStorm.temporalPrecision, "daily"); assert.deepEqual(dailyOnlyStorm.evidencePeriods, [{ date: TARGET, dayParts: [] }]);
+for (const [hour, expected] of [[2, "dawn"], [7, "morning"], [13, "afternoon"], [20, "night"]]) {
+  const advisory = storm({ daily: stormDaily(34), hourly: { hours: [stormHour(TARGET, hour, 34)] } }).advisories[0];
+  assert.deepEqual(advisory.evidencePeriods[0].dayParts, [expected]);
+}
+const multiParts = storm({ daily: stormDaily(34), hourly: { hours: [stormHour(TARGET, 13, 34), stormHour(TARGET, 20, 35)] } }).advisories[0];
+assert.deepEqual(multiParts.evidencePeriods[0].dayParts, ["afternoon", "night"]);
+const midnightStorm = storm({ daily: stormDaily(3, 34), hourly: { hours: [stormHour(TOMORROW, 0, 35)] } }).advisories[0];
+assert.deepEqual(midnightStorm.evidencePeriods[0].dayParts, ["dawn"]);
+const twoDaysStorm = storm({ daily: stormDaily(34, 35) }).advisories[0];
+assert.equal(twoDaysStorm.targetLocalDates.length, 2); assert.equal(twoDaysStorm.id, "thunderstorm:local");
+
 // Engine aggregation deliberately supports future families without limiting the output array.
 const fakeInformation = () => ({ type: "future_information", status: "advisory", advisories: [{ id: "a", category: "information" }] });
 const fakeAttention = () => ({ type: "future_attention", status: "advisory", advisories: [{ id: "b", category: "attention" }] });
@@ -84,7 +120,26 @@ const response = await advisoriesResponse(request, { ALLOWED_ORIGINS: "https://g
 const body = await response.json();
 assert.equal(response.headers.get("Access-Control-Allow-Origin"), "https://gerchop.github.io"); assert.equal(response.headers.get("Cache-Control"), "public, max-age=300");
 assert.equal(body.sourceStatus.forecastDaily, "available"); assert.equal(body.evaluation.status, "advisory"); assert.equal(body.advisories[0].category, "attention");
+assert.deepEqual(body.families.map((family) => family.id), ["low_temperature", "thunderstorm"]);
+assert.equal(body.families[1].publicStatus, "insufficient_data");
 const unavailable = await advisoriesResponse(request, { ALLOWED_ORIGINS: "https://gerchop.github.io", HISTORY_DB: database() }, NOW);
 assert.equal((await unavailable.json()).sourceStatus.forecast, "unavailable");
 
-console.log("advisories tests: OK (53 deterministic scenarios)");
+// Public response remains D1-only and lets the thunderstorm family use a
+// fresh local capture even when the upstream TTL has elapsed.
+const stormRow = { payload_json: JSON.stringify(stormDaily(34, 3)), updated_at: new Date(NOW).toISOString(), expires_at: NOW - 1 };
+const originalFetch = globalThis.fetch;
+globalThis.fetch = () => { throw new Error("/api/advisories must never fetch Meteored"); };
+const stormResponse = await advisoriesResponse(request, { ALLOWED_ORIGINS: "https://gerchop.github.io", HISTORY_DB: database({ dailyRow: stormRow, hourlyRow: null, ema: emaOk, rows: observations }) }, NOW);
+globalThis.fetch = originalFetch;
+const stormBody = await stormResponse.json();
+assert.equal(stormBody.families.find((family) => family.id === "thunderstorm").publicStatus, "advisory");
+assert.equal(stormBody.families.find((family) => family.id === "low_temperature").publicStatus, "insufficient_data");
+
+const multiFamily = evaluateAdvisories({ evaluators: [
+  () => evaluateLowTemperature({ daily: daily(4), hourly: dawn(), now: NOW }),
+  () => storm({ daily: stormDaily(34) })
+] });
+assert.deepEqual(multiFamily.families.map((family) => family.publicStatus), ["advisory", "advisory"]);
+
+console.log("advisories tests: OK (92 deterministic scenarios)");
