@@ -1,5 +1,11 @@
 # Fuentes de datos
 
+## Alertas oficiales SMN: ingesta incremental CAP (v1.13.2)
+
+La fuente continúa siendo exclusivamente el índice oficial `https://ws2.smn.gob.ar/rss` y el RSS CAP descubierto en `ssl.smn.gob.ar`. El RSS puede superar el máximo de subrequests externos de Workers Free si se descargan todos los CAP en una única invocación; por eso el Worker persiste URL/GUID como identidad práctica en D1 y procesa lotes de hasta ocho CAP mediante un cron separado, con concurrencia máxima de tres y timeout de ocho segundos.
+
+La API pública `GET /api/alerts` no consulta SMN: lee solamente alertas aplicables y no vencidas desde D1 y conserva caché pública de cinco minutos. Las relaciones CAP `Update` y `Cancel` se guardan entre invocaciones para evitar la publicación de una versión anterior. No se guardan polígonos completos después de determinar aplicabilidad para Ituzaingó. Si SMN falla o devuelve 403/challenge, no se borra una alerta válida persistida; la ingesta reintenta posteriormente sin evasión.
+
 ## Meteored: resiliencia social a medianoche (v1.13.1)
 
 El refresh Meteored conserva seis ciclos diarios y se alinea a 00/04/08/12/16/20 ART. Social se ejecuta a las 00:11 ART y sólo lee D1. Su contrato distingue `complete` (cuatro dayParts completos), `partial` (dayParts completos parciales o resumen daily general) e `incomplete`. El fallback daily no inventa períodos horarios y no modifica el catálogo de símbolos permitido por Social. No hay requests Meteored de Home, Admin, Social ni Avisos.

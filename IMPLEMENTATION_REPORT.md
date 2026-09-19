@@ -1,3 +1,21 @@
+# Informe de implementación v1.13.2
+
+## Ingesta incremental CAP SMN
+
+**Arquitectura:** RSS/CAP oficial SMN → cron dedicado → D1 → `GET /api/alerts` D1-only → Home. La corrección elimina el límite posicional `slice(0, 40)`, confirmado como causa raíz al observar un RSS de 190 items con Tormentas en el item 76 y Viento en el 163.
+
+**Migración:** `0006_create_smn_cap_ingestion.sql`, exclusivamente aditiva: estado singleton, items CAP y relaciones `UPDATE`/`CANCEL`. No almacena geometría completa ni modifica tablas existentes.
+
+**Límites:** batch 8, concurrencia 3, timeout 8 s, máximo estructural de diez requests externos por tick con discovery y RSS. El cron SMN propuesto es `5,15,25,35,45,55 * * * *`; PWS, Meteored, Social, EMA, Resend y Avisos locales permanecen aislados. El bootstrap de 190 identidades requiere como máximo 24 ticks (~4 h), sin depender de posición RSS.
+
+**API:** `/api/alerts` hace cero requests SMN por visita, mantiene `Cache-Control: public, max-age=300`, excluye vencidas y conserva alertas válidas cuando la fuente se vuelve temporalmente stale. Updates y Cancels se resuelven por relaciones persistentes, también fuera de orden.
+
+**Validación local:** fixtures de 190 identidades, items equivalentes 76/163/último, onset futuro, Update, Cancel, polígono dentro/fuera, límite de batch y concurrencia máxima 3 pasan. Las suites existentes de Social, Current, Avisos, Forecast Cache, EMA y Resend permanecen verdes.
+
+**Producción:** el inventario remoto confirmó dos cron triggers existentes y ningún otro schedule en la cuenta; el tercero queda dentro del máximo Free de cinco. La migración remota `0006` se aplicó sin cambios destructivos y el Worker se desplegó como `cc47daab-7d50-48fa-910c-12e976ce3f5d`. El primer cron SMN registró 190 identidades y procesó su batch normal de ocho CAP: siete exitosos y un retry aislado, sin alertas aplicables todavía durante el bootstrap. No se forzó una descarga masiva.
+
+---
+
 # Informe de implementación v1.13.1
 
 ## Resiliencia social a medianoche

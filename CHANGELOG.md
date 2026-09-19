@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.13.2 - Ingesta incremental de alertas CAP SMN
+
+- Se reemplazó el procesamiento público truncado del RSS CAP por una ingesta incremental persistida en D1. La causa raíz era el antiguo `slice(0, 40)`: el feed oficial observado contenía 190 items y los CAP aplicables de Tormentas y Viento estaban en las posiciones 76 y 163.
+- El nuevo cron SMN aislado procesa el RSS completo como identidades URL/GUID, descarga como máximo ocho CAP por tick, con tres conexiones concurrentes y timeout individual de ocho segundos. No hay fan-out iniciado por visitantes.
+- `GET /api/alerts` pasa a ser D1-only, mantiene `Cache-Control: public, max-age=300` y conserva el contrato público. Updates y Cancels CAP se relacionan persistentemente para impedir que versiones antiguas reaparezcan aun si llegan fuera de orden.
+- No se añadieron fuentes externas, scraping SAT, Worker Paid, D1 adicional, ni cambios a PWS, Meteored, Social, EMA, Resend, Avisos locales o frontend.
+
 ## v1.13.1 - Resiliencia del pronóstico social a medianoche
 
 - El scheduler Meteored pasa a slots ART 00/04/08/12/16/20, conserva seis ciclos y 12 requests normales diarios; el cron físico, lease y backoff no cambian.
