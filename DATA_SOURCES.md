@@ -1,5 +1,9 @@
 # Fuentes de datos
 
+## Meteored: resiliencia social a medianoche (v1.13.1)
+
+El refresh Meteored conserva seis ciclos diarios y se alinea a 00/04/08/12/16/20 ART. Social se ejecuta a las 00:11 ART y sólo lee D1. Su contrato distingue `complete` (cuatro dayParts completos), `partial` (dayParts completos parciales o resumen daily general) e `incomplete`. El fallback daily no inventa períodos horarios y no modifica el catálogo de símbolos permitido por Social. No hay requests Meteored de Home, Admin, Social ni Avisos.
+
 ## Meteored: catálogo de símbolos y avisos locales (v1.13)
 
 La documentación Meteored `GET /api/doc/v1/forecast/symbol` (ejemplo `DocForecastSymbolV1`) define el catálogo JSON v1 compartido por `daily.days[].symbol` y `hourly.hours[].symbol`. Para avisos locales se usan exclusivamente 34 («Thunderstorm with partly cloudy sky») y 35 («Thunderstorm with cloudy sky»). Los códigos 10/11 («Dry thunderstorm») y 38/39 («Thunderstorm with hail») son símbolos validados reservados: no activan avisos v1.13.

@@ -9,6 +9,15 @@ function fullDay(overrides = {}) { return Array.from({ length: 24 }, (_, hour) =
 function build(hours) { const { hourly, daily } = payload(hours); return buildSocialForecastFromData(hourly, daily, DATE); }
 function assertSafe(text) { PROHIBITED_SOCIAL_TERMS.forEach((term) => assert.equal(text.toLocaleLowerCase("es-AR").includes(term), false, `No debe incluir ${term}`)); }
 
+{
+  const { daily } = payload([]); const forecast = buildSocialForecastFromData({ hours: [] }, daily, DATE);
+  assert.equal(forecast.status, "partial"); assert.equal(forecast.sourceSummary.mode, "daily_general"); assert.ok(forecast.originalText.includes("Pronóstico general para hoy:")); assert.equal(/Madrugada|Mañana|Tarde|Noche/.test(forecast.originalText), false);
+}
+{
+  const forecast = build(fullDay().filter((hour) => hour.end !== at(23)));
+  assert.equal(forecast.status, "partial"); assert.equal(forecast.sourceSummary.periods.find((period) => period.id === "night").complete, false); assert.equal(forecast.originalText.includes("Noche:"), false);
+}
+
 for (const [symbol, expected] of [[3, "Nubes y claros."], [4, "Parcialmente nuboso."], [5, "Cubierto."], [12, "Lluvia débil con cielo parcialmente nuboso."], [13, "Lluvia débil con cielo cubierto."]]) {
   const forecast = build(fullDay(Object.fromEntries(Array.from({ length: 24 }, (_, hour) => [hour, { symbol, rain: [12, 13].includes(symbol) ? 0.1 : 0, rain_probability: [12, 13].includes(symbol) ? 30 : 0 }]))));
   assert.ok(forecast.originalText.includes(expected), `symbol ${symbol}`); assertSafe(forecast.originalText);
@@ -16,12 +25,12 @@ for (const [symbol, expected] of [[3, "Nubes y claros."], [4, "Parcialmente nubo
 
 {
   const forecast = build(fullDay({ 12: { symbol: 99, rain_probability: 70, rain: 0.4 } }));
-  assert.equal(forecast.status, "generated"); assert.ok(forecast.sourceSummary.unknownSymbols.includes(99)); assertSafe(forecast.originalText);
+  assert.equal(forecast.status, "complete"); assert.ok(forecast.sourceSummary.unknownSymbols.includes(99)); assertSafe(forecast.originalText);
 }
 {
   const forecast = build([1, 2, 3, 4, 5].map((hour, index) => forecastHour(hour, { symbol: index === 4 ? 3 : 1 })));
   const dawn = forecast.sourceSummary.periods.find((period) => period.id === "dawn");
-  assert.equal(forecast.status, "generated"); assert.equal(dawn.knownSymbolHours, 1); assert.equal(dawn.unknownSymbolHours, 4); assert.equal(dawn.symbolCoverage, .2); assert.equal(dawn.sky, null); assert.equal(forecast.originalText.includes("Nubes y claros."), false); assert.ok(forecast.originalText.includes("Vientos"));
+  assert.equal(forecast.status, "partial"); assert.equal(dawn.knownSymbolHours, 1); assert.equal(dawn.unknownSymbolHours, 4); assert.equal(dawn.symbolCoverage, .2); assert.equal(dawn.sky, null); assert.equal(forecast.originalText.includes("Nubes y claros."), false); assert.ok(forecast.originalText.includes("Pronóstico general para hoy:"));
 }
 {
   const forecast = build(Array.from({ length: 6 }, (_, index) => forecastHour(6 + index, { symbol: index === 2 ? 4 : 99 })));

@@ -1,3 +1,13 @@
+# Informe de implementación v1.13.1
+
+## Resiliencia social a medianoche
+
+El scheduler Meteored ahora calcula el próximo slot en `America/Argentina/Buenos_Aires` (00/04/08/12/16/20) en bootstrap y tras un éxito, evitando drift relativo. El cron físico `*/10`, lease de cinco minutos, backoff y presupuesto normal de seis ciclos / doce requests diarios se preservan. El cron social se mueve de `1 3 * * *` a `11 3 * * *`, equivalente a 00:11 ART.
+
+El generador social sigue siendo D1-only y clasifica la salida como `complete`, `partial` o `incomplete`. Un día completo exige cuatro dayParts completos; los bloques incompletos se omiten. Cuando daily está dentro de su límite existente de 48 h y hourly no alcanza cobertura, se genera un resumen explícitamente general/parcial, sin dayParts ni términos meteorológicos fuera de la whitelist Social. No se modificaron Home, Avisos, SMN, EMA, scheduler de captura ni se añadieron migraciones.
+
+---
+
 # Informe de implementación v1.13
 
 ## Avisos locales multifamilia y tormentas

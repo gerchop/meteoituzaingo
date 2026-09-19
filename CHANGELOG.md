@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.13.1 - Resiliencia del pronóstico social a medianoche
+
+- El scheduler Meteored pasa a slots ART 00/04/08/12/16/20, conserva seis ciclos y 12 requests normales diarios; el cron físico, lease y backoff no cambian.
+- El cron social se ejecuta a las 00:11 ART y sigue leyendo exclusivamente D1.
+- Social distingue `complete`, `partial` e `incomplete`; cobertura parcial no describe dayParts incompletos.
+- Daily válido puede producir «Pronóstico general para hoy» como fallback parcial, sin inventar períodos horarios ni ampliar la política de símbolos Social.
+
 ## v1.13 - Avisos locales multifamilia y tormentas
 
 - `GET /api/advisories` incorpora el contrato extensible `families` con Bajas temperaturas y Tormentas, conservando `advisories`, `sourceStatus` y `evaluation` para consumidores existentes.

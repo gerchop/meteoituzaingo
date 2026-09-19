@@ -16,6 +16,7 @@ const MIN_SYMBOL_COVERAGE = .6;
 // Meteored is a budgeted upstream: the existing ten-minute cron is only a
 // scheduler.  A complete cycle is at most one hourly + one daily request.
 export const METEORED_REFRESH_INTERVAL_MS = 4 * 60 * 60 * 1000;
+export const METEORED_ART_REFRESH_HOURS = [0, 4, 8, 12, 16, 20];
 export const METEORED_NORMAL_CYCLES_PER_DAY = 6;
 export const METEORED_NORMAL_REQUESTS_PER_DAY = 12;
 export const METEORED_LOCK_MS = 5 * 60 * 1000;
@@ -49,8 +50,15 @@ const DIRECTIONS = { N: "Norte", NNE: "Norte", NE: "Noreste", ENE: "Noreste", E:
 
 export const PROHIBITED_SOCIAL_TERMS = ["chaparrones", "tormentas", "tormentas fuertes", "tormentas severas", "granizo", "posible granizo", "niebla", "neblina", "heladas", "probables heladas", "tiempo severo", "tiempo grave", "lluvia torrencial", "lluvia intensa", "temporal"];
 
-function localParts(value) { return Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" }).formatToParts(value).filter((part) => part.type !== "literal").map((part) => [part.type, part.value])); }
+function localParts(value) { return Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(value).filter((part) => part.type !== "literal").map((part) => [part.type, part.value])); }
 export function argentinaDate(value = new Date()) { const parts = localParts(value); return `${parts.year}-${parts.month}-${parts.day}`; }
+export function getNextMeteoredRefreshSlot(now = Date.now()) {
+  const parts = localParts(new Date(now)); const hour = Number(parts.hour);
+  const nextHour = METEORED_ART_REFRESH_HOURS.find((slot) => slot > hour);
+  const date = nextHour === undefined ? new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day) + 1)).toISOString().slice(0, 10) : `${parts.year}-${parts.month}-${parts.day}`;
+  const slot = nextHour === undefined ? 0 : nextHour;
+  return Date.parse(`${date}T${String(slot).padStart(2, "0")}:00:00-03:00`);
+}
 function number(value) { return Number.isFinite(value) ? value : null; }
 function timestamp(value) { return typeof value === "number" ? value : Number(value); }
 function localHour(hour) { const time = timestamp(hour.end); return Number.isFinite(time) ? Number(localParts(new Date(time)).hour) : null; }
@@ -148,11 +156,20 @@ function assertAllowedText(text) { const normalized = text.toLocaleLowerCase("es
 export function buildSocialForecastFromData(hourly, daily, date = argentinaDate()) {
   const hours = (hourly.hours || []).filter((hour) => argentinaDate(new Date(timestamp(hour.end))) === date && Number.isFinite(localHour(hour)));
   const temperatures = dayTemperatures(hours, daily, date); const periods = PERIODS.map((definition) => summarizePeriod(definition, hours)); const unknown = [...new Set(periods.flatMap((period) => period.unknownSymbols))];
-  if (!hours.length || !temperatures) return { date, status: "incomplete", parts: [], originalText: "", sourceSummary: { hourlyHours: hours.length, unknownSymbols: unknown, periods } };
-  const renderedPeriods = mergeStablePeriods(periods.filter((period) => period.hoursCount > 0)).map(periodBlock).filter(Boolean);
-  const blocks = ["Pronóstico para hoy:", ...renderedPeriods, `Temp.: mín. ${formatTemperature(temperatures.min)} / máx. ${formatTemperature(temperatures.max)}`, `Blog: ${BLOG_URL}`];
+  const dailyItem = (daily.days || []).find((item) => argentinaDate(new Date(timestamp(item.start))) === date);
+  const dailyTemperatures = dailyItem && number(dailyItem.temperature_min) !== null && number(dailyItem.temperature_max) !== null ? { min: dailyItem.temperature_min, max: dailyItem.temperature_max } : null;
+  const completePeriods = periods.filter((period) => period.complete);
+  const isComplete = completePeriods.length === PERIODS.length && temperatures;
+  const dailySky = VALIDATED_SYMBOLS[Number(dailyItem?.symbol)]?.text || null;
+  const dailyPop = number(dailyItem?.rain_probability);
+  if (!isComplete && !completePeriods.length && !dailyTemperatures) return { date, status: "incomplete", parts: [], originalText: "", sourceSummary: { hourlyHours: hours.length, unknownSymbols: unknown, periods, mode: "incomplete" } };
+  const mode = isComplete ? "complete" : completePeriods.length ? "partial_hourly" : "daily_general";
+  const renderedPeriods = mergeStablePeriods((isComplete ? periods : completePeriods)).map(periodBlock).filter(Boolean);
+  const general = mode === "daily_general" ? [dailySky, Number.isFinite(dailyPop) ? `Prob. de precipitación: hasta ${Math.round(dailyPop)}%.` : null].filter(Boolean) : [];
+  const extrema = dailyTemperatures || temperatures;
+  const blocks = [mode === "complete" ? "Pronóstico para hoy:" : mode === "daily_general" ? "Pronóstico general para hoy:" : "Pronóstico parcial para hoy:", ...general, ...renderedPeriods, `Temp.: mín. ${formatTemperature(extrema.min)} / máx. ${formatTemperature(extrema.max)}`, `Blog: ${BLOG_URL}`];
   const originalText = blocks.join("\n\n"); assertAllowedText(originalText);
-  return { date, status: "generated", generatedAt: new Date().toISOString(), originalText, parts: splitPosts(blocks), minTemp: temperatures.min, maxTemp: temperatures.max, sourceSummary: { generatorVersion: "1.10", hourlyHours: hours.length, sourceStart: hourly.start || null, relevant: periods.some((period) => period.relevant) ? "RELEVANT" : "NORMAL", symbols: hours.map((hour) => hour.symbol), unknownSymbols: unknown, periods } };
+  return { date, status: isComplete ? "complete" : "partial", generatedAt: new Date().toISOString(), originalText, parts: splitPosts(blocks), minTemp: extrema.min, maxTemp: extrema.max, sourceSummary: { generatorVersion: "1.13.1", mode, hourlyHours: hours.length, sourceStart: hourly.start || null, relevant: periods.some((period) => period.relevant) ? "RELEVANT" : "NORMAL", symbols: hours.map((hour) => hour.symbol), unknownSymbols: unknown, periods } };
 }
 
 class MeteoredUpstreamError extends Error {
@@ -218,7 +235,13 @@ export async function readForecastCache(database, type, now = Date.now()) {
 }
 
 async function ensureRefreshState(database, now) {
-  await database.prepare("INSERT OR IGNORE INTO meteored_refresh_state (id, next_refresh_at, updated_at) VALUES (1, ?, ?)").bind(now + METEORED_REFRESH_INTERVAL_MS, new Date(now).toISOString()).run();
+  await database.prepare("INSERT OR IGNORE INTO meteored_refresh_state (id, next_refresh_at, updated_at) VALUES (1, ?, ?)").bind(getNextMeteoredRefreshSlot(now), new Date(now).toISOString()).run();
+  const state = await refreshState(database);
+  // A pre-calendar bootstrap has no attempts or backoff. Realign it once
+  // without pulling a due refresh forward or bypassing failure protection.
+  if (state && !state.last_attempt_at && !state.last_success_at && !state.backoff_until && state.next_refresh_at > now) {
+    await database.prepare("UPDATE meteored_refresh_state SET next_refresh_at = ?, updated_at = ? WHERE id = 1 AND last_attempt_at IS NULL AND last_success_at IS NULL AND backoff_until IS NULL").bind(getNextMeteoredRefreshSlot(now), new Date(now).toISOString()).run();
+  }
 }
 async function refreshState(database) { return database.prepare("SELECT * FROM meteored_refresh_state WHERE id = 1 LIMIT 1").first(); }
 async function finalizeRefresh(database, fields, now) {
@@ -248,7 +271,7 @@ export async function maintainForecastCache(database, env, now = Date.now()) {
   const failed = [hourly, daily].find((item) => !item.ok && !item.skipped);
   const plan = failed ? failurePlan(failed.error, now) : hourlyFailure;
   const successes = [hourly, daily].filter((item) => item.ok).length;
-  if (successes === 2) await finalizeRefresh(database, { lastSuccessAt: now, nextRefreshAt: now + METEORED_REFRESH_INTERVAL_MS, lastStatus: 200 }, now);
+  if (successes === 2) await finalizeRefresh(database, { lastSuccessAt: now, nextRefreshAt: getNextMeteoredRefreshSlot(now), lastStatus: 200 }, now);
   else if (successes) await finalizeRefresh(database, { lastSuccessAt: now, nextRefreshAt: plan.until, backoffUntil: plan.until, lastStatus: plan.status || 599 }, now);
   else await finalizeRefresh(database, { nextRefreshAt: plan.until, backoffUntil: plan.until, lastStatus: plan.status || 599 }, now);
   return { status: successes === 2 ? "refreshed" : successes ? "partial" : "failed", hourly: hourly.ok ? "fulfilled" : "rejected", daily: daily.ok ? "fulfilled" : daily.skipped ? "skipped" : "rejected" };

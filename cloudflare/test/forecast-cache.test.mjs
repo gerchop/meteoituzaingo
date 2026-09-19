@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { buildSocialForecast, ForecastAvailabilityError, maintainForecastCache, publicForecast, readForecastCache, METEORED_REFRESH_INTERVAL_MS, METEORED_QUOTA_BACKOFF_MS } from "../src/social-forecast.js";
+import { buildSocialForecast, ForecastAvailabilityError, getNextMeteoredRefreshSlot, maintainForecastCache, publicForecast, readForecastCache, METEORED_REFRESH_INTERVAL_MS, METEORED_QUOTA_BACKOFF_MS } from "../src/social-forecast.js";
 
 const NOW = Date.parse("2026-09-18T15:00:00.000Z");
 const env = { METEORED_API_KEY: "test", METEORED_LOCATION_HASH: "location" };
@@ -12,6 +12,7 @@ function database({ state = null, cache = {} } = {}) {
     first: async () => sql.includes("meteored_refresh_state") ? db.state : (db.cache[values[0]] || null),
     run: async () => {
       if (sql.startsWith("INSERT OR IGNORE INTO meteored_refresh_state")) { if (!db.state) db.state = { id: 1, next_refresh_at: values[0], updated_at: values[1], lock_until: null, backoff_until: null }; return { meta: { changes: 1 } }; }
+      if (sql.startsWith("UPDATE meteored_refresh_state SET next_refresh_at")) { if (db.state && !db.state.last_attempt_at && !db.state.last_success_at && !db.state.backoff_until) Object.assign(db.state, { next_refresh_at: values[0], updated_at: values[1] }); return { meta: { changes: 1 } }; }
       if (sql.startsWith("UPDATE meteored_refresh_state SET lock_until")) { const [lease, attempt, updated, now] = values; const eligible = db.state && (!db.state.lock_until || db.state.lock_until <= now) && db.state.next_refresh_at <= now && (!db.state.backoff_until || db.state.backoff_until <= now); if (eligible) Object.assign(db.state, { lock_until: lease, last_attempt_at: attempt, updated_at: updated }); return { meta: { changes: eligible ? 1 : 0 } }; }
       if (sql.startsWith("UPDATE meteored_refresh_state SET last_attempt_at")) { const [attempt, success, next, backoff, status, updated] = values; Object.assign(db.state, { last_attempt_at: attempt, last_success_at: success, next_refresh_at: next, backoff_until: backoff, last_status: status, updated_at: updated, lock_until: null }); return { meta: { changes: 1 } }; }
       if (sql.startsWith("INSERT INTO social_forecast_cache")) { const [type, expires_at, payload_json, updated_at] = values; db.cache[type] = { expires_at, payload_json, updated_at }; db.writes.push(type); return { meta: { changes: 1 } }; }
@@ -24,6 +25,13 @@ function database({ state = null, cache = {} } = {}) {
 function response(type, expiresAt = NOW + 60000) { return new Response(JSON.stringify({ ok: true, data: type === "hourly" ? { hours: [] } : { days: [] }, expiracion: expiresAt }), { status: 200 }); }
 function setFetch(handler) { globalThis.fetch = async (url) => handler(url.includes("/hourly/") ? "hourly" : "daily"); }
 const originalFetch = globalThis.fetch;
+const art = (date, hour, minute = 0) => Date.parse(`${date}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00-03:00`);
+for (const [hour, minute, expectedHour] of [[0, 1, 4], [3, 59, 4], [4, 1, 8], [7, 59, 8], [8, 1, 12], [11, 59, 12], [12, 1, 16], [15, 59, 16], [16, 1, 20], [19, 59, 20], [20, 1, 0], [23, 59, 0]]) {
+  const next = new Date(getNextMeteoredRefreshSlot(art("2026-09-18", hour, minute)));
+  const local = new Intl.DateTimeFormat("en-GB", { timeZone: "America/Argentina/Buenos_Aires", hour: "2-digit", hourCycle: "h23" }).format(next);
+  assert.equal(Number(local), expectedHour, `${hour}:${minute}`);
+}
+assert.equal(getNextMeteoredRefreshSlot(art("2026-09-18", 15, 11)), art("2026-09-18", 16));
 
 {
   const db = database({ state: { id: 1, next_refresh_at: NOW, lock_until: null, backoff_until: null } }); let calls = 0;

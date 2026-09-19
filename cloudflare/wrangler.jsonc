@@ -10,7 +10,7 @@
     "METEORED_LOCATION_HASH": "02fb9feb8e7f9462733d7279a5479236"
   },
   "triggers": {
-    "crons": ["*/10 * * * *", "1 3 * * *"]
+    "crons": ["*/10 * * * *", "11 3 * * *"]
   },
   "d1_databases": [
     {
