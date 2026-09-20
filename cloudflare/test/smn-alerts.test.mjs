@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { CAP_BATCH_SIZE, CAP_CONCURRENCY, CAP_TIMEOUT_MS, mapWithConcurrency, normalizeCap, pointInPolygon, rssIdentities } from "../src/smn-alerts.js";
+import { CAP_BATCH_SIZE, CAP_CONCURRENCY, CAP_TIMEOUT_MS, mapWithConcurrency, normalizeCap, pointInPolygon, referenceMatchesCapIdentifier, rssIdentities } from "../src/smn-alerts.js";
 
 const NOW = Date.parse("2026-09-19T16:00:00-03:00");
 const INSIDE = "-34.56,-58.52 -34.70,-58.52 -34.70,-58.90 -34.56,-58.90 -34.56,-58.52";
@@ -28,6 +28,23 @@ assert.equal(storm.payload.length, 1, "Onset futuro debe mantenerse");
 assert.equal(storm.payload[0].event, "Tormentas");
 assert.equal(storm.msgType, "Update");
 assert.deepEqual(storm.refs, ["urn:oid:storm-alert"]);
+assert.equal(referenceMatchesCapIdentifier("urn:oid:storm-alert", "urn:oid:storm-alert"), true, "Alert A -> Update B conserva coincidencia exacta");
+assert.equal(referenceMatchesCapIdentifier("urn:oid:storm-alert", "urn:oid:storm-alert.10"), true, "CAP SMN de zona coincide con la referencia de la emisiÃ³n");
+assert.equal(referenceMatchesCapIdentifier("urn:oid:storm-alert", "urn:oid:storm-alert-extra"), false, "No se confunden identificadores por prefijo textual");
+assert.equal(referenceMatchesCapIdentifier("urn:oid:storm-alert", "urn:oid:wind-alert.10"), false, "CAP independientes con mismo horario siguen independientes");
+assert.equal(referenceMatchesCapIdentifier("urn:oid:storm-alert.10", "urn:oid:storm-alert.10"), true, "Un Cancel/Update exacto funciona incluso fuera de orden");
+function activeIds(items, relations) { return items.filter((id) => !relations.some((relation) => ["UPDATE", "CANCEL"].includes(relation.type) && referenceMatchesCapIdentifier(relation.reference, id))); }
+const A = "urn:oid:storm-a.10", B = "urn:oid:storm-b.10", C = "urn:oid:storm-c.10";
+assert.deepEqual(activeIds([A], []), [A], "Alert A solo permanece visible");
+assert.deepEqual(activeIds([A, B], [{ source: B, reference: "urn:oid:storm-a", type: "UPDATE" }]), [B], "Alert A -> Update B deja solo B");
+assert.deepEqual(activeIds([A, B, C], [{ source: B, reference: "urn:oid:storm-a", type: "UPDATE" }, { source: C, reference: "urn:oid:storm-b", type: "UPDATE" }]), [C], "A -> B -> C deja solo C");
+assert.deepEqual(activeIds([A, B, C], [{ source: C, reference: "urn:oid:storm-b", type: "UPDATE" }, { source: B, reference: "urn:oid:storm-a", type: "UPDATE" }]), [C], "el orden de procesamiento no altera la cadena");
+assert.deepEqual(activeIds([A, B], [{ source: B, reference: "urn:oid:storm-a", type: "UPDATE" }, { source: C, reference: "urn:oid:storm-b", type: "CANCEL" }]), [], "Cancel posterior oculta la cadena");
+assert.deepEqual(activeIds([A], [{ source: C, reference: "urn:oid:storm-a", type: "CANCEL" }]), [], "Cancel antes de Alert también oculta A");
+assert.deepEqual(activeIds([A, "urn:oid:wind-a.10"], [{ source: B, reference: "urn:oid:storm-a", type: "UPDATE" }]), ["urn:oid:wind-a.10"], "CAP independientes con el mismo evento/horario no se fusionan");
+assert.deepEqual(activeIds([A, "urn:oid:wind-a.10"], [{ source: C, reference: "urn:oid:storm-a", type: "UPDATE" }, { source: C, reference: "urn:oid:wind-a", type: "UPDATE" }]), [], "múltiples references se evalúan individualmente");
+assert.deepEqual(activeIds(["urn:oid:tormenta-085156.28", "urn:oid:tormenta-142617.4", "urn:oid:tormenta-142617.29"], [{ source: "urn:oid:tormenta-142617.4", reference: "urn:oid:tormenta-085156", type: "UPDATE" }, { source: "urn:oid:tormenta-142617.29", reference: "urn:oid:tormenta-085156", type: "UPDATE" }]), ["urn:oid:tormenta-142617.4", "urn:oid:tormenta-142617.29"], "equivalente Tormentas real conserva sólo la emisión vigente y sus áreas" );
+assert.deepEqual(activeIds(["urn:oid:viento-215421.4", "urn:oid:viento-085201.4"], [{ source: "urn:oid:viento-085201.4", reference: "urn:oid:viento-215421", type: "UPDATE" }]), ["urn:oid:viento-085201.4"], "equivalente Viento real conserva una versión vigente");
 assert.equal(wind.payload.length, 1);
 assert.equal(wind.payload[0].event, "Viento");
 assert.equal(normalizeCap(ids[189], cap({ id: "urn:oid:last", type: "Alert", event: "Último", onset: "2026-09-20T15:00:00-03:00", expires: "2026-09-20T20:59:59-03:00" }), NOW).payload.length, 1);

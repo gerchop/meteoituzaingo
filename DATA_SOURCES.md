@@ -1,5 +1,15 @@
 # Fuentes de datos
 
+## Alertas oficiales SMN: consolidación CAP (v1.13.3)
+
+La fuente y el modelo siguen siendo los CAP oficiales SMN persistidos en D1. La relación se determina exclusivamente por `identifier`, `msgType` y `<references>`: una referencia puede nombrar el identificador base de una emisión mientras el CAP aplicable de una zona usa el mismo identificador más un componente final `.<n>`. La proyección pública reconoce esa relación exacta o de descendiente delimitado por punto; no relaciona alertas por texto, fenómeno, vigencia ni severidad.
+
+En la auditoría de Tormentas y Viento del 20/09/2026, los CAP reales expusieron `severity=Moderate`, `urgency=Future` y `certainty=Likely`, sin `<parameter>`, `eventCode` ni otro campo explícito con nivel/color SAT. No se ha confirmado una correspondencia oficial `Moderate → AMARILLO`; por ello API y Home no muestran niveles amarillo/naranja/rojo inferidos. La falta de nivel nunca oculta una alerta oficial y los Avisos locales permanecen totalmente separados.
+
+## Meteored hourly: slots restantes de Home (v1.13.3)
+
+La presentación pública hourly puede usar una caché D1 con uno o más `hours[].end` futuros válidos, únicos y ordenados. Frescura y cobertura siguen separadas: un payload stale con uno a tres slots futuros sigue siendo utilizable y conserva `cache.stale`; con cero slots futuros se informa `EXHAUSTED`. Esta regla es exclusiva de Home y no crea refreshes, requests Meteored ni cambios en Social o Avisos.
+
 ## Alertas oficiales SMN: ingesta incremental CAP (v1.13.2)
 
 La fuente continúa siendo exclusivamente el índice oficial `https://ws2.smn.gob.ar/rss` y el RSS CAP descubierto en `ssl.smn.gob.ar`. El RSS puede superar el máximo de subrequests externos de Workers Free si se descargan todos los CAP en una única invocación; por eso el Worker persiste URL/GUID como identidad práctica en D1 y procesa lotes de hasta ocho CAP mediante un cron separado, con concurrencia máxima de tres y timeout de ocho segundos.

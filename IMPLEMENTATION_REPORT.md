@@ -625,3 +625,22 @@ El pronóstico requiere al menos 18 horas locales futuras válidas del primer d�
 - La observación sólo agrega `basis` confirmatorio con EMA `FRESH` + `OK`, dos lecturas ≤20 minutos de antigüedad, separación ≤15 minutos y umbral cumplido en ambas.
 
 No hay avisos observacionales aislados, hysteresis, tablas nuevas, migraciones ni costos de API adicionales. Condición sostenida y los demás fenómenos permanecen fuera de v1.12.
+# Informe de implementación v1.13.3
+
+## Consolidación de alertas CAP SMN
+
+La auditoría read-only de D1 reprodujo nueve versiones activas para Tormentas y Viento. Los CAP oficiales verificaron que `<references>` tiene el formato `sender,identifier,sent`; por ejemplo, la emisión de Tormentas `...08.51.56.28` referencia `...21.54.01`. El identificador del CAP aplicable contiene un componente geográfico final (`.<n>`), por lo cual la comparación exacta previa no encontraba a la versión antecedente. Parsing y persistencia ya conservaban la referencia correcta: el defecto estaba exclusivamente en el matching de la consulta pública.
+
+La proyección D1 conserva sólo alertas `success`, aplicables, no vencidas y no `Cancel`, y ahora considera superseded una versión cuyo identificador coincide exactamente con una referencia posterior o es una variante delimitada por punto de esa referencia. También normaliza la comparación temporal SQL de `expires_at`, ya que CAP usa offsets `-03:00` y el reloj del Worker usa UTC. La simulación sobre D1 reduce el conjunto actual de nueve a tres CAP vigentes: dos períodos geográficos/temporales distintos de la emisión más reciente de Tormentas y una emisión de Viento. No se elimina ni actualiza historia. Las pruebas cubren Alert, Update, Cancel, procesamiento fuera de orden, referencias múltiples y CAP independientes con mismos campos meteorológicos.
+
+## Nivel oficial SAT
+
+No implementado deliberadamente. Los CAP de Tormentas y Viento auditados contienen `severity=Moderate`, `urgency=Future` y `certainty=Likely`, sin parámetro ni código explícito que declare AMARILLO, NARANJA o ROJO. Como no se realizó scraping SAT ni existe evidencia oficial que confirme la equivalencia, el nivel queda clasificado como **UNCONFIRMED**. La API conserva compatibilidad y Home sigue mostrando «ALERTA OFICIAL DEL SMN» sin color inventado. Avisos locales no fueron modificados.
+
+## Horario de fin de día
+
+La caché real hourly auditada tenía 24 slots desde 20/09 01:00 hasta 21/09 00:00 ART. Con la regla anterior de cuatro mínimos, a las 21:00, 22:00, 23:00 y 23:30 ART los 3, 2, 1 y 1 slots restantes eran clasificados incorrectamente como `EXHAUSTED`; a las 20:00 había cuatro. Home acepta ahora `>=1` slot futuro real y conserva `FRESH`/`STALE_USABLE` según los mismos doce horas de antigüedad; sólo cero slots queda `EXHAUSTED`. No se fabrican horas ni se modifica Social, Avisos, scheduler o el consumo Meteored: las pruebas ejecutaron 0 requests reales a Meteored.
+
+## Infraestructura y validación local
+
+No hay migración ni cambios de cron. Se preservan batch CAP 8, concurrencia 3, timeout 8 s, `/api/alerts` D1-only y `Cache-Control: public, max-age=300`. PWS, EMA, Resend, el scheduler/cuota Meteored, Social y Avisos permanecen sin cambios. `npm.cmd test`, `node --check` de los módulos modificados y `git diff --check` finalizaron correctamente antes del deploy.

@@ -24,7 +24,8 @@ export const METEORED_QUOTA_BACKOFF_MS = 24 * 60 * 60 * 1000;
 export const METEORED_AUTH_BACKOFF_MS = 24 * 60 * 60 * 1000;
 export const METEORED_FAILURE_BACKOFF_MS = 60 * 60 * 1000;
 export const METEORED_MAX_STALE_MS = { hourly: 12 * 60 * 60 * 1000, daily: 48 * 60 * 60 * 1000 };
-export const MIN_HOURLY_FUTURE_SLOTS = 4;
+// Home may render every real remaining future hour; Social and Advisories keep their own coverage policies.
+export const MIN_HOURLY_FUTURE_SLOTS = 1;
 // Meteored hourly payloads are a daily, 24-slot horizon. These bounds reject
 // corrupt future timestamps without using freshness as the publication gate.
 export const HOURLY_MAX_START_AGE_AT_UPDATE_MS = 24 * 60 * 60 * 1000;

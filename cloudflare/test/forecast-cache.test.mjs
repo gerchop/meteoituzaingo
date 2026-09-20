@@ -69,10 +69,10 @@ function futureEnds(count, now = NOW, firstOffset = 3600000) { return Array.from
 {
   const result = await hourlyState(hourlyRow({ ends: futureEnds(12) })); assert.equal(result.cache.state, "FRESH"); assert.equal(result.cache.futureSlots, 12); assert.equal(result.data.hours.length, 12);
 }
-for (const count of [12, 8, 4]) {
+for (const count of [12, 8, 4, 3, 2, 1]) {
   const result = await hourlyState(hourlyRow({ updatedAt: NOW - 13 * 3600000, start: NOW - 14 * 3600000, ends: futureEnds(count) })); assert.equal(result.cache.state, "STALE_USABLE"); assert.equal(result.cache.stale, true); assert.equal(result.cache.futureSlots, count);
 }
-for (const count of [3, 2, 1, 0]) {
+for (const count of [0]) {
   const ends = count ? futureEnds(count) : [NOW - 3600000]; await assert.rejects(() => hourlyState(hourlyRow({ updatedAt: NOW - 13 * 3600000, start: NOW - 14 * 3600000, ends })), (error) => error instanceof ForecastAvailabilityError && error.state === "EXHAUSTED" && error.cache.futureSlots === count);
 }
 {
@@ -80,7 +80,7 @@ for (const count of [3, 2, 1, 0]) {
 }
 {
   const midnight = Date.parse("2026-09-19T00:00:00-03:00"); const row = hourlyRow({ updatedAt: midnight - 13 * 3600000, start: midnight - 14 * 3600000, ends: [midnight - 10800000, midnight - 7200000, midnight - 3600000, midnight] });
-  await assert.rejects(() => hourlyState(row, midnight - 1), (error) => error.state === "EXHAUSTED" && error.cache.futureSlots === 1); await assert.rejects(() => hourlyState(row, midnight), (error) => error.state === "EXHAUSTED" && error.cache.futureSlots === 0);
+  const remaining = await hourlyState(row, midnight - 1); assert.equal(remaining.cache.state, "STALE_USABLE"); assert.equal(remaining.cache.futureSlots, 1); await assert.rejects(() => hourlyState(row, midnight), (error) => error.state === "EXHAUSTED" && error.cache.futureSlots === 0);
 }
 {
   const row = hourlyRow({ updatedAt: NOW - 13 * 3600000, start: NOW - 14 * 3600000, ends: [NOW + 7200000, NOW + 3600000, NOW + 3600000, NOW + 10800000, NOW + 14400000] }); const result = await hourlyState(row); assert.equal(result.cache.futureSlots, 4); assert.deepEqual(result.data.hours.map((slot) => slot.end), futureEnds(4));

@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.13.3 - Consolidación CAP SMN y horario de fin de día
+
+- Se corrigió la consolidación pública de CAP SMN sin borrar historial: `<references>` del SMN identifica la emisión base, mientras que el `identifier` de una variante geográfica puede añadir un componente final separado por punto. La consulta D1 ahora reconoce tanto la coincidencia exacta como esa variante documentada y compara vencimientos como instantes, no como texto con offsets distintos; una versión `Update` o `Cancel` suprime correctamente las versiones anteriores de su cadena incluso si llegaron fuera de orden.
+- La corrección no usa heurísticas de fenómeno, horario, texto, intensidad ni colores. Las alertas CAP independientes permanecen independientes; las áreas/períodos distintos de la versión vigente también se conservan.
+- La auditoría de CAP real encontró `severity=Moderate` para Tormentas y Viento, pero ningún parámetro CAP explícito de nivel SAT ni evidencia oficial suficiente para equipararlo a amarillo. Por seguridad no se añadió nivel, color ni texto SAT inferido; Home conserva el fallback de alerta oficial sin nivel.
+- Home puede publicar el pronóstico horario mientras exista al menos un slot futuro real, válido y único en D1. La regla se aplica sólo a la presentación hourly: Social, Avisos locales, scheduler, caché, cuota y consultas Meteored no cambian.
+- No se agregaron migraciones, crons, proveedores, requests Meteored, scraping SAT ni cambios a PWS, EMA, Resend o Avisos locales.
+
 ## v1.13.2 - Ingesta incremental de alertas CAP SMN
 
 - Se reemplazó el procesamiento público truncado del RSS CAP por una ingesta incremental persistida en D1. La causa raíz era el antiguo `slice(0, 40)`: el feed oficial observado contenía 190 items y los CAP aplicables de Tormentas y Viento estaban en las posiciones 76 y 163.
