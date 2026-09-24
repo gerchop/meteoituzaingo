@@ -1,5 +1,11 @@
 # Fuentes de datos
 
+## Alertas oficiales SMN: campos CAP estructurados (v1.13.4)
+
+Para cada `<info>` cuyo polígono aplica a Ituzaingó, la ingesta conserva `severity`, `urgency` y `certainty` originales del CAP oficial dentro del payload público persistido. No hay columnas nuevas ni reprocesamiento histórico: los CAP ya almacenados sin esos campos siguen visibles sin una severidad inventada; los CAP nuevos o Updates los incorporan naturalmente.
+
+Home sólo traduce `severity` para lectura: `Extreme`/Extrema, `Severe`/Severa, `Moderate`/Moderada, `Minor`/Menor y `Unknown`/No determinada. Es una presentación del catálogo CAP 1.2, no un nivel SAT: no implica amarillo, naranja ni rojo y no afecta los Avisos locales. `urgency` y `certainty` permanecen estructurados en API sin presentarse todavía.
+
 ## Alertas oficiales SMN: consolidación CAP (v1.13.3)
 
 La fuente y el modelo siguen siendo los CAP oficiales SMN persistidos en D1. La relación se determina exclusivamente por `identifier`, `msgType` y `<references>`: una referencia puede nombrar el identificador base de una emisión mientras el CAP aplicable de una zona usa el mismo identificador más un componente final `.<n>`. La proyección pública reconoce esa relación exacta o de descendiente delimitado por punto; no relaciona alertas por texto, fenómeno, vigencia ni severidad.

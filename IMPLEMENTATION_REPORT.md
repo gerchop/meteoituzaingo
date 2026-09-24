@@ -644,3 +644,13 @@ La caché real hourly auditada tenía 24 slots desde 20/09 01:00 hasta 21/09 00:
 ## Infraestructura y validación local
 
 No hay migración ni cambios de cron. Se preservan batch CAP 8, concurrencia 3, timeout 8 s, `/api/alerts` D1-only y `Cache-Control: public, max-age=300`. PWS, EMA, Resend, el scheduler/cuota Meteored, Social y Avisos permanecen sin cambios. `npm.cmd test`, `node --check` de los módulos modificados y `git diff --check` finalizaron correctamente antes del deploy.
+
+# Informe de implementación v1.13.4
+
+## Severidad CAP oficial
+
+La normalización de cada `<info>` aplicable conserva ahora `severity`, `urgency` y `certainty` tal como llegan en el XML CAP oficial y los persiste dentro de `public_payload_json`. No fue necesaria una migración: la proyección de `/api/alerts` continúa leyendo D1 solamente. Los CAP procesados antes de esta versión no se reconsultan ni reciben backfill; simplemente no muestran severidad hasta que un CAP nuevo o Update la provea.
+
+Home presenta «Severidad CAP: Extrema/Severa/Moderada/Menor/No determinada» sólo para el catálogo CAP reconocido. La línea usa estilo textual neutral y una ayuda accesible que declara expresamente que no equivale a nivel amarillo, naranja o rojo del SAT. Valores ausentes, inválidos o no reconocidos no rompen ni agregan contenido. `urgency` y `certainty` se exponen para consumo futuro, pero no se muestran aún.
+
+La consolidación identifier/references, variantes zonales, vencimientos ART/UTC, Update, Cancel y procesamiento fuera de orden permanecen intactos; por ello la severidad visual pertenece exclusivamente al payload de la versión vigente. No hay cambios de ingesta (batch 8, concurrencia 3, timeout 8 s), crons, solicitudes públicas SMN, Meteored, Social, Avisos, PWS, EMA ni Resend.

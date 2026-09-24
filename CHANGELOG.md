@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.13.4 - Presentación de severidad CAP oficial
+
+- La ingesta incremental CAP conserva ahora en cada `public_payload_json` aplicable los campos oficiales originales `severity`, `urgency` y `certainty`, sin migración, backfill ni solicitudes adicionales al SMN.
+- Home muestra, cuando `severity` es reconocida, una línea neutral «Severidad CAP» con el catálogo CAP 1.2: `Extreme` → Extrema, `Severe` → Severa, `Moderate` → Moderada, `Minor` → Menor y `Unknown` → No determinada. Los valores ausentes o no reconocidos no agregan una línea visual.
+- La ayuda accesible aclara que severidad CAP no equivale a los niveles amarillo, naranja o rojo del SAT. No se aplican colores SAT, no se altera el título de alerta oficial y `urgency`/`certainty` se preservan sólo para consumidores futuros de API.
+- Updates publican exclusivamente la severidad de su payload vigente; Cancels y versiones superseded continúan excluidos por la consolidación v1.13.3. Sin cambios a crons, D1 schema, Meteored, Social, Avisos locales, PWS, EMA o Resend.
+
 ## v1.13.3 - Consolidación CAP SMN y horario de fin de día
 
 - Se corrigió la consolidación pública de CAP SMN sin borrar historial: `<references>` del SMN identifica la emisión base, mientras que el `identifier` de una variante geográfica puede añadir un componente final separado por punto. La consulta D1 ahora reconoce tanto la coincidencia exacta como esa variante documentada y compara vencimientos como instantes, no como texto con offsets distintos; una versión `Update` o `Cancel` suprime correctamente las versiones anteriores de su cadena incluso si llegaron fuera de orden.

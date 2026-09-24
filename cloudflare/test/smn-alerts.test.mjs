@@ -4,7 +4,7 @@ import { CAP_BATCH_SIZE, CAP_CONCURRENCY, CAP_TIMEOUT_MS, mapWithConcurrency, no
 const NOW = Date.parse("2026-09-19T16:00:00-03:00");
 const INSIDE = "-34.56,-58.52 -34.70,-58.52 -34.70,-58.90 -34.56,-58.90 -34.56,-58.52";
 const OUTSIDE = "-26.8,-58.3 -26.9,-58.3 -26.9,-58.4 -26.8,-58.4 -26.8,-58.3";
-function cap({ id, type = "Update", event, onset, expires, polygon = INSIDE, references = "" }) { return `<alert><identifier>${id}</identifier><msgType>${type}</msgType><sent>2026-09-19T09:18:54-03:00</sent>${references ? `<references>${references}</references>` : ""}<info><event>${event}</event><headline>${event}</headline><severity>Moderate</severity><urgency>Future</urgency><onset>${onset}</onset><expires>${expires}</expires><area><polygon>${polygon}</polygon></area></info></alert>`; }
+function cap({ id, type = "Update", event, onset, expires, polygon = INSIDE, references = "", severity = "Moderate", urgency = "Future", certainty = "Likely" }) { return `<alert><identifier>${id}</identifier><msgType>${type}</msgType><sent>2026-09-19T09:18:54-03:00</sent>${references ? `<references>${references}</references>` : ""}<info><event>${event}</event><headline>${event}</headline><severity>${severity}</severity><urgency>${urgency}</urgency><certainty>${certainty}</certainty><onset>${onset}</onset><expires>${expires}</expires><area><polygon>${polygon}</polygon></area></info></alert>`; }
 const ids = Array.from({ length: 190 }, (_, index) => `https://ssl.smn.gob.ar/feeds/CAP/xml_generados/CAP_20260919_${index + 1}.xml`);
 const rss = `<rss><channel>${ids.map((url) => `<item><guid>${url}</guid><link>${url}</link><title>x</title></item>`).join("")}</channel></rss>`;
 
@@ -26,6 +26,9 @@ const storm = normalizeCap(ids[75], cap({ id: "urn:oid:storm-update", event: "To
 const wind = normalizeCap(ids[162], cap({ id: "urn:oid:wind-update", event: "Viento", onset: "2026-09-21T15:00:00-03:00", expires: "2026-09-21T20:59:59-03:00" }), NOW);
 assert.equal(storm.payload.length, 1, "Onset futuro debe mantenerse");
 assert.equal(storm.payload[0].event, "Tormentas");
+assert.equal(storm.payload[0].severity, "Moderate");
+assert.equal(storm.payload[0].urgency, "Future");
+assert.equal(storm.payload[0].certainty, "Likely");
 assert.equal(storm.msgType, "Update");
 assert.deepEqual(storm.refs, ["urn:oid:storm-alert"]);
 assert.equal(referenceMatchesCapIdentifier("urn:oid:storm-alert", "urn:oid:storm-alert"), true, "Alert A -> Update B conserva coincidencia exacta");
@@ -47,6 +50,8 @@ assert.deepEqual(activeIds(["urn:oid:tormenta-085156.28", "urn:oid:tormenta-1426
 assert.deepEqual(activeIds(["urn:oid:viento-215421.4", "urn:oid:viento-085201.4"], [{ source: "urn:oid:viento-085201.4", reference: "urn:oid:viento-215421", type: "UPDATE" }]), ["urn:oid:viento-085201.4"], "equivalente Viento real conserva una versión vigente");
 assert.equal(wind.payload.length, 1);
 assert.equal(wind.payload[0].event, "Viento");
+const severeUpdate = normalizeCap(ids[76], cap({ id: "urn:oid:storm-severe", event: "Tormentas", severity: "Severe", onset: "2026-09-20T15:00:00-03:00", expires: "2026-09-20T20:59:59-03:00", references: "smn@smn.gob.ar,urn:oid:storm-update,2026-09-19T09:18:54-03:00" }), NOW);
+assert.equal(severeUpdate.payload[0].severity, "Severe", "La versión Update conserva su propia severidad CAP");
 assert.equal(normalizeCap(ids[189], cap({ id: "urn:oid:last", type: "Alert", event: "Último", onset: "2026-09-20T15:00:00-03:00", expires: "2026-09-20T20:59:59-03:00" }), NOW).payload.length, 1);
 assert.equal(normalizeCap(ids[1], cap({ id: "urn:oid:outside", event: "Fuera", onset: "2026-09-20T15:00:00-03:00", expires: "2026-09-20T20:59:59-03:00", polygon: OUTSIDE }), NOW).payload.length, 0);
 assert.equal(normalizeCap(ids[2], cap({ id: "urn:oid:expired", event: "Expirada", onset: "2026-09-18T15:00:00-03:00", expires: "2026-09-19T15:00:00-03:00" }), NOW).payload.length, 0);
