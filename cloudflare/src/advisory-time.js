@@ -12,6 +12,18 @@ function timestamp(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+/**
+ * Normalizes Meteored's one-hour intervals for advisory-only consumers.
+ * Current payloads expose `end`; an explicit per-slot `start` is preferred
+ * when it is internally consistent.  This mirrors the v1.13.5 temporal
+ * contract without making any network request.
+ */
+export function hourlyIntervalStart(hour) {
+  const start = timestamp(hour?.start); const end = timestamp(hour?.end);
+  if (start !== null) return end === null || end - start === 60 * 60 * 1000 ? start : null;
+  return end === null ? null : end - 60 * 60 * 1000;
+}
+
 export function localDateTimeParts(value) {
   const parsed = timestamp(value);
   if (parsed === null) return null;

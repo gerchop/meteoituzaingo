@@ -1,3 +1,21 @@
+# Informe de implementación v1.14
+
+## Avisos locales: altas temperaturas, viento y explicabilidad térmica
+
+La API pública incorpora cuatro familias, en orden estable: `low_temperature`, `high_temperature`, `thunderstorm` y `wind`. Las nuevas familias son evaluadores puros sobre cache D1. `ACTIVE` continúa siendo aviso vigente; `partial` e `insufficient_data` sin trigger se proyectan como Sin aviso; `unavailable` queda reservado para fallas reales, como payload corrupto.
+
+**HIGH_TEMP.** Evalúa hoy y mañana ART desde `daily.days[].temperature_max`, con cache de hasta ocho horas. `>=34 °C` activa Información local y `>=36 °C` Atención local; múltiples fechas se consolidan en una familia y conserva evidencia por fecha. Daily es autónomo: la indisponibilidad de hourly no elimina un trigger daily. La sensación térmica no dispara ni eleva nivel: sólo se agrega si un dayPart horario completo y válido confirma temperatura superior a 26 °C, humedad superior a 40 %, ST superior y diferencia de al menos 3 °C.
+
+**LOW_TEMP.** No se tocaron umbrales, categoría, target ni requisitos de fuente. Cuando su racha existente de dos horas consecutivas cumple ST `<=0 °C` y temperatura `<=10 °C`, la respuesta añade `triggerRun` con mínima ST, temperatura en ese instante, inicio, fin, cantidad de slots y dayParts. Home usa esa evidencia para explicar la causa; la decisión es idéntica con los mismos inputs anteriores.
+
+**WIND.** Usa sólo hourly futuro dentro de hoy/mañana ART, con `updated_at` de hasta ocho horas. Información: sostenido `>=30 km/h` durante dos slots consecutivos o ráfaga individual `>=45 km/h`. Atención: sostenido `>=45 km/h` durante dos slots o ráfaga individual `>=60 km/h`. Duplicados y huecos no pueden simular persistencia; 23:00→00:00 es consecutivo. Dirección sólo enriquece el texto. Daily y PWS no activan ni modifican esta familia.
+
+**Infraestructura y cuota.** No hubo migraciones, D1 writes, cron, proveedor, secreto, endpoint upstream ni cambio al scheduler. `/api/advisories` sigue leyendo solamente D1 y realiza cero fetches Meteored; el presupuesto normal se mantiene en 12 requests diarios. Social, Home hourly, SMN/CAP, EMA y Resend permanecen sin cambios funcionales.
+
+**Validación local.** `npm.cmd test` pasó completo, incluyendo suites Social, cache, Home hourly, SMN/CAP, Current, EMA y Resend. Los casos de avisos cubren límites 33,9/34/35,9/36/40, autonomía daily, sensación térmica descriptiva, rachas LOW_TEMP, persistencia de viento, ráfagas, duplicados, huecos, medianoche y combinaciones. `node --check` y `git diff --check` pasaron.
+
+---
+
 # Informe de implementación v1.13.5
 
 ## Corrección temporal Social y presentación pública local

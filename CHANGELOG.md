@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.14 - Avisos locales por altas temperaturas y viento
+
+- `GET /api/advisories` incorpora las familias independientes **Altas temperaturas** y **Viento**, junto a Bajas temperaturas y Tormentas. Cada una conserva `evaluationStatus` técnico y `publicStatus` (`active`, `no_advisory`, `unavailable`) del contrato v1.13.5.
+- Altas temperaturas usa exclusivamente máximas daily Meteored cacheadas para hoy y mañana ART: `>=34 °C` activa Información local y `>=36 °C` Atención local. La evidencia se consolida por fecha y el mayor nivel prevalece. El trigger daily es autónomo: una caché hourly ausente, parcial o no apta no lo invalida.
+- La sensación térmica de altas temperaturas es descriptiva exclusivamente. Sólo se muestra dentro de un dayPart horario completo y válido si temperatura `>26 °C`, humedad `>40 %`, ST superior a temperatura y diferencia `>=3 °C`; no activa ni cambia el nivel del aviso.
+- Bajas temperaturas conserva íntegramente umbrales, target y niveles previos. Cuando existe una racha horaria ya válida, la evidencia agrega mínimo de ST de la racha, temperatura asociada, inicio, fin y cantidad de slots para explicar el aviso sin cambiar su decisión.
+- Viento usa sólo slots Meteored horarios futuros, frescos, únicos y consecutivos: Información con sostenido `>=30 km/h` por dos horas o ráfaga `>=45 km/h`; Atención con sostenido `>=45 km/h` por dos horas o ráfaga `>=60 km/h`. Dirección es contextual; daily y PWS no disparan esta familia.
+- Home presenta las cuatro familias en el orden Bajas temperaturas, Altas temperaturas, Tormentas y Viento, con iconografía Font Awesome y texto específico por familia. Social Forecast, CAP/SMN, Home hourly, crons, D1, secretos y la cuota Meteored no cambian.
+- Los niveles son categorías operativas locales de Meteo Ituzaingó y no equivalen a SAT, SAT-TE, colores ni severidad oficial del SMN. No se realizan fetches Meteored desde avisos: el presupuesto permanece en 12 requests normales por día.
+
 ## v1.13.5 - DayParts sociales y estados públicos de avisos locales
 
 - Social clasifica cada slot Meteored por el inicio real de su intervalo en `America/Argentina/Buenos_Aires`: usa `hours[].start` si es válido y, en el payload actual de intervalos horarios, deriva el inicio desde `end - 1 h`. Así el intervalo 23:00→00:00 pertenece a la noche del día de inicio y se recuperan Madrugada, Mañana, Tarde y Noche con la exigencia original de 6/6 slots.

@@ -1,5 +1,15 @@
 # Fuentes de datos
 
+## Meteored: Avisos Locales HIGH_TEMP y WIND (v1.14)
+
+`GET /api/advisories` sigue siendo D1/cache-only: utiliza los payloads `daily` y `hourly` ya persistidos en `social_forecast_cache`, sin iniciar solicitudes a Meteored. HIGH_TEMP evalúa máximas daily de hoy y mañana en `America/Argentina/Buenos_Aires` con `updated_at` de hasta ocho horas: `>=34 °C` para Información local y `>=36 °C` para Atención local. Estos son umbrales operativos propios, no niveles SAT/SAT-TE ni equivalencias con el SMN.
+
+La sensación térmica horaria sólo complementa un HIGH_TEMP diario existente. Requiere cobertura completa y única del dayPart, `temperature >26 °C`, `humidity >40 %`, `temperature_feels_like > temperature` y diferencia de al menos 3 °C. Se omite si no puede demostrarse; no crea ni altera avisos.
+
+WIND usa slots horarios futuros, únicos, válidos y frescos de hasta ocho horas. Activa Información por viento sostenido `>=30 km/h` durante dos slots consecutivos o una ráfaga `>=45 km/h`; activa Atención por sostenido `>=45 km/h` durante dos slots o ráfaga `>=60 km/h`. El campo horario de dirección sólo aporta texto; daily, PWS, lluvia, símbolos y CAP no activan viento. No hay fetches adicionales, migraciones, crons, proveedores ni secretos nuevos: el presupuesto normal sigue en seis ciclos pareados y doce requests Meteored diarios.
+
+LOW_TEMP conserva sus umbrales y la racha existente. La nueva evidencia `triggerRun` se calcula en memoria desde el mismo payload y permite explicar la mínima ST de la racha y su temperatura asociada; no se persiste ni modifica la decisión meteorológica.
+
 ## Alertas oficiales SMN: campos CAP estructurados (v1.13.4)
 
 Para cada `<info>` cuyo polígono aplica a Ituzaingó, la ingesta conserva `severity`, `urgency` y `certainty` originales del CAP oficial dentro del payload público persistido. No hay columnas nuevas ni reprocesamiento histórico: los CAP ya almacenados sin esos campos siguen visibles sin una severidad inventada; los CAP nuevos o Updates los incorporan naturalmente.

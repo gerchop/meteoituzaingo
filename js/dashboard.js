@@ -60,7 +60,14 @@ async function cargarAlertasSmn() { const box = document.getElementById("smnAler
 
 function textoAvisoCategoria(category) { return category === "attention" ? "Atención local" : "Información local"; }
 function formatoValorAviso(values) { return values && Number.isFinite(values.forecastMinimumC) ? `Mínima prevista: ${Math.round(values.forecastMinimumC)} °C` : "Pronóstico disponible"; }
-function formatoSensacionAviso(values) { return values && Number.isFinite(values.forecastMinimumFeelsLikeC) ? `Sensación térmica mínima prevista: ${Math.round(values.forecastMinimumFeelsLikeC)} °C` : ""; }
+function formatoSensacionAviso(values) {
+  const run = values?.triggerRun;
+  if (run && Number.isFinite(run.minFeelsLike)) {
+    const temperature = Number.isFinite(run.temperatureAtMinFeelsLike) ? ` Temperatura prevista en ese período: ${Math.round(run.temperatureAtMinFeelsLike)} °C.` : "";
+    return `Durante la madrugada, la sensación térmica prevista podría descender hasta ${Math.round(run.minFeelsLike)} °C.${temperature}`;
+  }
+  return values && Number.isFinite(values.forecastMinimumFeelsLikeC) ? `Sensación térmica mínima prevista: ${Math.round(values.forecastMinimumFeelsLikeC)} °C` : "";
+}
 function fechaAvisoLocal(date) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "")) return "jornada indicada";
   return new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "long", day: "numeric", month: "long" }).format(new Date(`${date}T12:00:00-03:00`)).replace(",", "");
@@ -83,7 +90,7 @@ function textoTemporalAviso(advisory) {
   return `Período: ${formatoAlerta(advisory.startsAt)} a ${formatoAlerta(advisory.endsAt)}`;
 }
 function estadoPublicoAviso(status) { return ({ active: "Aviso vigente", advisory: "Aviso vigente", no_advisory: "Sin aviso", partial: "Sin aviso", insufficient_data: "Sin aviso", unavailable: "Información temporalmente no disponible", error: "Información temporalmente no disponible" })[status] || "Información temporalmente no disponible"; }
-function iconoFamiliaAviso(id) { return id === "thunderstorm" ? "fa-cloud-bolt" : "fa-temperature-low"; }
+function iconoFamiliaAviso(id) { return ({ low_temperature: "fa-temperature-low", high_temperature: "fa-temperature-high", thunderstorm: "fa-cloud-bolt", wind: "fa-wind" })[id] || "fa-circle-info"; }
 function detalleTormenta(advisory) {
   const days = Array.isArray(advisory.values?.forecastDays) ? advisory.values.forecastDays : [];
   const blocks = days.map((day) => {
@@ -95,6 +102,27 @@ function detalleTormenta(advisory) {
     return values;
   });
   return blocks.length ? blocks : [[textoTemporalAviso(advisory)]];
+}
+function etiquetaDayPartAviso(dayPart) { return ({ dawn: "madrugada", morning: "mañana", afternoon: "tarde", night: "noche" })[dayPart] || "período indicado"; }
+function detalleAltasTemperaturas(advisory) {
+  const days = Array.isArray(advisory.values?.forecastDays) ? advisory.values.forecastDays : [];
+  return days.flatMap((day) => {
+    const lines = [`Jornada prevista: ${fechaAvisoLocal(day.date)}.`, `Máxima prevista: ${Math.round(day.maximumC)} °C.`];
+    if (day.feelsLike && Number.isFinite(day.feelsLike.feelsLikeC)) {
+      const detail = advisory.category === "attention"
+        ? `Sensación térmica elevada: hasta ${Math.round(day.feelsLike.feelsLikeC)} °C durante la ${etiquetaDayPartAviso(day.feelsLike.dayPart)}.`
+        : `Durante la ${etiquetaDayPartAviso(day.feelsLike.dayPart)}, la sensación térmica podría ser superior a la temperatura prevista, alcanzando aproximadamente ${Math.round(day.feelsLike.feelsLikeC)} °C.`;
+      lines.push(detail);
+    }
+    return lines;
+  });
+}
+function detalleViento(advisory) {
+  const values = advisory.values || {}; const period = etiquetaDayPartAviso(values.dayPart);
+  const sustained = Number.isFinite(values.sustainedWindKmh) ? `vientos sostenidos de hasta ${Math.round(values.sustainedWindKmh)} km/h` : null;
+  const gust = Number.isFinite(values.gustKmh) ? `ráfagas de hasta ${Math.round(values.gustKmh)} km/h` : null;
+  const subject = sustained && gust ? `Se prevén ${sustained} y ${gust} durante la ${period}.` : sustained ? `Se prevén ${sustained} durante la ${period}.` : gust ? `Se prevén ${gust} durante la ${period}.` : "Se prevé viento destacado durante el período indicado.";
+  return [subject, values.windDirection ? `Vientos del sector ${values.windDirection}.` : null, textoTemporalAviso(advisory)].filter(Boolean);
 }
 function familiasAvisos(data) {
   if (Array.isArray(data?.families) && data.families.length) return data.families;
@@ -115,7 +143,10 @@ function renderFamiliaAviso(family) {
   const advisory = Array.isArray(family.advisories) ? family.advisories[0] : null;
   if (!advisory) return item;
   const title = document.createElement("p"); title.textContent = advisory.title || "Aviso local"; detail.append(title);
-  const lines = advisory.type === "thunderstorm" ? detalleTormenta(advisory).flat() : [advisory.summary || "Condición meteorológica local destacada.", textoTemporalAviso(advisory), formatoValorAviso(advisory.values), formatoSensacionAviso(advisory.values)].filter(Boolean);
+  const lines = advisory.type === "thunderstorm" ? detalleTormenta(advisory).flat()
+    : advisory.type === "high_temperature" ? detalleAltasTemperaturas(advisory)
+      : advisory.type === "wind" ? detalleViento(advisory)
+        : [advisory.summary || "Condición meteorológica local destacada.", textoTemporalAviso(advisory), formatoValorAviso(advisory.values), formatoSensacionAviso(advisory.values)].filter(Boolean);
   lines.forEach((line) => { const paragraph = document.createElement("p"); paragraph.className = "advisory-meta"; paragraph.textContent = line; detail.append(paragraph); });
   const source = document.createElement("p"); source.className = "advisory-meta"; source.textContent = advisory.basis?.some((basis) => basis.startsWith("observation_")) ? "Origen: pronóstico disponible y observación local." : "Origen: pronóstico disponible."; detail.append(source); item.append(detail);
   return item;

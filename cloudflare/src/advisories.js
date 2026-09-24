@@ -1,5 +1,5 @@
 import { jsonResponse } from "./cors.js";
-import { ADVISORY_TIME_ZONE, getDayPartsForInterval, localDateTimeParts } from "./advisory-time.js";
+import { ADVISORY_TIME_ZONE, DAY_PARTS, getDayPartsForInterval, hourlyIntervalStart, localDateTimeParts } from "./advisory-time.js";
 
 const TIME_ZONE = ADVISORY_TIME_ZONE;
 const HOUR_MS = 60 * 60 * 1000;
@@ -12,6 +12,12 @@ export const THUNDERSTORM_SYMBOLS = [34, 35];
 export const RESERVED_DRY_THUNDERSTORM_SYMBOLS = [10, 11];
 export const RESERVED_THUNDERSTORM_HAIL_SYMBOLS = [38, 39];
 export const THUNDERSTORM_MAX_FORECAST_AGE_MS = 8 * HOUR_MS;
+export const HIGH_TEMPERATURE_INFORMATION_C = 34;
+export const HIGH_TEMPERATURE_ATTENTION_C = 36;
+export const WIND_INFORMATION_KMH = 30;
+export const WIND_ATTENTION_KMH = 45;
+export const WIND_GUST_INFORMATION_KMH = 45;
+export const WIND_GUST_ATTENTION_KMH = 60;
 
 function localParts(value) {
   return localDateTimeParts(value);
@@ -127,6 +133,20 @@ export function evaluateLowTemperature({ daily, hourly, dailyAvailable = true, h
     values: {
       forecastMinimumC: dailyResult.minimum,
       forecastMinimumFeelsLikeC: hourlyResult.status === "available" ? Math.min(...hourlyResult.hours.map((hour) => hour.feelsLike)) : null,
+      // This is explanatory evidence only.  LOW_TEMP thresholds, target-date
+      // policy and category selection above deliberately remain unchanged.
+      triggerRun: hourlyAttention ? (() => {
+        const minimum = hourlyResult.feelsLikeRun.reduce((best, hour) => hour.feelsLike < best.feelsLike ? hour : best, hourlyResult.feelsLikeRun[0]);
+        const period = periodForHours(hourlyResult.feelsLikeRun, target);
+        return {
+          minFeelsLike: minimum.feelsLike,
+          temperatureAtMinFeelsLike: minimum.temperature,
+          startsAt: period.startsAt,
+          endsAt: period.endsAt,
+          slotCount: hourlyResult.feelsLikeRun.length,
+          dayParts: evidenceForHours(hourlyResult.feelsLikeRun).flatMap((item) => item.dayParts)
+        };
+      })() : null,
       forecastUpdatedAt
     },
     disclaimer: DISCLAIMER
@@ -206,6 +226,135 @@ export function evaluateThunderstorm({ daily, hourly, dailyAvailable = true, dai
   return { type: "thunderstorm", status: "advisory", target, sourceStatus, advisories: [advisory] };
 }
 
+function dailyMaximumTargets(daily, targetDates) {
+  if (!Array.isArray(daily?.days)) return { status: "insufficient", days: [] };
+  const byDate = new Map(); const duplicates = new Set();
+  for (const item of daily.days) {
+    const start = timestamp(item?.start); if (start === null) continue;
+    const date = localDate(new Date(start)); if (!targetDates.includes(date)) continue;
+    if (byDate.has(date)) { duplicates.add(date); continue; }
+    byDate.set(date, { item, maximum: finite(item.temperature_max) });
+  }
+  const days = targetDates.filter((date) => byDate.has(date) && !duplicates.has(date) && byDate.get(date).maximum !== null).map((date) => ({ date, ...byDate.get(date) }));
+  return { status: days.length === targetDates.length ? "available" : "insufficient", days };
+}
+
+function hourlySlotsForDates(hourly, updatedAt, targetDates, now) {
+  if (!forecastFreshness(updatedAt, now) || !Array.isArray(hourly?.hours)) return { status: "unavailable", slots: [] };
+  const slots = new Map(); const duplicates = new Set();
+  for (const item of hourly.hours) {
+    const start = hourlyIntervalStart(item); const end = timestamp(item?.end);
+    if (start === null || end === null || end <= now) continue;
+    const date = localDate(new Date(start)); if (!targetDates.includes(date)) continue;
+    if (slots.has(start)) { duplicates.add(start); continue; }
+    slots.set(start, { item, start, end, date, local: localParts(new Date(start)) });
+  }
+  duplicates.forEach((start) => slots.delete(start));
+  return { status: slots.size ? "available" : "insufficient", slots: [...slots.values()].sort((left, right) => left.start - right.start) };
+}
+
+function completeDayPartSlots(slots, date, part) {
+  const matching = slots.filter((slot) => slot.date === date && slot.local.hour >= part.startHour && slot.local.hour <= part.endHour);
+  if (matching.length !== part.endHour - part.startHour + 1) return [];
+  if (!matching.every((slot, index) => slot.local.hour === part.startHour + index && (index === 0 || slot.start - matching[index - 1].start === HOUR_MS))) return [];
+  return matching;
+}
+
+function highTemperatureFeelsLikeEvidence(hourly, hourlyUpdatedAt, positiveDays, now) {
+  const targets = positiveDays.map((day) => day.date);
+  const source = hourlySlotsForDates(hourly, hourlyUpdatedAt, targets, now);
+  if (source.status !== "available") return { sourceStatus: source.status, byDate: new Map() };
+  const byDate = new Map();
+  for (const day of positiveDays) {
+    const evidence = [];
+    for (const part of DAY_PARTS) {
+      const slots = completeDayPartSlots(source.slots, day.date, part);
+      if (!slots.length || !slots.every((slot) => finite(slot.item.temperature) !== null && finite(slot.item.temperature_feels_like) !== null && finite(slot.item.humidity) !== null)) continue;
+      const qualifying = slots.filter((slot) => {
+        const temperature = finite(slot.item.temperature); const feelsLike = finite(slot.item.temperature_feels_like); const humidity = finite(slot.item.humidity);
+        return temperature > 26 && humidity > 40 && feelsLike > temperature && feelsLike - temperature >= 3;
+      });
+      if (!qualifying.length) continue;
+      const maximum = qualifying.reduce((best, slot) => finite(slot.item.temperature_feels_like) > finite(best.item.temperature_feels_like) ? slot : best, qualifying[0]);
+      evidence.push({ dayPart: part.id, feelsLikeC: finite(maximum.item.temperature_feels_like), temperatureC: finite(maximum.item.temperature), humidity: finite(maximum.item.humidity), startsAt: iso(maximum.start), endsAt: iso(maximum.end) });
+    }
+    if (evidence.length) byDate.set(day.date, evidence.sort((left, right) => right.feelsLikeC - left.feelsLikeC || left.startsAt.localeCompare(right.startsAt))[0]);
+  }
+  return { sourceStatus: "available", byDate };
+}
+
+/** Daily maxima are the only HIGH_TEMP trigger; hourly feels-like is descriptive. */
+export function evaluateHighTemperature({ daily, hourly, dailyAvailable = true, dailyUpdatedAt = null, hourlyUpdatedAt = null, now = Date.now() } = {}) {
+  const targetLocalDates = todayAndTomorrow(now);
+  const target = { targetLocalDates, startsAt: iso(localMidnight(targetLocalDates[0])), endsAt: iso(localMidnight(dateAfter(targetLocalDates[1], 1))) };
+  if (!dailyAvailable || !forecastFreshness(dailyUpdatedAt, now)) return { type: "high_temperature", status: "insufficient_data", target, sourceStatus: { forecastDaily: "insufficient", forecastHourly: "unavailable" }, advisories: [] };
+  const dailyResult = dailyMaximumTargets(daily, targetLocalDates);
+  const positive = dailyResult.days.filter((day) => day.maximum >= HIGH_TEMPERATURE_INFORMATION_C);
+  const hourlyEvidence = highTemperatureFeelsLikeEvidence(hourly, hourlyUpdatedAt, positive, now);
+  const sourceStatus = { forecastDaily: dailyResult.status === "available" ? "available" : "insufficient", forecastHourly: hourlyEvidence.sourceStatus };
+  if (!positive.length) return { type: "high_temperature", status: dailyResult.status === "available" ? "no_advisory" : "insufficient_data", target, sourceStatus, advisories: [] };
+  const category = positive.some((day) => day.maximum >= HIGH_TEMPERATURE_ATTENTION_C) ? "attention" : "information";
+  const forecastDays = positive.map((day) => ({ date: day.date, maximumC: day.maximum, feelsLike: hourlyEvidence.byDate.get(day.date) || null }));
+  const evidencePeriods = forecastDays.map((day) => ({ date: day.date, dayParts: day.feelsLike ? [day.feelsLike.dayPart] : [] }));
+  const advisory = {
+    id: "high-temperature:local", type: "high_temperature", category,
+    title: "Altas temperaturas previstas", summary: "Se prevén temperaturas elevadas durante la jornada indicada.",
+    startsAt: target.startsAt, endsAt: target.endsAt, targetLocalDate: positive[0].date, targetLocalDates: positive.map((day) => day.date),
+    evaluationPeriod: target, evidencePeriods, supportingEvidencePeriods: evidencePeriods.filter((period) => period.dayParts.length), displayValidity: "dynamic", temporalPrecision: "daily",
+    basis: ["forecast_daily_temperature", ...(hourlyEvidence.byDate.size ? ["forecast_hourly_feels_like"] : [])],
+    values: { forecastDays, forecastUpdatedAt: dailyUpdatedAt }, disclaimer: DISCLAIMER
+  };
+  return { type: "high_temperature", status: "advisory", target, sourceStatus, advisories: [advisory] };
+}
+
+const WIND_DIRECTIONS = { N: "norte", NNE: "norte", NE: "noreste", ENE: "noreste", E: "este", ESE: "este", SE: "sudeste", SSE: "sudeste", S: "sur", SSO: "sudoeste", SO: "sudoeste", OSO: "oeste", O: "oeste", ONO: "noroeste", NO: "noroeste", NNO: "noroeste" };
+function windDirection(value) {
+  if (Number.isFinite(value)) return WIND_DIRECTIONS[["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"][Math.round(value / 22.5) % 16]] || null;
+  return WIND_DIRECTIONS[String(value || "").toUpperCase()] || null;
+}
+function sustainedWindRuns(slots, threshold) {
+  let run = []; const runs = [];
+  for (const slot of slots) {
+    const speed = finite(slot.item.wind_speed);
+    if (speed === null || speed < threshold || (run.length && slot.start - run.at(-1).start !== HOUR_MS)) { if (run.length >= 2) runs.push(run); run = []; }
+    if (speed !== null && speed >= threshold) run.push(slot);
+  }
+  if (run.length >= 2) runs.push(run);
+  return runs;
+}
+function strongestRun(runs) { return runs.reduce((best, run) => !best || Math.max(...run.map((slot) => finite(slot.item.wind_speed))) > Math.max(...best.map((slot) => finite(slot.item.wind_speed))) ? run : best, null); }
+function strongestGust(slots, threshold) { return slots.filter((slot) => finite(slot.item.wind_gust) !== null && finite(slot.item.wind_gust) >= threshold).reduce((best, slot) => !best || finite(slot.item.wind_gust) > finite(best.item.wind_gust) ? slot : best, null); }
+
+/** WIND uses only fresh, future, unique hourly slots; daily and PWS never trigger it. */
+export function evaluateWind({ hourly, hourlyUpdatedAt = null, now = Date.now() } = {}) {
+  const targetLocalDates = todayAndTomorrow(now);
+  const target = { targetLocalDates, startsAt: iso(localMidnight(targetLocalDates[0])), endsAt: iso(localMidnight(dateAfter(targetLocalDates[1], 1))) };
+  const source = hourlySlotsForDates(hourly, hourlyUpdatedAt, targetLocalDates, now);
+  if (source.status !== "available") return { type: "wind", status: "insufficient_data", target, sourceStatus: { forecastHourly: "insufficient", forecastDaily: "unavailable" }, advisories: [] };
+  const attentionRun = strongestRun(sustainedWindRuns(source.slots, WIND_ATTENTION_KMH));
+  const informationRun = strongestRun(sustainedWindRuns(source.slots, WIND_INFORMATION_KMH));
+  const attentionGust = strongestGust(source.slots, WIND_GUST_ATTENTION_KMH);
+  const informationGust = strongestGust(source.slots, WIND_GUST_INFORMATION_KMH);
+  const category = attentionRun || attentionGust ? "attention" : informationRun || informationGust ? "information" : null;
+  const sourceStatus = { forecastHourly: "available", forecastDaily: "unavailable" };
+  if (!category) return { type: "wind", status: "no_advisory", target, sourceStatus, advisories: [] };
+  const run = category === "attention" ? attentionRun || informationRun : informationRun;
+  const gust = category === "attention" ? attentionGust || informationGust : informationGust;
+  const runMaximum = run ? Math.max(...run.map((slot) => finite(slot.item.wind_speed))) : null;
+  const directionSlot = run?.reduce((best, slot) => finite(slot.item.wind_speed) > finite(best.item.wind_speed) ? slot : best, run[0]) || gust;
+  const direction = windDirection(directionSlot?.item.wind_direction);
+  const eventSlots = [...(run || []), ...(gust ? [gust] : [])];
+  const evidencePeriods = evidenceForHours(eventSlots.map((slot) => ({ end: slot.start })));
+  const dayPart = evidencePeriods[0]?.dayParts?.[0] || null;
+  const advisory = {
+    id: "wind:local", type: "wind", category, title: "Viento previsto", summary: "El pronóstico disponible indica viento destacado para el período señalado.",
+    startsAt: target.startsAt, endsAt: target.endsAt, targetLocalDate: eventSlots[0]?.date || targetLocalDates[0], targetLocalDates: [...new Set(eventSlots.map((slot) => slot.date))],
+    evaluationPeriod: target, evidencePeriods, supportingEvidencePeriods: [], displayValidity: "dynamic", temporalPrecision: "hourly", basis: ["forecast_hourly_wind"],
+    values: { sustainedWindKmh: runMaximum, gustKmh: gust ? finite(gust.item.wind_gust) : null, windDirection: direction, dayPart, forecastUpdatedAt: hourlyUpdatedAt }, disclaimer: DISCLAIMER
+  };
+  return { type: "wind", status: "advisory", target, sourceStatus, advisories: [advisory] };
+}
+
 /**
  * Public presentation deliberately has a smaller vocabulary than the engine.
  * A partial evaluation remains partial internally, but it is not an active
@@ -219,11 +368,11 @@ export function publicAdvisoryStatus(status, technicalFailure = false) {
 
 /** Extensible aggregation point: future families register independent evaluators here. */
 export function evaluateAdvisories(context) {
-  const evaluators = context?.evaluators || [evaluateLowTemperature, evaluateThunderstorm];
+  const evaluators = context?.evaluators || [evaluateLowTemperature, evaluateHighTemperature, evaluateThunderstorm, evaluateWind];
   const evaluations = evaluators.map((evaluator) => evaluator(context));
   const advisories = evaluations.flatMap((evaluation) => evaluation.advisories).sort((left, right) => (left.category === "attention" ? -1 : 0) - (right.category === "attention" ? -1 : 0));
   const lowTemperature = evaluations.find((evaluation) => evaluation.type === "low_temperature") || { sourceStatus: {}, status: "partial", target: { targetLocalDate: null } };
-  const labels = { low_temperature: "Bajas temperaturas", thunderstorm: "Tormentas" };
+  const labels = { low_temperature: "Bajas temperaturas", high_temperature: "Altas temperaturas", thunderstorm: "Tormentas", wind: "Viento" };
   const failures = context?.publicTechnicalFailures || {};
   const families = evaluations.filter((evaluation) => labels[evaluation.type]).map((evaluation) => ({ id: evaluation.type, label: labels[evaluation.type], evaluationStatus: evaluation.status, publicStatus: publicAdvisoryStatus(evaluation.status, Boolean(failures[evaluation.type])), advisories: evaluation.advisories }));
   return { evaluations, families, advisories, sourceStatus: lowTemperature.sourceStatus, evaluation: { status: lowTemperature.status, targetLocalDate: lowTemperature.target.targetLocalDate } };
@@ -253,10 +402,12 @@ export async function advisoriesResponse(request, env, now = Date.now()) {
     env.HISTORY_DB.prepare("SELECT observed_at, temperature, feels_like FROM weather_observations ORDER BY observed_at DESC LIMIT 2").all()
   ]);
   const outcome = evaluateAdvisories({ daily: daily.data, hourly: hourly.data, dailyAvailable: daily.available, hourlyAvailable: hourly.available, forecastUpdatedAt: daily.updatedAt || hourly.updatedAt, stormDaily: stormDaily.data, stormHourly: stormHourly.data, stormDailyAvailable: stormDaily.available, stormDailyUpdatedAt: stormDaily.updatedAt, stormHourlyUpdatedAt: stormHourly.updatedAt, observationRows: observations.results || [], ema, now,
-    publicTechnicalFailures: { low_temperature: daily.state === "corrupt" || hourly.state === "corrupt", thunderstorm: stormDaily.state === "corrupt" },
+    publicTechnicalFailures: { low_temperature: daily.state === "corrupt" || hourly.state === "corrupt", high_temperature: stormDaily.state === "corrupt", thunderstorm: stormDaily.state === "corrupt", wind: stormHourly.state === "corrupt" },
     evaluators: [
       (context) => evaluateLowTemperature(context),
-      (context) => evaluateThunderstorm({ daily: context.stormDaily, hourly: context.stormHourly, dailyAvailable: context.stormDailyAvailable, dailyUpdatedAt: context.stormDailyUpdatedAt, hourlyUpdatedAt: context.stormHourlyUpdatedAt, now: context.now })
+      (context) => evaluateHighTemperature({ daily: context.stormDaily, hourly: context.stormHourly, dailyAvailable: context.stormDailyAvailable, dailyUpdatedAt: context.stormDailyUpdatedAt, hourlyUpdatedAt: context.stormHourlyUpdatedAt, now: context.now }),
+      (context) => evaluateThunderstorm({ daily: context.stormDaily, hourly: context.stormHourly, dailyAvailable: context.stormDailyAvailable, dailyUpdatedAt: context.stormDailyUpdatedAt, hourlyUpdatedAt: context.stormHourlyUpdatedAt, now: context.now }),
+      (context) => evaluateWind({ hourly: context.stormHourly, hourlyUpdatedAt: context.stormHourlyUpdatedAt, now: context.now })
     ] });
   const legacyForecast = outcome.sourceStatus.forecastDaily === "available" ? "available" : outcome.sourceStatus.forecastDaily === "unavailable" && outcome.sourceStatus.forecastHourly === "unavailable" ? "unavailable" : "insufficient";
   const response = jsonResponse(request, env, { ok: true, updatedAt: iso(now), sourceStatus: { ...outcome.sourceStatus, forecast: legacyForecast }, evaluation: outcome.evaluation, families: outcome.families, advisories: outcome.advisories });

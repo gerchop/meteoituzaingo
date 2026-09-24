@@ -16,6 +16,7 @@ assert.equal(context.textoTemporalAviso({ temporalPrecision: "hourly", evidenceP
 assert.equal(context.textoTemporalAviso({ temporalPrecision: "hourly", evidencePeriods: [{ date: "2026-09-16", dayParts: ["dawn", "morning", "afternoon", "night"] }] }), "Período previsto: miércoles 16 de septiembre — todo el día");
 assert.equal(context.textoTemporalAviso({ temporalPrecision: "hourly", evidencePeriods: [{ date: "2026-09-16", dayParts: ["night"] }, { date: "2026-09-17", dayParts: ["dawn"] }] }), "Período previsto: miércoles 16 de septiembre — noche / jueves 17 de septiembre — madrugada");
 assert.equal(context.formatoSensacionAviso({ forecastMinimumFeelsLikeC: -1 }), "Sensación térmica mínima prevista: -1 °C");
+assert.equal(context.formatoSensacionAviso({ triggerRun: { minFeelsLike: -2, temperatureAtMinFeelsLike: 3 } }), "Durante la madrugada, la sensación térmica prevista podría descender hasta -2 °C. Temperatura prevista en ese período: 3 °C.");
 assert.equal(context.formatoSensacionAviso({}), "");
 assert.equal(context.estadoPublicoAviso("no_advisory"), "Sin aviso");
 assert.equal(context.estadoPublicoAviso("active"), "Aviso vigente");
@@ -26,6 +27,8 @@ assert.equal(context.estadoPublicoAviso("unavailable"), "Información temporalme
 assert.equal(context.estadoPublicoAviso("error"), "Información temporalmente no disponible");
 assert.equal(context.estadoPublicoAviso("unexpected"), "Información temporalmente no disponible");
 assert.equal(context.iconoFamiliaAviso("thunderstorm"), "fa-cloud-bolt");
+assert.equal(context.iconoFamiliaAviso("high_temperature"), "fa-temperature-high");
+assert.equal(context.iconoFamiliaAviso("wind"), "fa-wind");
 assert.equal(context.familiasAvisos({ families: [{ id: "thunderstorm" }] }).length, 1);
 assert.equal(context.familiasAvisos({ advisories: [] })[0].publicStatus, "no_advisory");
 assert.equal(context.familiasAvisos({ advisories: [{}] })[0].publicStatus, "active");
@@ -33,5 +36,11 @@ const thunderstormDetails = context.detalleTormenta({ values: { forecastDays: [{
 assert.ok(thunderstormDetails.includes("Señal de tormenta prevista durante la tarde y noche."));
 assert.ok(thunderstormDetails.includes("Probabilidad de precipitaciones: 80 %."));
 assert.ok(thunderstormDetails.includes("Precipitación prevista: 6,1 mm."));
+const highDetails = context.detalleAltasTemperaturas({ category: "attention", values: { forecastDays: [{ date: "2026-09-16", maximumC: 36, feelsLike: { feelsLikeC: 39, dayPart: "afternoon" } }] } });
+assert.ok(highDetails.includes("Máxima prevista: 36 °C."));
+assert.ok(highDetails.includes("Sensación térmica elevada: hasta 39 °C durante la tarde."));
+const windDetails = context.detalleViento({ temporalPrecision: "hourly", evidencePeriods: [{ date: "2026-09-16", dayParts: ["afternoon"] }], values: { sustainedWindKmh: 46, gustKmh: 62, windDirection: "noreste", dayPart: "afternoon" } });
+assert.ok(windDetails.includes("Se prevén vientos sostenidos de hasta 46 km/h y ráfagas de hasta 62 km/h durante la tarde."));
+assert.ok(windDetails.includes("Vientos del sector noreste."));
 
-console.log("advisory frontend tests: OK (15 deterministic scenarios)");
+console.log("advisory frontend tests: OK (LOW_TEMP, HIGH_TEMP, WIND and THUNDERSTORM presentation)");
