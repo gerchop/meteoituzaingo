@@ -1,3 +1,15 @@
+# Informe de implementación v1.13.5
+
+## Corrección temporal Social y presentación pública local
+
+La auditoría del payload real confirmó intervalos horarios 00:00→01:00 hasta 23:00→00:00. Social ya no usa la etiqueta `end` como hora del período: prioriza `hours[].start` cuando existe y es consistente y, en su ausencia, deriva el inicio desde `end - 1 h`. La fecha, hora y dayPart se calculan en `America/Argentina/Buenos_Aires`. Se mantienen cuatro períodos de seis slots únicos; fixtures cubren todos los bordes, cruce de medianoche, duplicados, ausencia de un slot e inválidos. No se flexibilizó la cobertura ni se incorporó fetch desde Social.
+
+`GET /api/advisories` ahora expone por familia `evaluationStatus` técnico y `publicStatus` independiente. Los triggers y estados internos de LOW_TEMP y Tormentas permanecen sin cambios: `partial` sigue siendo `partial`, pero se proyecta como `no_advisory` cuando no hay aviso activo. `active` siempre prevalece y `unavailable` queda reservado a una falla real, incluyendo payload cacheado corrupto. Home muestra «Aviso vigente», «Sin aviso» o «Información temporalmente no disponible» y conserva el disclaimer no oficial.
+
+No hubo migraciones ni cambios a crons, cuota Meteored, SMN/CAP, PWS, EMA, Resend ni Home hourly. El presupuesto normal sigue siendo 12 requests Meteored/día.
+
+---
+
 # Informe de implementación v1.13.2
 
 ## Ingesta incremental CAP SMN

@@ -206,6 +206,17 @@ export function evaluateThunderstorm({ daily, hourly, dailyAvailable = true, dai
   return { type: "thunderstorm", status: "advisory", target, sourceStatus, advisories: [advisory] };
 }
 
+/**
+ * Public presentation deliberately has a smaller vocabulary than the engine.
+ * A partial evaluation remains partial internally, but it is not an active
+ * local advisory.  Real processing failures remain unavailable.
+ */
+export function publicAdvisoryStatus(status, technicalFailure = false) {
+  if (status === "advisory" || status === "active") return "active";
+  if (technicalFailure || status === "unavailable" || status === "error") return "unavailable";
+  return "no_advisory";
+}
+
 /** Extensible aggregation point: future families register independent evaluators here. */
 export function evaluateAdvisories(context) {
   const evaluators = context?.evaluators || [evaluateLowTemperature, evaluateThunderstorm];
@@ -213,19 +224,21 @@ export function evaluateAdvisories(context) {
   const advisories = evaluations.flatMap((evaluation) => evaluation.advisories).sort((left, right) => (left.category === "attention" ? -1 : 0) - (right.category === "attention" ? -1 : 0));
   const lowTemperature = evaluations.find((evaluation) => evaluation.type === "low_temperature") || { sourceStatus: {}, status: "partial", target: { targetLocalDate: null } };
   const labels = { low_temperature: "Bajas temperaturas", thunderstorm: "Tormentas" };
-  const families = evaluations.filter((evaluation) => labels[evaluation.type]).map((evaluation) => ({ id: evaluation.type, label: labels[evaluation.type], publicStatus: evaluation.status === "partial" ? "insufficient_data" : evaluation.status, advisories: evaluation.advisories }));
+  const failures = context?.publicTechnicalFailures || {};
+  const families = evaluations.filter((evaluation) => labels[evaluation.type]).map((evaluation) => ({ id: evaluation.type, label: labels[evaluation.type], evaluationStatus: evaluation.status, publicStatus: publicAdvisoryStatus(evaluation.status, Boolean(failures[evaluation.type])), advisories: evaluation.advisories }));
   return { evaluations, families, advisories, sourceStatus: lowTemperature.sourceStatus, evaluation: { status: lowTemperature.status, targetLocalDate: lowTemperature.target.targetLocalDate } };
 }
 
 function usableCache(row, now) {
-  if (!row || !Number.isFinite(row.expires_at) || row.expires_at <= now) return { available: false, data: null, updatedAt: null };
-  try { return { available: true, data: JSON.parse(row.payload_json), updatedAt: row.updated_at || null }; } catch { return { available: false, data: null, updatedAt: null }; }
+  if (!row) return { available: false, data: null, updatedAt: null, state: "missing" };
+  if (!Number.isFinite(row.expires_at) || row.expires_at <= now) return { available: false, data: null, updatedAt: row.updated_at || null, state: "expired" };
+  try { return { available: true, data: JSON.parse(row.payload_json), updatedAt: row.updated_at || null, state: "available" }; } catch { return { available: false, data: null, updatedAt: row.updated_at || null, state: "corrupt" }; }
 }
 
 /** Parses D1 cache without treating the upstream TTL as meteorological validity. */
 function storedCache(row) {
-  if (!row) return { available: false, data: null, updatedAt: null };
-  try { return { available: true, data: JSON.parse(row.payload_json), updatedAt: row.updated_at || null }; } catch { return { available: false, data: null, updatedAt: null }; }
+  if (!row) return { available: false, data: null, updatedAt: null, state: "missing" };
+  try { return { available: true, data: JSON.parse(row.payload_json), updatedAt: row.updated_at || null, state: "available" }; } catch { return { available: false, data: null, updatedAt: row.updated_at || null, state: "corrupt" }; }
 }
 
 export async function advisoriesResponse(request, env, now = Date.now()) {
@@ -240,6 +253,7 @@ export async function advisoriesResponse(request, env, now = Date.now()) {
     env.HISTORY_DB.prepare("SELECT observed_at, temperature, feels_like FROM weather_observations ORDER BY observed_at DESC LIMIT 2").all()
   ]);
   const outcome = evaluateAdvisories({ daily: daily.data, hourly: hourly.data, dailyAvailable: daily.available, hourlyAvailable: hourly.available, forecastUpdatedAt: daily.updatedAt || hourly.updatedAt, stormDaily: stormDaily.data, stormHourly: stormHourly.data, stormDailyAvailable: stormDaily.available, stormDailyUpdatedAt: stormDaily.updatedAt, stormHourlyUpdatedAt: stormHourly.updatedAt, observationRows: observations.results || [], ema, now,
+    publicTechnicalFailures: { low_temperature: daily.state === "corrupt" || hourly.state === "corrupt", thunderstorm: stormDaily.state === "corrupt" },
     evaluators: [
       (context) => evaluateLowTemperature(context),
       (context) => evaluateThunderstorm({ daily: context.stormDaily, hourly: context.stormHourly, dailyAvailable: context.stormDailyAvailable, dailyUpdatedAt: context.stormDailyUpdatedAt, hourlyUpdatedAt: context.stormHourlyUpdatedAt, now: context.now })

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { advisoriesResponse, evaluateAdvisories, evaluateLowTemperature, evaluateThunderstorm, selectLowTemperatureTargetPeriod } from "../src/advisories.js";
+import { advisoriesResponse, evaluateAdvisories, evaluateLowTemperature, evaluateThunderstorm, publicAdvisoryStatus, selectLowTemperatureTargetPeriod } from "../src/advisories.js";
 
 const at = (date, hour) => Date.parse(`${date}T${String(hour).padStart(2, "0")}:00:00-03:00`);
 const atLocal = (date, hour, minute = 0) => Date.parse(`${date}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00-03:00`);
@@ -54,6 +54,19 @@ assert.equal(evaluate({ daily: daily(2), hourly: dawn(), ema: emaOk, observation
 const combined = evaluate({ daily: daily(2), hourly: dawn({ 1: { temperature_feels_like: 0 }, 2: { temperature_feels_like: 0 } }) }).advisories[0];
 assert.equal(combined.temporalPrecision, "daily");
 assert.deepEqual(combined.supportingEvidencePeriods.map((item) => item.dayParts), [["dawn"]]);
+
+// The public status is a reusable projection; engine states never change.
+assert.equal(publicAdvisoryStatus("advisory"), "active");
+assert.equal(publicAdvisoryStatus("no_advisory"), "no_advisory");
+assert.equal(publicAdvisoryStatus("partial"), "no_advisory");
+assert.equal(publicAdvisoryStatus("insufficient_data"), "no_advisory");
+assert.equal(publicAdvisoryStatus("unavailable"), "unavailable");
+assert.equal(publicAdvisoryStatus("error"), "unavailable");
+assert.equal(publicAdvisoryStatus("partial", true), "unavailable");
+const lowPartialPublic = evaluateAdvisories({ evaluators: [() => evaluate({ daily: daily(5), hourly: { hours: [] } })] });
+assert.equal(lowPartialPublic.evaluations[0].status, "partial");
+assert.equal(lowPartialPublic.families[0].evaluationStatus, "partial");
+assert.equal(lowPartialPublic.families[0].publicStatus, "no_advisory");
 
 // Target policy is ART based, crosses dates/month/year, and has no server timezone dependency.
 assert.equal(selectLowTemperatureTargetPeriod(atLocal("2026-09-15", 0, 30)).targetLocalDate, "2026-09-15");
@@ -121,7 +134,13 @@ const body = await response.json();
 assert.equal(response.headers.get("Access-Control-Allow-Origin"), "https://gerchop.github.io"); assert.equal(response.headers.get("Cache-Control"), "public, max-age=300");
 assert.equal(body.sourceStatus.forecastDaily, "available"); assert.equal(body.evaluation.status, "advisory"); assert.equal(body.advisories[0].category, "attention");
 assert.deepEqual(body.families.map((family) => family.id), ["low_temperature", "thunderstorm"]);
-assert.equal(body.families[1].publicStatus, "insufficient_data");
+assert.equal(body.families[0].evaluationStatus, "advisory"); assert.equal(body.families[0].publicStatus, "active");
+assert.equal(body.families[1].evaluationStatus, "insufficient_data"); assert.equal(body.families[1].publicStatus, "no_advisory");
+const partialDailyRow = { payload_json: JSON.stringify(daily(5)), updated_at: "2026-09-15T00:00:00.000Z", expires_at: NOW + 60000 };
+const partialHourlyRow = { payload_json: JSON.stringify({ hours: [] }), updated_at: "2026-09-15T00:00:00.000Z", expires_at: NOW + 60000 };
+const partialResponse = await advisoriesResponse(request, { ALLOWED_ORIGINS: "https://gerchop.github.io", HISTORY_DB: database({ dailyRow: partialDailyRow, hourlyRow: partialHourlyRow, ema: emaOk, rows: observations }) }, NOW);
+const partialBody = await partialResponse.json(); const partialLow = partialBody.families.find((family) => family.id === "low_temperature");
+assert.equal(partialBody.evaluation.status, "partial"); assert.equal(partialLow.evaluationStatus, "partial"); assert.equal(partialLow.publicStatus, "no_advisory");
 const unavailable = await advisoriesResponse(request, { ALLOWED_ORIGINS: "https://gerchop.github.io", HISTORY_DB: database() }, NOW);
 assert.equal((await unavailable.json()).sourceStatus.forecast, "unavailable");
 
@@ -133,13 +152,19 @@ globalThis.fetch = () => { throw new Error("/api/advisories must never fetch Met
 const stormResponse = await advisoriesResponse(request, { ALLOWED_ORIGINS: "https://gerchop.github.io", HISTORY_DB: database({ dailyRow: stormRow, hourlyRow: null, ema: emaOk, rows: observations }) }, NOW);
 globalThis.fetch = originalFetch;
 const stormBody = await stormResponse.json();
-assert.equal(stormBody.families.find((family) => family.id === "thunderstorm").publicStatus, "advisory");
-assert.equal(stormBody.families.find((family) => family.id === "low_temperature").publicStatus, "insufficient_data");
+assert.equal(stormBody.families.find((family) => family.id === "thunderstorm").publicStatus, "active");
+assert.equal(stormBody.families.find((family) => family.id === "low_temperature").publicStatus, "no_advisory");
+
+const corruptRow = { payload_json: "{", updated_at: "2026-09-15T00:00:00.000Z", expires_at: NOW + 60000 };
+const corruptResponse = await advisoriesResponse(request, { ALLOWED_ORIGINS: "https://gerchop.github.io", HISTORY_DB: database({ dailyRow: corruptRow, hourlyRow: corruptRow, ema: emaOk, rows: observations }) }, NOW);
+const corruptBody = await corruptResponse.json();
+assert.equal(corruptBody.evaluation.status, "partial", "The engine status remains diagnostic");
+assert.deepEqual(corruptBody.families.map((family) => family.publicStatus), ["unavailable", "unavailable"]);
 
 const multiFamily = evaluateAdvisories({ evaluators: [
   () => evaluateLowTemperature({ daily: daily(4), hourly: dawn(), now: NOW }),
   () => storm({ daily: stormDaily(34) })
 ] });
-assert.deepEqual(multiFamily.families.map((family) => family.publicStatus), ["advisory", "advisory"]);
+assert.deepEqual(multiFamily.families.map((family) => family.publicStatus), ["active", "active"]);
 
 console.log("advisories tests: OK (92 deterministic scenarios)");

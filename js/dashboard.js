@@ -82,7 +82,7 @@ function textoTemporalAviso(advisory) {
   }
   return `Período: ${formatoAlerta(advisory.startsAt)} a ${formatoAlerta(advisory.endsAt)}`;
 }
-function estadoPublicoAviso(status) { return ({ no_advisory: "Sin aviso", advisory: "Aviso vigente", insufficient_data: "Sin datos suficientes" })[status] || "Sin datos suficientes"; }
+function estadoPublicoAviso(status) { return ({ active: "Aviso vigente", advisory: "Aviso vigente", no_advisory: "Sin aviso", partial: "Sin aviso", insufficient_data: "Sin aviso", unavailable: "Información temporalmente no disponible", error: "Información temporalmente no disponible" })[status] || "Información temporalmente no disponible"; }
 function iconoFamiliaAviso(id) { return id === "thunderstorm" ? "fa-cloud-bolt" : "fa-temperature-low"; }
 function detalleTormenta(advisory) {
   const days = Array.isArray(advisory.values?.forecastDays) ? advisory.values.forecastDays : [];
@@ -99,16 +99,18 @@ function detalleTormenta(advisory) {
 function familiasAvisos(data) {
   if (Array.isArray(data?.families) && data.families.length) return data.families;
   const advisories = Array.isArray(data?.advisories) ? data.advisories : [];
-  return [{ id: "low_temperature", label: "Bajas temperaturas", publicStatus: advisories.length ? "advisory" : "no_advisory", advisories }];
+  return [{ id: "low_temperature", label: "Bajas temperaturas", publicStatus: advisories.length ? "active" : "no_advisory", advisories }];
 }
 function renderFamiliaAviso(family) {
   const item = document.createElement("article"); item.className = "advisory-family";
   const row = document.createElement("div"); row.className = "advisory-family-row";
   const icon = document.createElement("i"); icon.className = `fa-solid ${iconoFamiliaAviso(family.id)}`; icon.setAttribute("aria-hidden", "true");
   const label = document.createElement("strong"); label.textContent = family.label || "Aviso local";
-  const status = document.createElement("span"); status.className = `advisory-family-status${family.publicStatus === "advisory" ? " is-active" : family.publicStatus === "insufficient_data" ? " is-insufficient" : ""}`; status.textContent = estadoPublicoAviso(family.publicStatus);
+  const active = family.publicStatus === "active" || family.publicStatus === "advisory";
+  const unavailable = family.publicStatus === "unavailable" || family.publicStatus === "error";
+  const status = document.createElement("span"); status.className = `advisory-family-status${active ? " is-active" : unavailable ? " is-insufficient" : ""}`; status.textContent = estadoPublicoAviso(family.publicStatus);
   row.append(icon, label, status); item.append(row);
-  if (family.publicStatus !== "advisory") return item;
+  if (!active) return item;
   const detail = document.createElement("div"); detail.className = "advisory-detail";
   const advisory = Array.isArray(family.advisories) ? family.advisories[0] : null;
   if (!advisory) return item;
@@ -118,7 +120,7 @@ function renderFamiliaAviso(family) {
   const source = document.createElement("p"); source.className = "advisory-meta"; source.textContent = advisory.basis?.some((basis) => basis.startsWith("observation_")) ? "Origen: pronóstico disponible y observación local." : "Origen: pronóstico disponible."; detail.append(source); item.append(detail);
   return item;
 }
-function mensajeAvisosLocales() { return "Sin datos suficientes"; }
+function mensajeAvisosLocales() { return "Información temporalmente no disponible"; }
 async function cargarAvisosLocales() { const box = document.getElementById("localAdvisories"); if (!box) return; try { const response = await fetch(ADVISORIES_URL); const data = await response.json(); if (!response.ok || !data || !data.ok) throw new Error(); box.replaceChildren(...familiasAvisos(data).map(renderFamiliaAviso)); } catch { box.textContent = mensajeAvisosLocales(); } }
 
 /** Calcula el punto de rocío en °C mediante la aproximación de Magnus. */

@@ -12,6 +12,12 @@ La fuente y el modelo siguen siendo los CAP oficiales SMN persistidos en D1. La 
 
 En la auditoría de Tormentas y Viento del 20/09/2026, los CAP reales expusieron `severity=Moderate`, `urgency=Future` y `certainty=Likely`, sin `<parameter>`, `eventCode` ni otro campo explícito con nivel/color SAT. No se ha confirmado una correspondencia oficial `Moderate → AMARILLO`; por ello API y Home no muestran niveles amarillo/naranja/rojo inferidos. La falta de nivel nunca oculta una alerta oficial y los Avisos locales permanecen totalmente separados.
 
+## Meteored: intervalos sociales y avisos locales (v1.13.5)
+
+Los slots `hourly.hours[]` de Meteored representan intervalos de una hora. Social determina día y dayPart desde el inicio del intervalo en `America/Argentina/Buenos_Aires`: prioriza `start` explícito válido y, cuando el payload sólo etiqueta `end`, utiliza el inicio equivalente `end - 1 h`. Esto conserva los cuatro períodos de seis slots y atribuye correctamente 23:00→00:00 al día anterior. El ajuste procesa exclusivamente D1 y no altera el presupuesto de seis ciclos pareados / doce requests diarios.
+
+Los avisos locales mantienen su evaluación técnica separada de la presentación: `partial` o `insufficient_data` sin trigger se proyectan públicamente como `no_advisory`, mientras `unavailable` queda reservado para fallas técnicas reales, como procesamiento imposible o payload corrupto. Esta proyección es genérica para futuras familias, pero HIGH_TEMP y WIND no están implementadas.
+
 ## Meteored hourly: slots restantes de Home (v1.13.3)
 
 La presentación pública hourly puede usar una caché D1 con uno o más `hours[].end` futuros válidos, únicos y ordenados. Frescura y cobertura siguen separadas: un payload stale con uno a tres slots futuros sigue siendo utilizable y conserva `cache.stale`; con cero slots futuros se informa `EXHAUSTED`. Esta regla es exclusiva de Home y no crea refreshes, requests Meteored ni cambios en Social o Avisos.

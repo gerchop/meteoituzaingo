@@ -3,7 +3,10 @@ import { buildSocialForecastFromData, PROHIBITED_SOCIAL_TERMS } from "../src/soc
 
 const DATE = "2026-09-09";
 const at = (hour, date = DATE) => Date.parse(`${date}T${String(hour).padStart(2, "0")}:00:00-03:00`);
-function forecastHour(hour, overrides = {}, date = DATE) { return { end: at(hour, date), symbol: 3, temperature: 18, temperature_feels_like: 18, rain_probability: 0, rain: 0, wind_speed: 10, wind_gust: 15, wind_direction: "E", ...overrides }; }
+const HOUR_MS = 60 * 60 * 1000;
+// Real Meteored-shaped slot: the item labels the end of its one-hour interval.
+function forecastHour(hour, overrides = {}, date = DATE) { const start = at(hour, date); return { end: start + HOUR_MS, symbol: 3, temperature: 18, temperature_feels_like: 18, rain_probability: 0, rain: 0, wind_speed: 10, wind_gust: 15, wind_direction: "E", ...overrides }; }
+const endAt = (hour, date = DATE) => at(hour, date) + HOUR_MS;
 function payload(hours) { return { hourly: { start: at(0), hours }, daily: { days: [{ start: at(0), temperature_min: 10, temperature_max: 22 }] } }; }
 function fullDay(overrides = {}) { return Array.from({ length: 24 }, (_, hour) => forecastHour(hour, overrides[hour] || {})); }
 function build(hours) { const { hourly, daily } = payload(hours); return buildSocialForecastFromData(hourly, daily, DATE); }
@@ -14,7 +17,7 @@ function assertSafe(text) { PROHIBITED_SOCIAL_TERMS.forEach((term) => assert.equ
   assert.equal(forecast.status, "partial"); assert.equal(forecast.sourceSummary.mode, "daily_general"); assert.ok(forecast.originalText.includes("Pronóstico general para hoy:")); assert.equal(/Madrugada|Mañana|Tarde|Noche/.test(forecast.originalText), false);
 }
 {
-  const forecast = build(fullDay().filter((hour) => hour.end !== at(23)));
+  const forecast = build(fullDay().filter((hour) => hour.end !== endAt(23)));
   assert.equal(forecast.status, "partial"); assert.equal(forecast.sourceSummary.periods.find((period) => period.id === "night").complete, false); assert.equal(forecast.originalText.includes("Noche:"), false);
 }
 
@@ -52,9 +55,43 @@ for (const [symbol, expected] of [[3, "Nubes y claros."], [4, "Parcialmente nubo
   assert.equal(morning.rainTotalMm, 1); assert.ok(forecast.originalText.includes("Precipitación prevista: 1 mm."));
 }
 {
-  const hours = fullDay({ 6: { symbol: 12, rain: 0.2, rain_probability: 30 }, 7: { symbol: 12, rain: 0.6, rain_probability: 30 }, 8: { symbol: 12, rain: 0.2, rain_probability: 30 } }).filter((hour) => hour.end !== at(8));
+  const hours = fullDay({ 6: { symbol: 12, rain: 0.2, rain_probability: 30 }, 7: { symbol: 12, rain: 0.6, rain_probability: 30 }, 8: { symbol: 12, rain: 0.2, rain_probability: 30 } }).filter((hour) => hour.end !== endAt(8));
   const forecast = build(hours); const morning = forecast.sourceSummary.periods.find((period) => period.id === "morning");
   assert.equal(morning.complete, false); assert.equal(morning.rainTotalMm, null); assert.equal(forecast.originalText.includes("Precipitación prevista: 1 mm."), false);
+}
+
+// The real midnight horizon is [00:00, 24:00): all 24 slots must be assigned
+// using interval start, including 23:00 -> 00:00 of the next local date.
+{
+  const forecast = build(fullDay());
+  assert.equal(forecast.status, "complete");
+  for (const id of ["dawn", "morning", "afternoon", "night"]) {
+    const period = forecast.sourceSummary.periods.find((item) => item.id === id);
+    assert.equal(period.hoursCount, 6, `${id} must retain six intervals`); assert.equal(period.complete, true, `${id} must be complete`);
+  }
+  assert.equal(forecast.sourceSummary.hourlyHours, 24);
+}
+{
+  const forecast = build(fullDay().filter((hour) => hour.end !== endAt(3)));
+  assert.equal(forecast.status, "partial"); assert.equal(forecast.sourceSummary.periods.find((period) => period.id === "dawn").hoursCount, 5);
+  assert.equal(forecast.sourceSummary.periods.find((period) => period.id === "dawn").complete, false);
+}
+{
+  const forecast = build(fullDay().filter((hour) => hour.end !== endAt(23)));
+  assert.equal(forecast.status, "partial"); assert.equal(forecast.sourceSummary.periods.find((period) => period.id === "night").hoursCount, 5);
+}
+{
+  const duplicated = [...fullDay(), forecastHour(3)]; const forecast = build(duplicated);
+  assert.equal(forecast.status, "partial"); assert.equal(forecast.sourceSummary.periods.find((period) => period.id === "dawn").complete, false, "A duplicate cannot complete coverage");
+}
+{
+  const forecast = build([...fullDay(), { end: "invalid" }]);
+  assert.equal(forecast.status, "complete", "Invalid timestamps are ignored safely");
+}
+{
+  // Explicit, valid starts take priority over end-derived starts.
+  const hours = fullDay().map((hour) => ({ ...hour, start: hour.end - HOUR_MS })); const forecast = build(hours);
+  assert.equal(forecast.status, "complete");
 }
 {
   const forecast = build(fullDay({ 12: { wind_gust: 36 }, 13: { wind_speed: 30, wind_gust: 45 } }));

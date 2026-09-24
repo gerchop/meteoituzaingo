@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.13.5 - DayParts sociales y estados públicos de avisos locales
+
+- Social clasifica cada slot Meteored por el inicio real de su intervalo en `America/Argentina/Buenos_Aires`: usa `hours[].start` si es válido y, en el payload actual de intervalos horarios, deriva el inicio desde `end - 1 h`. Así el intervalo 23:00→00:00 pertenece a la noche del día de inicio y se recuperan Madrugada, Mañana, Tarde y Noche con la exigencia original de 6/6 slots.
+- El generador Social continúa siendo D1/cache-only: no se añadieron fetches, retries, crons ni ciclos. El presupuesto normal permanece en seis ciclos pareados, doce requests Meteored por día.
+- `GET /api/advisories` conserva los estados técnicos internos (`partial`, `insufficient_data`, `advisory`) y añade por familia `evaluationStatus` junto a un `publicStatus` estable: `active`, `no_advisory` o `unavailable`. Una evaluación parcial sin trigger se presenta como «Sin aviso»; errores reales o payloads corruptos se presentan como «Información temporalmente no disponible».
+- Home consume la proyección pública genérica y añade una aclaración discreta sobre el significado de «Sin aviso». LOW_TEMP, Tormentas, PWS, SMN, CAP, EMA, Resend, Home hourly y los umbrales existentes no cambian.
+
 ## v1.13.4 - Presentación de severidad CAP oficial
 
 - La ingesta incremental CAP conserva ahora en cada `public_payload_json` aplicable los campos oficiales originales `severity`, `urgency` y `certainty`, sin migración, backfill ni solicitudes adicionales al SMN.

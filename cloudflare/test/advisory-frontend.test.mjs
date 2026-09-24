@@ -18,11 +18,17 @@ assert.equal(context.textoTemporalAviso({ temporalPrecision: "hourly", evidenceP
 assert.equal(context.formatoSensacionAviso({ forecastMinimumFeelsLikeC: -1 }), "Sensación térmica mínima prevista: -1 °C");
 assert.equal(context.formatoSensacionAviso({}), "");
 assert.equal(context.estadoPublicoAviso("no_advisory"), "Sin aviso");
+assert.equal(context.estadoPublicoAviso("active"), "Aviso vigente");
 assert.equal(context.estadoPublicoAviso("advisory"), "Aviso vigente");
-assert.equal(context.estadoPublicoAviso("insufficient_data"), "Sin datos suficientes");
+assert.equal(context.estadoPublicoAviso("partial"), "Sin aviso");
+assert.equal(context.estadoPublicoAviso("insufficient_data"), "Sin aviso");
+assert.equal(context.estadoPublicoAviso("unavailable"), "Información temporalmente no disponible");
+assert.equal(context.estadoPublicoAviso("error"), "Información temporalmente no disponible");
+assert.equal(context.estadoPublicoAviso("unexpected"), "Información temporalmente no disponible");
 assert.equal(context.iconoFamiliaAviso("thunderstorm"), "fa-cloud-bolt");
 assert.equal(context.familiasAvisos({ families: [{ id: "thunderstorm" }] }).length, 1);
 assert.equal(context.familiasAvisos({ advisories: [] })[0].publicStatus, "no_advisory");
+assert.equal(context.familiasAvisos({ advisories: [{}] })[0].publicStatus, "active");
 const thunderstormDetails = context.detalleTormenta({ values: { forecastDays: [{ date: "2026-09-16", dayParts: ["afternoon", "night"], precipitationProbability: 80, rainMm: 6.1 }] } }).flat();
 assert.ok(thunderstormDetails.includes("Señal de tormenta prevista durante la tarde y noche."));
 assert.ok(thunderstormDetails.includes("Probabilidad de precipitaciones: 80 %."));

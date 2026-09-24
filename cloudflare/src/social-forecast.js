@@ -62,7 +62,20 @@ export function getNextMeteoredRefreshSlot(now = Date.now()) {
 }
 function number(value) { return Number.isFinite(value) ? value : null; }
 function timestamp(value) { return typeof value === "number" ? value : Number(value); }
-function localHour(hour) { const time = timestamp(hour.end); return Number.isFinite(time) ? Number(localParts(new Date(time)).hour) : null; }
+/**
+ * Meteored's real hourly cache is a sequence of hourly intervals.  The
+ * production payload currently exposes the interval end on each item and a
+ * horizon-level `start`; it does not expose an item-level start.  Prefer a
+ * valid explicit start if Meteored adds one, otherwise derive it from `end`
+ * only for the documented one-hour interval shape.
+ */
+function intervalStart(hour) {
+  const start = timestamp(hour?.start); const end = timestamp(hour?.end);
+  if (Number.isFinite(start)) return !Number.isFinite(end) || end - start === 60 * 60 * 1000 ? start : NaN;
+  return Number.isFinite(end) ? end - 60 * 60 * 1000 : NaN;
+}
+function localHour(hour) { const time = intervalStart(hour); return Number.isFinite(time) ? Number(localParts(new Date(time)).hour) : null; }
+function localIntervalDate(hour) { const time = intervalStart(hour); return Number.isFinite(time) ? argentinaDate(new Date(time)) : null; }
 function values(hours, field) { return hours.map((hour) => number(hour[field])).filter((value) => value !== null); }
 function min(list) { return list.length ? Math.min(...list) : null; }
 function max(list) { return list.length ? Math.max(...list) : null; }
@@ -155,7 +168,9 @@ function dayTemperatures(hours, daily, date) { const dailyItem = (daily.days || 
 function assertAllowedText(text) { const normalized = text.toLocaleLowerCase("es-AR"); const forbidden = PROHIBITED_SOCIAL_TERMS.find((term) => normalized.includes(term)); if (forbidden) throw new Error(`Texto social contiene un término no validado: ${forbidden}`); }
 
 export function buildSocialForecastFromData(hourly, daily, date = argentinaDate()) {
-  const hours = (hourly.hours || []).filter((hour) => argentinaDate(new Date(timestamp(hour.end))) === date && Number.isFinite(localHour(hour)));
+  // An interval ending at 00:00 belongs to the preceding local day.  DayParts
+  // are therefore classified by interval start, never by its end label.
+  const hours = (hourly.hours || []).filter((hour) => localIntervalDate(hour) === date && Number.isFinite(localHour(hour)));
   const temperatures = dayTemperatures(hours, daily, date); const periods = PERIODS.map((definition) => summarizePeriod(definition, hours)); const unknown = [...new Set(periods.flatMap((period) => period.unknownSymbols))];
   const dailyItem = (daily.days || []).find((item) => argentinaDate(new Date(timestamp(item.start))) === date);
   const dailyTemperatures = dailyItem && number(dailyItem.temperature_min) !== null && number(dailyItem.temperature_max) !== null ? { min: dailyItem.temperature_min, max: dailyItem.temperature_max } : null;
