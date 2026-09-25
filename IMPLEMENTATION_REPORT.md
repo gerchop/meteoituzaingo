@@ -14,7 +14,7 @@ El estado se normaliza como `initialized`, `framesReady`, `visible`, `paginaVisi
 
 ### Pruebas y alcance
 
-`satellite-player.test.mjs` ejecuta la máquina real extraída de `dashboard.js` con seis cuadros: comprueba timer, avance, wrap, fuente de imagen, idempotencia, un cuadro insuficiente, intención pendiente, pausa/reanudación por viewport y pestaña, y reduced motion con Play manual. La verificación de dispositivo móvil físico sigue siendo necesaria antes de declarar cerrada visualmente la incidencia; el entorno de automatización disponible no ofrece una captura móvil utilizable. No hubo cambios CSS ni de tamaño; se preservan lazy loading y todas las optimizaciones de v1.16/v1.16.1. Worker, D1, crons, proveedores, Meteored, PWS, UV, SMN/CAP, Social, EMA, Resend, Históricos, SEO, Blogger y AdSense permanecen sin cambios.
+`satellite-player.test.mjs` ejecuta la máquina real extraída de `dashboard.js` con seis cuadros: comprueba timer, avance, wrap, fuente de imagen, idempotencia, un cuadro insuficiente, intención pendiente, pausa/reanudación por viewport y pestaña, y reduced motion con Play manual. La validación final en dispositivo móvil real fue aprobada: carga de satélite, autoplay, avance de cuadros, Pausa, Play/reanudación y tamaños de radar/satélite pasaron sin regresiones visuales. Estado final: **GO — validado en dispositivo móvil real**. No hubo cambios CSS ni de tamaño; se preservan lazy loading y todas las optimizaciones de v1.16/v1.16.1. Worker, D1, crons, proveedores, Meteored, PWS, UV, SMN/CAP, Social, EMA, Resend, Históricos, SEO, Blogger y AdSense permanecen sin cambios.
 
 ---
 
