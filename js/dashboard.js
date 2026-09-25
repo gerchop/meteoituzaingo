@@ -45,7 +45,7 @@ const METEORED_SIMBOLOS = {
   30: ["Lluvia y nieve", "fa-cloud-rain"], 31: ["Lluvia y nieve", "fa-cloud-rain"], 32: ["Nevada intensa", "fa-snowflake"], 33: ["Nevada intensa", "fa-snowflake"], 34: ["Tormentas", "fa-cloud-bolt"], 35: ["Tormentas", "fa-cloud-bolt"],
   36: ["Granizo", "fa-cloud-bolt"], 37: ["Granizo", "fa-cloud-bolt"], 38: ["Tormentas con granizo", "fa-cloud-bolt"], 39: ["Tormentas con granizo", "fa-cloud-bolt"], 40: ["Tormenta de arena", "fa-wind"], 41: ["Ventisca", "fa-wind"]
 };
-let satelite = { imagenes: [], indice: 0, reproduciendo: true, temporizador: null, visible: false, reducedMotion: false, initialized: false };
+let satelite = { imagenes: [], indice: 0, reproduciendo: true, temporizador: null, actualizador: null, visible: false, paginaVisible: document.visibilityState !== "hidden", reducedMotion: false, initialized: false };
 let graficoHistorico;
 let chartJsPromise = null;
 let radarInitialized = false;
@@ -569,14 +569,27 @@ function cambiarCuadroSatelital(paso) {
 
 function actualizarBotonReproduccion() {
   const boton = document.getElementById("satellitePlay");
-  const animando = satelite.reproduciendo && satelite.visible && !satelite.reducedMotion;
+  const animando = satelite.temporizador !== null;
   boton.innerHTML = animando ? '<i class="fa-solid fa-pause" aria-hidden="true"></i> Pausar' : '<i class="fa-solid fa-play" aria-hidden="true"></i> Reproducir';
 }
 
-function configurarAnimacionSatelital() {
+function puedeAnimarSatelite() {
+  return satelite.reproduciendo && satelite.visible && satelite.paginaVisible && !satelite.reducedMotion && satelite.imagenes.length >= 2;
+}
+
+function iniciarAnimacionSatelital() {
+  if (!puedeAnimarSatelite() || satelite.temporizador !== null) return;
+  satelite.temporizador = window.setInterval(function () { cambiarCuadroSatelital(1); }, CONFIG.cuadroSateliteMs);
+}
+
+function detenerAnimacionSatelital() {
+  if (satelite.temporizador === null) return;
   window.clearInterval(satelite.temporizador);
-  const animando = satelite.reproduciendo && satelite.visible && !satelite.reducedMotion && satelite.imagenes.length;
-  satelite.temporizador = animando ? window.setInterval(function () { cambiarCuadroSatelital(1); }, CONFIG.cuadroSateliteMs) : null;
+  satelite.temporizador = null;
+}
+
+function sincronizarAnimacionSatelital() {
+  if (puedeAnimarSatelite()) iniciarAnimacionSatelital(); else detenerAnimacionSatelital();
   actualizarBotonReproduccion();
 }
 
@@ -599,10 +612,10 @@ async function actualizarSatelite() {
     satelite.indice = 0;
     satelite.ultimaFecha = datos.items.ultFecha || "no informada por CONAE";
     aviso.hidden = true; imagen.hidden = false;
-    mostrarCuadroSatelital(); configurarAnimacionSatelital();
+    mostrarCuadroSatelital(); sincronizarAnimacionSatelital();
   } catch (error) {
     console.error("No se pudo actualizar el satélite:", error);
-    window.clearInterval(satelite.temporizador); satelite.temporizador = null;
+    detenerAnimacionSatelital();
     imagen.hidden = true; aviso.hidden = false;
     document.getElementById("satelliteMessage").textContent = "Imagen satelital temporalmente no disponible.";
     document.getElementById("satelliteMeta").textContent = "No fue posible obtener la secuencia de CONAE. El resto del dashboard continúa disponible.";
@@ -613,7 +626,7 @@ function activarSatelite() {
   if (satelite.initialized) return false;
   satelite.initialized = true;
   actualizarSatelite();
-  window.setInterval(actualizarSatelite, CONFIG.sateliteMs);
+  satelite.actualizador = window.setInterval(actualizarSatelite, CONFIG.sateliteMs);
   return true;
 }
 
@@ -629,20 +642,21 @@ function iniciarSatelite() {
   document.getElementById("satelliteProduct").addEventListener("change", function () { if (!activarSatelite()) actualizarSatelite(); });
   document.getElementById("satellitePrevious").addEventListener("click", function () { cambiarCuadroSatelital(-1); });
   document.getElementById("satelliteNext").addEventListener("click", function () { cambiarCuadroSatelital(1); });
-  document.getElementById("satellitePlay").addEventListener("click", function () { satelite.reproduciendo = !satelite.reproduciendo; configurarAnimacionSatelital(); });
+  document.getElementById("satellitePlay").addEventListener("click", function () { satelite.reproduciendo = !satelite.reproduciendo; sincronizarAnimacionSatelital(); });
   const reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)");
   satelite.reducedMotion = Boolean(reducedMotion && reducedMotion.matches);
   if (satelite.reducedMotion) satelite.reproduciendo = false;
-  if (reducedMotion && reducedMotion.addEventListener) reducedMotion.addEventListener("change", function (event) { satelite.reducedMotion = event.matches; if (event.matches) satelite.reproduciendo = false; configurarAnimacionSatelital(); });
+  if (reducedMotion && reducedMotion.addEventListener) reducedMotion.addEventListener("change", function (event) { satelite.reducedMotion = event.matches; if (event.matches) satelite.reproduciendo = false; sincronizarAnimacionSatelital(); });
   const section = document.querySelector(".satellite-section");
+  document.addEventListener("visibilitychange", function () { satelite.paginaVisible = document.visibilityState !== "hidden"; sincronizarAnimacionSatelital(); });
   if (!("IntersectionObserver" in window)) { satelite.visible = true; activarSatelite(); return; }
-  const observer = new IntersectionObserver(function (entries) {
-    const visible = entries.some((entry) => entry.isIntersecting);
-    satelite.visible = visible;
-    if (visible) activarSatelite();
-    configurarAnimacionSatelital();
-  }, { rootMargin: "400px 0px" });
-  observer.observe(section);
+  iniciarAlAcercarse(section, activarSatelite, "400px 0px");
+  const visibilityObserver = new IntersectionObserver(function (entries) {
+    const entry = entries[0];
+    satelite.visible = Boolean(entry && entry.isIntersecting && entry.intersectionRatio > 0);
+    sincronizarAnimacionSatelital();
+  }, { threshold: 0.01 });
+  visibilityObserver.observe(section);
 }
 
 function formatoHistorico(timestamp, incluirFecha) { return incluirFecha ? DateTime.formatDateTime(timestamp) : DateTime.formatTime(timestamp); }

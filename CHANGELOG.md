@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.16.1 - Corrección de medios y animación satelital
+
+- Se corrige la regresión visual de Radar y Satélite en tablet/escritorio: la reserva móvil conserva las proporciones reales, mientras que desde 620 px ambos componentes recuperan una altura contenida y responsiva de `clamp(240px, 40vw, 420px)`, equivalente al límite visual de la v1.15. Las imágenes siguen usando `object-fit: contain`, sin recorte ni desborde horizontal.
+- Se separan la precarga diferida de la secuencia CONAE (400 px antes del viewport) y su visibilidad real para animar. La animación sólo arranca con dos o más cuadros, visibilidad parcial real (`threshold: 0.01`), pestaña visible y sin `prefers-reduced-motion`; se pausa fuera de pantalla o al ocultar la pestaña y se reanuda automáticamente al volver.
+- El ciclo de animación ahora tiene operaciones explícitas de inicio/detención y nunca conserva más de un timer. Los controles de reproducción, anterior/siguiente y actualización se preservan; con movimiento reducido los cuadros siguen disponibles para navegación manual.
+- Se mantienen sin cambios Chart.js e historial diferidos, radar y satélite lazy, franja activa, accesibilidad, protección de carreras históricas, fuentes y reducción de red inicial de v1.16. No se modificaron Worker, D1, migraciones, crons, proveedores, Meteored, PWS, EMA, Resend, Social, alertas SMN, avisos locales, UV, SEO ni Blogger.
+
 ## v1.16 - UX mobile y carga inicial
 
 - Home ya no incluye Chart.js en su ruta inicial. El gráfico compacto y su consulta de 24 horas se inicializan una sola vez al aproximarse la sección histórica al viewport; si el script no carga, el resto del dashboard continúa disponible con un mensaje discreto.

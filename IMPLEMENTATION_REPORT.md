@@ -1,3 +1,25 @@
+# Informe de implementación v1.16.1
+
+## Hotfix: proporción de medios y ciclo satelital
+
+### Causas raíz
+
+**Radar y satélite.** La v1.16 trasladó las relaciones de aspecto del asset al contenedor completo y sustituyó el comportamiento anterior, que desde 620 px limitaba la imagen a `max-height: 420px`. En escritorio, un contenedor a todo el ancho con `aspect-ratio: 1 / 1` para radar (asset 1341×1336) o `45 / 31` para satélite (asset 900×620) crecía de forma desproporcionada. No fue un cambio de los proveedores ni de las imágenes.
+
+**Animación mobile.** Un único `IntersectionObserver`, con margen de precarga amplio, intentaba a la vez inicializar y decidir el timer. Esa mezcla permitía que la evaluación sucediera sin cuadros disponibles y no proporcionaba un ciclo explícito y confiable de reanudación. No hubo una regla intencional que deshabilitara mobile; la excepción correcta continúa siendo exclusivamente `prefers-reduced-motion: reduce`.
+
+### Corrección
+
+En móvil se mantienen las reservas de aspecto específicas (`1 / 1` para radar y `45 / 31` para satélite). Desde 620 px se usa una reserva contenida `clamp(240px, 40vw, 420px)`: recupera el tope visual de v1.15, no depende de la resolución intrínseca, mantiene el contenido centrado con `object-fit: contain` y evita overflow. Por lo tanto, no se eliminó la reserva CLS.
+
+La secuencia CONAE conserva su lazy load a 400 px, pero un segundo observer de visibilidad real con `threshold: 0.01` controla exclusivamente la animación. `puedeAnimarSatelite` requiere al menos dos cuadros, sección parcialmente visible, pestaña visible, reproducción habilitada y ausencia de reduced motion. `iniciarAnimacionSatelital` no duplica intervalos y `detenerAnimacionSatelital` siempre lo anula; una actualización exitosa vuelve a sincronizar después de que los cuadros ya existan. `visibilitychange` pausa en segundo plano y permite reanudar al volver. Los botones manuales no se eliminan.
+
+### Alcance y validación
+
+No se modificaron endpoints, Worker, D1, migraciones, crons, fuentes ni lógica meteorológica. Se mantiene el diferimiento de Chart.js, histórico, radar y satélite, además de las mejoras de accesibilidad y responsive de v1.16. La suite incluye aserciones del contrato lazy, observer de inicialización, observer visible de umbral bajo, reduced motion, dos cuadros mínimos y ciclo de timer único. La validación visual/productiva se registrará junto al cierre del deploy estático; no se presenta como realizada antes de esa comprobación.
+
+---
+
 # Informe de implementación v1.16
 
 ## UX mobile, estabilidad visual y carga diferida
