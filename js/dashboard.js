@@ -45,8 +45,11 @@ const METEORED_SIMBOLOS = {
   30: ["Lluvia y nieve", "fa-cloud-rain"], 31: ["Lluvia y nieve", "fa-cloud-rain"], 32: ["Nevada intensa", "fa-snowflake"], 33: ["Nevada intensa", "fa-snowflake"], 34: ["Tormentas", "fa-cloud-bolt"], 35: ["Tormentas", "fa-cloud-bolt"],
   36: ["Granizo", "fa-cloud-bolt"], 37: ["Granizo", "fa-cloud-bolt"], 38: ["Tormentas con granizo", "fa-cloud-bolt"], 39: ["Tormentas con granizo", "fa-cloud-bolt"], 40: ["Tormenta de arena", "fa-wind"], 41: ["Ventisca", "fa-wind"]
 };
-let satelite = { imagenes: [], indice: 0, reproduciendo: true, temporizador: null };
+let satelite = { imagenes: [], indice: 0, reproduciendo: true, temporizador: null, visible: false, reducedMotion: false, initialized: false };
 let graficoHistorico;
+let chartJsPromise = null;
+let radarInitialized = false;
+const activeNoticeState = { smn: false, local: false };
 
 function direccion(grados) { return Number.isFinite(grados) ? DIRECCIONES[Math.round(grados / 22.5) % 16] : "--"; }
 function valor(id, contenido) { document.getElementById(id).textContent = contenido; }
@@ -56,7 +59,20 @@ function numeroValido(numero) { return Number.isFinite(numero); }
 function formatoAlerta(fecha) { return fecha ? new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(fecha)) : "No informado"; }
 function etiquetaSeveridadCap(severity) { return ({ Extreme: "Extrema", Severe: "Severa", Moderate: "Moderada", Minor: "Menor", Unknown: "No determinada" })[severity] || null; }
 function ayudaSeveridadCap() { return "La severidad CAP describe la intensidad del impacto indicada en el mensaje oficial. No equivale al nivel amarillo, naranja o rojo del Sistema de Alerta Temprana del SMN."; }
-async function cargarAlertasSmn() { const box = document.getElementById("smnAlerts"); if (!box) return; try { const response = await fetch(SMN_ALERTS_URL); const data = await response.json(); if (!response.ok || !data.ok) throw new Error(); if (!data.alerts.length) { box.textContent = "✓ No hay alertas meteorológicas oficiales vigentes para Ituzaingó. Fuente: Servicio Meteorológico Nacional (SMN)."; return; } box.replaceChildren(...data.alerts.map((alert) => { const article = document.createElement("article"); const title = document.createElement("strong"); title.textContent = `ALERTA OFICIAL DEL SMN — ${alert.event}`; const severityLabel = etiquetaSeveridadCap(alert.severity); const severity = document.createElement("p"); if (severityLabel) { const label = document.createElement("strong"); label.textContent = "Severidad CAP: "; const value = document.createElement("span"); value.textContent = severityLabel; value.title = ayudaSeveridadCap(); value.setAttribute("aria-label", `Severidad CAP: ${severityLabel}. ${ayudaSeveridadCap()}`); severity.append(label, value); } const validity = document.createElement("p"); validity.textContent = `${alert.onset && Date.parse(alert.onset) > Date.now() ? "Vigente desde" : "Vigente hasta"}: ${formatoAlerta(alert.onset && Date.parse(alert.onset) > Date.now() ? alert.onset : alert.expires)}`; const description = document.createElement("p"); description.textContent = alert.description || alert.headline || "Alerta meteorológica oficial vigente."; article.append(title); if (severityLabel) article.append(severity); article.append(validity, description); if (alert.instructions) { const details = document.createElement("details"); const summary = document.createElement("summary"); summary.textContent = "Recomendaciones del SMN"; const instructions = document.createElement("p"); instructions.textContent = alert.instructions; details.append(summary, instructions); article.append(details); } const link = document.createElement("a"); link.href = alert.officialUrl; link.target = "_blank"; link.rel = "noopener noreferrer"; link.textContent = "Ver alerta oficial"; article.append(link); return article; })); } catch { box.textContent = "Información de alertas temporalmente no disponible."; } }
+function actualizarFranjaAvisosActivos() {
+  const strip = document.getElementById("activeNoticeStrip");
+  if (!strip) return;
+  const notices = [];
+  if (activeNoticeState.smn) notices.push(["#alerts-title", "Alerta oficial SMN vigente · Ver detalles"]);
+  if (activeNoticeState.local) notices.push(["#advisories-title", "Aviso local vigente · Ver detalles"]);
+  strip.replaceChildren(...notices.map(([href, text]) => {
+    const link = document.createElement("a");
+    link.href = href; link.textContent = text;
+    return link;
+  }));
+  strip.hidden = notices.length === 0;
+}
+async function cargarAlertasSmn() { const box = document.getElementById("smnAlerts"); if (!box) return; try { const response = await fetch(SMN_ALERTS_URL); const data = await response.json(); if (!response.ok || !data.ok || !Array.isArray(data.alerts)) throw new Error(); activeNoticeState.smn = data.alerts.length > 0; actualizarFranjaAvisosActivos(); if (!data.alerts.length) { box.textContent = "✓ No hay alertas meteorológicas oficiales vigentes para Ituzaingó. Fuente: Servicio Meteorológico Nacional (SMN)."; return; } box.replaceChildren(...data.alerts.map((alert) => { const article = document.createElement("article"); const title = document.createElement("strong"); title.textContent = `ALERTA OFICIAL DEL SMN — ${alert.event}`; const severityLabel = etiquetaSeveridadCap(alert.severity); const severity = document.createElement("p"); if (severityLabel) { const label = document.createElement("strong"); label.textContent = "Severidad CAP: "; const value = document.createElement("span"); value.textContent = severityLabel; value.title = ayudaSeveridadCap(); value.setAttribute("aria-label", `Severidad CAP: ${severityLabel}. ${ayudaSeveridadCap()}`); severity.append(label, value); } const validity = document.createElement("p"); validity.textContent = `${alert.onset && Date.parse(alert.onset) > Date.now() ? "Vigente desde" : "Vigente hasta"}: ${formatoAlerta(alert.onset && Date.parse(alert.onset) > Date.now() ? alert.onset : alert.expires)}`; const description = document.createElement("p"); description.textContent = alert.description || alert.headline || "Alerta meteorológica oficial vigente."; article.append(title); if (severityLabel) article.append(severity); article.append(validity, description); if (alert.instructions) { const details = document.createElement("details"); const summary = document.createElement("summary"); summary.textContent = "Recomendaciones del SMN"; const instructions = document.createElement("p"); instructions.textContent = alert.instructions; details.append(summary, instructions); article.append(details); } const link = document.createElement("a"); link.href = alert.officialUrl; link.target = "_blank"; link.rel = "noopener noreferrer"; link.textContent = "Ver alerta oficial"; article.append(link); return article; })); } catch { activeNoticeState.smn = false; actualizarFranjaAvisosActivos(); box.textContent = "Información de alertas temporalmente no disponible."; } }
 
 function textoAvisoCategoria(category) { return category === "attention" ? "Atención local" : "Información local"; }
 function formatoValorAviso(values) { return values && Number.isFinite(values.forecastMinimumC) ? `Mínima prevista: ${Math.round(values.forecastMinimumC)} °C` : "Pronóstico disponible"; }
@@ -152,7 +168,7 @@ function renderFamiliaAviso(family) {
   return item;
 }
 function mensajeAvisosLocales() { return "Información temporalmente no disponible"; }
-async function cargarAvisosLocales() { const box = document.getElementById("localAdvisories"); if (!box) return; try { const response = await fetch(ADVISORIES_URL); const data = await response.json(); if (!response.ok || !data || !data.ok) throw new Error(); box.replaceChildren(...familiasAvisos(data).map(renderFamiliaAviso)); } catch { box.textContent = mensajeAvisosLocales(); } }
+async function cargarAvisosLocales() { const box = document.getElementById("localAdvisories"); if (!box) return; try { const response = await fetch(ADVISORIES_URL); const data = await response.json(); if (!response.ok || !data || !data.ok) throw new Error(); const families = familiasAvisos(data); activeNoticeState.local = families.some((family) => family.publicStatus === "active" || family.publicStatus === "advisory"); actualizarFranjaAvisosActivos(); box.replaceChildren(...families.map(renderFamiliaAviso)); } catch { activeNoticeState.local = false; actualizarFranjaAvisosActivos(); box.textContent = mensajeAvisosLocales(); } }
 
 /** Calcula el punto de rocío en °C mediante la aproximación de Magnus. */
 function puntoDeRocio(temperatura, humedad) {
@@ -493,6 +509,21 @@ async function cargarPronosticos() {
 
 function horaActualizacion() { return DateTime.formatTime(new Date()); }
 
+function iniciarAlAcercarse(elemento, inicializar, rootMargin = "400px 0px") {
+  let iniciado = false;
+  const iniciar = function () {
+    if (iniciado) return;
+    iniciado = true;
+    inicializar();
+  };
+  if (!elemento || !("IntersectionObserver" in window)) { iniciar(); return null; }
+  const observer = new IntersectionObserver(function (entries) {
+    if (entries.some((entry) => entry.isIntersecting)) { observer.disconnect(); iniciar(); }
+  }, { rootMargin });
+  observer.observe(elemento);
+  return observer;
+}
+
 /** Actualiza solo una imagen externa y evita caché obsoleta sin recargar el dashboard. */
 function actualizarImagen(provider, imageId, metaId) {
   const imagen = document.getElementById(imageId);
@@ -503,11 +534,19 @@ function actualizarImagen(provider, imageId, metaId) {
   imagen.src = `${provider.url}?t=${Date.now()}`;
 }
 
-function iniciarImagenesExternas() {
+function iniciarRadar() {
+  if (radarInitialized) return;
+  radarInitialized = true;
   actualizarImagen(radarProvider, "radarImage", "radarMeta");
-  document.getElementById("refreshRadar").addEventListener("click", function () { actualizarImagen(radarProvider, "radarImage", "radarMeta"); });
-  setInterval(function () { actualizarImagen(radarProvider, "radarImage", "radarMeta"); }, radarProvider.intervalo);
+  window.setInterval(function () { actualizarImagen(radarProvider, "radarImage", "radarMeta"); }, radarProvider.intervalo);
+}
 
+function iniciarImagenesExternas() {
+  document.getElementById("refreshRadar").addEventListener("click", function () {
+    iniciarRadar();
+    actualizarImagen(radarProvider, "radarImage", "radarMeta");
+  });
+  iniciarAlAcercarse(document.getElementById("radarFrame"), iniciarRadar);
 }
 
 function productoSatelitalActual() { return document.getElementById("satelliteProduct").value; }
@@ -530,12 +569,14 @@ function cambiarCuadroSatelital(paso) {
 
 function actualizarBotonReproduccion() {
   const boton = document.getElementById("satellitePlay");
-  boton.innerHTML = satelite.reproduciendo ? '<i class="fa-solid fa-pause" aria-hidden="true"></i> Pausar' : '<i class="fa-solid fa-play" aria-hidden="true"></i> Reproducir';
+  const animando = satelite.reproduciendo && satelite.visible && !satelite.reducedMotion;
+  boton.innerHTML = animando ? '<i class="fa-solid fa-pause" aria-hidden="true"></i> Pausar' : '<i class="fa-solid fa-play" aria-hidden="true"></i> Reproducir';
 }
 
 function configurarAnimacionSatelital() {
   window.clearInterval(satelite.temporizador);
-  satelite.temporizador = satelite.reproduciendo ? window.setInterval(function () { cambiarCuadroSatelital(1); }, CONFIG.cuadroSateliteMs) : null;
+  const animando = satelite.reproduciendo && satelite.visible && !satelite.reducedMotion && satelite.imagenes.length;
+  satelite.temporizador = animando ? window.setInterval(function () { cambiarCuadroSatelital(1); }, CONFIG.cuadroSateliteMs) : null;
   actualizarBotonReproduccion();
 }
 
@@ -568,6 +609,14 @@ async function actualizarSatelite() {
   } finally { boton.disabled = false; }
 }
 
+function activarSatelite() {
+  if (satelite.initialized) return false;
+  satelite.initialized = true;
+  actualizarSatelite();
+  window.setInterval(actualizarSatelite, CONFIG.sateliteMs);
+  return true;
+}
+
 function iniciarSatelite() {
   const imagen = document.getElementById("satelliteImage");
   imagen.onerror = function () {
@@ -576,13 +625,24 @@ function iniciarSatelite() {
     document.getElementById("satelliteMessage").textContent = "Imagen satelital temporalmente no disponible.";
     document.getElementById("satelliteMeta").textContent = "CONAE entregó la secuencia, pero una imagen no pudo cargarse. Reintentá actualizar el satélite.";
   };
-  document.getElementById("refreshSatellite").addEventListener("click", actualizarSatelite);
-  document.getElementById("satelliteProduct").addEventListener("change", actualizarSatelite);
+  document.getElementById("refreshSatellite").addEventListener("click", function () { if (!activarSatelite()) actualizarSatelite(); });
+  document.getElementById("satelliteProduct").addEventListener("change", function () { if (!activarSatelite()) actualizarSatelite(); });
   document.getElementById("satellitePrevious").addEventListener("click", function () { cambiarCuadroSatelital(-1); });
   document.getElementById("satelliteNext").addEventListener("click", function () { cambiarCuadroSatelital(1); });
   document.getElementById("satellitePlay").addEventListener("click", function () { satelite.reproduciendo = !satelite.reproduciendo; configurarAnimacionSatelital(); });
-  actualizarSatelite();
-  window.setInterval(actualizarSatelite, CONFIG.sateliteMs);
+  const reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)");
+  satelite.reducedMotion = Boolean(reducedMotion && reducedMotion.matches);
+  if (satelite.reducedMotion) satelite.reproduciendo = false;
+  if (reducedMotion && reducedMotion.addEventListener) reducedMotion.addEventListener("change", function (event) { satelite.reducedMotion = event.matches; if (event.matches) satelite.reproduciendo = false; configurarAnimacionSatelital(); });
+  const section = document.querySelector(".satellite-section");
+  if (!("IntersectionObserver" in window)) { satelite.visible = true; activarSatelite(); return; }
+  const observer = new IntersectionObserver(function (entries) {
+    const visible = entries.some((entry) => entry.isIntersecting);
+    satelite.visible = visible;
+    if (visible) activarSatelite();
+    configurarAnimacionSatelital();
+  }, { rootMargin: "400px 0px" });
+  observer.observe(section);
 }
 
 function formatoHistorico(timestamp, incluirFecha) { return incluirFecha ? DateTime.formatDateTime(timestamp) : DateTime.formatTime(timestamp); }
@@ -603,6 +663,21 @@ function mostrarGraficoHistorico(datos) {
   });
 }
 
+function cargarChartJs() {
+  if (window.Chart) return Promise.resolve(window.Chart);
+  if (chartJsPromise) return chartJsPromise;
+  chartJsPromise = new Promise(function (resolve, reject) {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js";
+    script.async = true;
+    script.dataset.meteoChartjs = "home";
+    script.onload = function () { window.Chart ? resolve(window.Chart) : reject(new Error("Chart.js no se inicializó")); };
+    script.onerror = function () { reject(new Error("No se pudo cargar Chart.js")); };
+    document.head.appendChild(script);
+  });
+  return chartJsPromise;
+}
+
 async function cargarHistorico() {
   const mensaje = document.getElementById("historyMessage"); const meta = document.getElementById("historyMeta");
   mensaje.hidden = false; mensaje.textContent = "Cargando histórico disponible…";
@@ -618,7 +693,15 @@ async function cargarHistorico() {
 }
 
 function iniciarHistoricos() {
-  cargarHistorico();
+  const section = document.querySelector(".historical-section");
+  iniciarAlAcercarse(section, function () {
+    cargarChartJs().then(cargarHistorico).catch(function (error) {
+      console.error("No se pudo cargar Chart.js:", error);
+      document.getElementById("historyChart").hidden = true;
+      document.getElementById("historyMessage").hidden = false;
+      document.getElementById("historyMessage").textContent = "El gráfico histórico no está disponible en este momento.";
+    });
+  });
 }
 
 function formatoResumen(valor, unidad) { return Number.isFinite(valor) ? `${valor.toFixed(1)} ${unidad}` : "Sin datos"; }

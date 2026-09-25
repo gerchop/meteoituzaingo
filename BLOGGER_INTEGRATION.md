@@ -1,5 +1,11 @@
 # Integración final con Blogger
 
+## Preparación v1.16
+
+Home expone el wrapper estable `#meteo-dashboard` y los estilos nuevos de UX v1.16 se acotan a ese contexto cuando resulta práctico, incluyendo foco visible y la franja de avisos activos. Esto reduce, pero no elimina, el riesgo de colisión con una plantilla Blogger.
+
+La deuda pendiente antes de una integración directa sigue siendo el namespacing de selectores globales existentes: `*`, `body`, `h1`, `h2`, `.card`, `.conditions`, `.section-heading` y otros selectores compartidos. v1.16 no los reescribe para preservar el diseño publicado; la migración deberá abordarlos junto con URLs, canonical, Analytics y CORS del host final.
+
 ## Decisión recomendada
 
 La migración final debe integrar directamente el contenido principal de Meteo Ituzaingó en la plantilla o en una página estática de Blogger. GitHub Pages debe continuar como **staging** y entorno de pruebas. Un iframe puede servir como transición breve, pero no como arquitectura pública definitiva: el contenido dentro del frame tiene una URL y contexto de indexación separados, limita la integración editorial de Blogger y complica la atribución de Analytics y AdSense.

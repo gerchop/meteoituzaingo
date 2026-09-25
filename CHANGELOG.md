@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.16 - UX mobile y carga inicial
+
+- Home ya no incluye Chart.js en su ruta inicial. El gráfico compacto y su consulta de 24 horas se inicializan una sola vez al aproximarse la sección histórica al viewport; si el script no carga, el resto del dashboard continúa disponible con un mensaje discreto.
+- Radar ClimaSurGBA y la secuencia CONAE GOES-19 se difieren hasta aproximarse a sus secciones. Conservan proveedor, controles, frecuencia de actualización y comportamiento posterior a la primera carga. La animación satelital se pausa fuera del viewport y no inicia automáticamente cuando el usuario prefiere reducir movimiento; los controles manuales se mantienen.
+- Se reservan las proporciones reales del radar (casi cuadrada) y satélite CONAE (900×620), más una reserva moderada para pronóstico diario y UV, para reducir cambios de layout sin crear skeletons ni datos simulados.
+- Home incorpora una franja compacta tras el hero sólo cuando hay alertas oficiales SMN y/o Avisos Locales activos. Cada enlace lleva a su sección completa y conserva explícitamente la distinción entre fuente oficial y aviso local.
+- Se mejoró la adaptación mobile con encabezados que pueden envolver, controles de aproximadamente 44 px y foco visible. Se eliminó el `aria-live` global del contenido principal para no anunciar refrescos periódicos completos.
+- Históricos cancela las solicitudes relevantes anteriores al cambiar período o fecha, impidiendo que respuestas antiguas sobrescriban la selección actual. No cambian endpoints, cálculos ni datos.
+- Inter deja de cargarse mediante `@import`: Home e Históricos usan preconnect y stylesheet explícito con `display=swap`. Font Awesome mantiene su carga estable actual.
+- No hubo cambios a Worker, D1, migraciones, crons, proveedores, cuota Meteored, PWS, EMA, Resend, Social, SMN/CAP, lógica meteorológica, Analytics, SEO ni monetización.
+
 ## v1.15 - Índice UV previsto
 
 - Home incorpora una tarjeta ambiental independiente, **Índice UV previsto**, alimentada únicamente por `daily.days[].uv_index_max` de la caché diaria Meteored ya publicada por `GET /api/forecast/daily`.

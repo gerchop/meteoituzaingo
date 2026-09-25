@@ -19,6 +19,9 @@
   <meta name="twitter:description" content="Tiempo actual, pronóstico, radar, satélite e históricos de Ituzaingó.">
   <title>Clima en Ituzaingó | Tiempo actual, pronóstico y radar | Meteo Ituzaingó</title>
   <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
   <link rel="stylesheet" href="css/dashboard.css">
   <script type="application/ld+json">
@@ -26,7 +29,7 @@
   </script>
 </head>
 <body>
-  <main id="meteo-dashboard" aria-live="polite">
+  <main id="meteo-dashboard">
     <header class="weather-hero" aria-labelledby="location-title">
       <div class="hero-topline">
         <p class="eyebrow"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> Estación meteorológica local</p>
@@ -61,6 +64,8 @@
         </div>
       </div>
     </header>
+
+    <section id="activeNoticeStrip" class="active-notice-strip" aria-label="Avisos meteorológicos vigentes" hidden></section>
 
     <section class="conditions" aria-labelledby="conditions-title">
       <div class="section-heading">
@@ -138,7 +143,7 @@
 
     <section class="forecast-section media-section" aria-labelledby="radar-title">
       <div class="section-heading"><div><p class="eyebrow">Precipitación</p><h2 id="radar-title">Radar meteorológico</h2></div><button id="refreshRadar" class="media-refresh" type="button"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Actualizar</button></div>
-      <div class="media-frame"><img id="radarImage" alt="Radar meteorológico de Ezeiza" loading="lazy" decoding="async"></div>
+      <div id="radarFrame" class="media-frame radar-frame"><img id="radarImage" alt="Radar meteorológico de Ezeiza" loading="lazy" decoding="async"></div>
       <p id="radarMeta" class="media-meta">Fuente provisional: ClimaSurGBA.</p>
     </section>
 
@@ -149,7 +154,7 @@
         <div class="animation-controls" aria-label="Controles de animación satelital"><button id="satellitePlay" class="media-refresh" type="button"><i class="fa-solid fa-pause" aria-hidden="true"></i> Pausar</button><button id="satellitePrevious" class="media-refresh icon-button" type="button" aria-label="Imagen anterior" title="Imagen anterior"><i class="fa-solid fa-backward-step" aria-hidden="true"></i></button><button id="satelliteNext" class="media-refresh icon-button" type="button" aria-label="Imagen siguiente" title="Imagen siguiente"><i class="fa-solid fa-forward-step" aria-hidden="true"></i></button></div>
       </div>
       <div class="media-frame satellite-frame"><img id="satelliteImage" alt="Animación satelital GOES-19 de Argentina — Infrarrojo de onda larga" loading="lazy" decoding="async"><div id="satellitePlaceholder" class="media-unavailable" hidden><i class="fa-solid fa-satellite-dish" aria-hidden="true"></i><p id="satelliteMessage">Imagen satelital temporalmente no disponible.</p></div></div>
-      <p id="satelliteMeta" class="media-meta">Última imagen: consultando datos de CONAE…</p>
+      <p id="satelliteMeta" class="media-meta">La secuencia se cargará al acercarte a esta sección. Fuente: CONAE.</p>
       <p class="media-attribution">Fuente: CONAE — Comisión Nacional de Actividades Espaciales.</p>
     </section>
   </main>
@@ -161,7 +166,6 @@
   <script src="js/history-config.js" defer></script>
   <script src="js/datetime-utils.js" defer></script>
   <script src="js/history-api.js" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
   <script src="js/dashboard.js" defer></script>
   <script src="js/analytics-config.js" defer></script>
   <script src="js/analytics.js" defer></script>

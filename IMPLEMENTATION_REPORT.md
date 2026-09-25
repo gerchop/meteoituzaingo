@@ -1,3 +1,21 @@
+# Informe de implementación v1.16
+
+## UX mobile, estabilidad visual y carga diferida
+
+**Ruta inicial.** Home ya no declara Chart.js en el HTML. `dashboard.js` inicia inmediatamente condiciones, pronósticos, alertas y avisos; una promesa compartida carga Chart.js sólo cuando el histórico compacto está a 400 px del viewport. La consulta `hours=24` ocurre después de esa carga, por lo que Chart.js (~206 KB) y el histórico compacto dejan de pertenecer al arranque. Históricos conserva Chart.js inicial porque los gráficos son su función principal.
+
+**Medios.** Radar se inicializa una única vez cerca de `#radarFrame`, conserva el refresh de diez minutos y reserva `aspect-ratio: 1 / 1`, conforme al asset auditado 1341×1336. Satélite conserva la secuencia CONAE, seis frames y refresh de treinta minutos, pero espera proximidad al viewport. El asset real auditado fue 900×620 y reserva `45 / 31`; el timer de 500 ms sólo existe mientras la sección está próxima/visible y no hay preferencia de movimiento reducido. Los botones siguen permitiendo refrescar, navegar y reproducir manualmente.
+
+**CLS y mobile.** Forecast diario y UV tienen reservas moderadas; alertas no reservan espacios grandes si no hay estado activo. Una franja compacta, sin duplicar detalle, se muestra justo después del hero únicamente para SMN activo y/o Avisos Locales activos, con enlaces separados a sus secciones. Encabezados pueden envolver en móvil; controles importantes usan una altura de 44 px y el foco visible está limitado al wrapper `#meteo-dashboard` para no afectar futuras plantillas Blogger.
+
+**Accesibilidad e Históricos.** Se retiró `aria-live` del `<main>` global y se conservaron regiones concretas. Las solicitudes de período, comparativa y resumen de Históricos comparten `AbortController` y un token de generación: un cambio de 24 h/7 d/30 d/fecha cancela la solicitud anterior y una respuesta tardía no puede reemplazar el estado actual.
+
+**Blogger y AdSense.** Los estilos nuevos se limitan al wrapper cuando es práctico. La deuda existente para una migración futura continúa documentada: selectores globales como `*`, `body`, `h1`, `h2`, `.card`, `.conditions` y `.section-heading` requieren namespacing posterior. No se integraron anuncios, scripts ni placeholders; se mantienen como ubicaciones futuras después de daily+UV, después de satélite y en Históricos tras paneles principales/récords, con reserva previa obligatoria al implementar una unidad real.
+
+**Validación.** `npm.cmd test` completo, incluyendo la nueva suite de UX, `node --check` para los JS modificados y `git diff --check` pasaron. PageSpeed permaneció no disponible por HTTP 429 durante la auditoría; no se inventaron métricas de laboratorio o campo.
+
+---
+
 # Informe de implementación v1.15
 
 ## Índice UV previsto diario

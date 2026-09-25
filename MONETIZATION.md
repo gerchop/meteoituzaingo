@@ -1,5 +1,9 @@
 # Preparación para monetización
 
+## Actualización v1.16
+
+No se integró AdSense, scripts, IDs ni espacios vacíos. Las ubicaciones candidatas permanecen: después de forecast diario + UV y antes de Radar, después de Satélite y en Históricos después de paneles principales o Récords. Cuando haya una unidad aprobada, su contenedor deberá reservar dimensiones antes de solicitarla para evitar CLS.
+
 ## Alcance de v1.5
 
 No se integró AdSense, Publisher ID, `ads.txt`, script publicitario, unidad de anuncios ni placeholder visual. La preparación consiste en preservar ubicaciones razonables, documentar criterios y evitar que una futura integración altere el layout o los datos meteorológicos.
