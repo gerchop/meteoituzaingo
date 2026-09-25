@@ -1,5 +1,13 @@
 # Fuentes de datos
 
+## Meteored: Índice UV previsto diario (v1.15)
+
+Home consume exclusivamente `daily.days[].uv_index_max` desde la caché Meteored ya expuesta por `GET /api/forecast/daily`. El campo se interpreta como máximo diario previsto, no como una medición actual. La selección de Hoy y las etiquetas de los días se calculan en `America/Argentina/Buenos_Aires`; no se elige el primer elemento del array.
+
+La presentación conserva el valor decimal y lo clasifica en Bajo (`0–<3`), Moderado (`3–<6`), Alto (`6–<8`), Muy alto (`8–<11`) y Extremo (`>=11`). Sólo se aceptan números finitos no negativos; valores ausentes, inválidos, negativos o duplicados por fecha local quedan fuera. El valor `0` es válido.
+
+Meteo Ituzaingó no posee sensor UV local. No se utiliza `hourly.hours[].uv_index_max` ni campos UV de Weather.com/PWS, aunque aparezcan en otras respuestas o documentación. Esta versión no expone UV actual, observado, histórico ni una predicción por hora; tampoco escribe UV en `weather_observations`, CSV ni gráficos históricos. La respuesta stale/no disponible conserva la política existente de `/api/forecast/daily`; el módulo UV se degrada en forma independiente sin disparar refreshes ni solicitudes directas a Meteored. El costo adicional es cero y el presupuesto normal permanece en 12 requests Meteored diarios.
+
 ## Meteored: Avisos Locales HIGH_TEMP y WIND (v1.14)
 
 `GET /api/advisories` sigue siendo D1/cache-only: utiliza los payloads `daily` y `hourly` ya persistidos en `social_forecast_cache`, sin iniciar solicitudes a Meteored. HIGH_TEMP evalúa máximas daily de hoy y mañana en `America/Argentina/Buenos_Aires` con `updated_at` de hasta ocho horas: `>=34 °C` para Información local y `>=36 °C` para Atención local. Estos son umbrales operativos propios, no niveles SAT/SAT-TE ni equivalencias con el SMN.

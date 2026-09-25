@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node test/smn-alerts.test.mjs && node test/smn-alerts-frontend.test.mjs && node test/social-forecast.test.mjs && node test/current.test.mjs && node test/advisory-time.test.mjs && node test/advisories.test.mjs && node test/advisory-frontend.test.mjs && node test/forecast-cache.test.mjs && node test/forecast-frontend.test.mjs && node test/ema-health.test.mjs && node test/resend-email.test.mjs",
+    "test": "node test/smn-alerts.test.mjs && node test/smn-alerts-frontend.test.mjs && node test/social-forecast.test.mjs && node test/current.test.mjs && node test/advisory-time.test.mjs && node test/advisories.test.mjs && node test/advisory-frontend.test.mjs && node test/forecast-cache.test.mjs && node test/forecast-frontend.test.mjs && node test/uv-forecast.test.mjs && node test/ema-health.test.mjs && node test/resend-email.test.mjs",
     "test:ema-email": "node scripts/test-ema-email.mjs",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",

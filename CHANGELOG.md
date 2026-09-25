@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.15 - Índice UV previsto
+
+- Home incorpora una tarjeta ambiental independiente, **Índice UV previsto**, alimentada únicamente por `daily.days[].uv_index_max` de la caché diaria Meteored ya publicada por `GET /api/forecast/daily`.
+- La tarjeta muestra para Hoy ART el máximo UV previsto, su categoría (`Bajo`, `Moderado`, `Alto`, `Muy alto` o `Extremo`) y una lista compacta de días disponibles. La fecha se resuelve en `America/Argentina/Buenos_Aires`, nunca por posición del array.
+- La clasificación conserva el decimal original: `<3` Bajo, `3–<6` Moderado, `6–<8` Alto, `8–<11` Muy alto y `>=11` Extremo. Valores ausentes, no numéricos, negativos o no finitos se omiten; `0` sigue siendo válido.
+- Si no existe un máximo daily usable para Hoy, el módulo informa de forma aislada que la información UV no está disponible. No se infiere UV de hourly, Weather.com, PWS ni de otro proveedor, y no se presentan lecturas como actuales u observadas.
+- Meteo Ituzaingó no posee sensor UV local: el valor no se persiste en históricos ni se deriva de radiación solar. No hubo cambios a Worker, D1, migraciones, crons, secretos, proveedores, llamadas Meteored, cuota, alertas SMN, avisos locales, Social, EMA ni Resend; el presupuesto se mantiene en 12 requests Meteored diarios. Se agregaron pruebas determinísticas de categorías decimales, validación y selección temporal ART.
+
 ## v1.14 - Avisos locales por altas temperaturas y viento
 
 - `GET /api/advisories` incorpora las familias independientes **Altas temperaturas** y **Viento**, junto a Bajas temperaturas y Tormentas. Cada una conserva `evaluationStatus` técnico y `publicStatus` (`active`, `no_advisory`, `unavailable`) del contrato v1.13.5.

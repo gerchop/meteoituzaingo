@@ -61,6 +61,24 @@ h2 { margin-top:4px; font-size:1.18rem; letter-spacing:-.03em; }
 .daily-forecast { display:grid; gap:8px; }
 .day-card { display:grid; grid-template-columns:68px 1fr auto; align-items:center; gap:10px; padding:13px 14px; border:1px solid #e2ebf1; border-radius:14px; background:#fff; box-shadow:0 3px 12px rgba(27,64,90,.04); }
 .day-card time { font-size:.82rem; font-weight:700; }
+.uv-forecast {
+  display: grid;
+  gap: 5px;
+  padding: 17px;
+  border: 1px solid #dce8ef;
+  border-radius: 15px;
+  background: linear-gradient(145deg, #f8fbfd, #fff);
+  box-shadow: 0 3px 12px rgba(27, 64, 90, .04);
+}
+
+.uv-value { color: var(--blue); font-size: 2rem; font-weight: 700; letter-spacing: -.05em; line-height: 1; }
+.uv-category { color: var(--ink); font-size: .86rem; font-weight: 700; }
+.uv-description { color: var(--muted); font-size: .72rem; }
+.uv-future-days { display: grid; gap: 7px; margin-top: 10px; }
+.uv-day { display: grid; grid-template-columns: 1fr auto auto; gap: 9px; align-items: center; padding: 10px 13px; border: 1px solid #e2ebf1; border-radius: 12px; background: #fff; box-shadow: 0 2px 8px rgba(27, 64, 90, .03); }
+.uv-day strong { font-size: .8rem; }
+.uv-day span { color: var(--muted); font-size: .76rem; }
+.uv-day small { color: var(--ink); font-size: .72rem; }
 .day-condition { display:flex; align-items:center; gap:9px; color:var(--muted); font-size:.78rem; }
 .day-temperatures { display:flex; gap:8px; font-size:.84rem; }
 .day-temperatures strong { color:var(--blue); }

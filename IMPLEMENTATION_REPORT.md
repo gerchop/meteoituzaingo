@@ -1,3 +1,19 @@
+# Informe de implementación v1.15
+
+## Índice UV previsto diario
+
+Se añadió en Home una tarjeta ambiental aislada que recibe el mismo payload daily Meteored que ya utiliza el pronóstico extendido. No se creó endpoint, Worker, consulta upstream, persistencia ni mecanismo de actualización adicional: el navegador continúa consumiendo `GET /api/forecast/daily` y su caché local existente.
+
+La tarjeta busca específicamente la jornada de Hoy en `America/Argentina/Buenos_Aires`; no asume que `days[0]` sea Hoy. Usa sólo `daily.days[].uv_index_max`, acepta números finitos no negativos —incluido `0`— y conserva el decimal para clasificar: Bajo `<3`, Moderado `<6`, Alto `<8`, Muy alto `<11` y Extremo `>=11`. Los días sin valor válido y las fechas locales duplicadas se excluyen para no inventar resultados. La lista secundaria muestra Hoy, Mañana o el día de semana disponible.
+
+El texto presenta el dato como «Máximo previsto hoy» y «Pronóstico diario». Meteo Ituzaingó no posee sensor UV local: no afirma UV actual, observado ni por hora, no infiere UV desde radiación solar y no lo escribe en observaciones, CSV ni históricos. Si la caché daily está ausente, vencida o no contiene un valor usable para Hoy, sólo este módulo muestra «Información UV temporalmente no disponible.»; el pronóstico extendido conserva su propio estado. No se usó `hourly.hours[].uv_index_max`, Weather.com ni PWS.
+
+**Infraestructura y cuota.** Migración, cron, provider, secret y Worker nuevos: ninguno. El cache `social_forecast_cache`, TTL y scheduler se preservan. Requests Meteored adicionales: cero; el presupuesto normal permanece en 12 diarios. Alertas SMN, Avisos Locales, Social, EMA, Resend, PWS e Históricos no cambian.
+
+**Validación local.** La suite UV verifica todos los límites decimales, `0`, valores nulos/no numéricos/no finitos/negativos, formato decimal local, elección de Hoy ART cerca de medianoche, etiquetas, fechas duplicadas, renderizado válido/fallback aislado y la ausencia de uso UV dentro del renderer horario. Las suites existentes y los chequeos sintácticos continúan formando parte de `npm test`.
+
+---
+
 # Informe de implementación v1.14
 
 ## Avisos locales: altas temperaturas, viento y explicabilidad térmica

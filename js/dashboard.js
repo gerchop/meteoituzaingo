@@ -396,6 +396,67 @@ function renderizarDiario(data) {
   if (!dias.length) { mensajePronostico("dailyForecast", "Meteored no devolvió días de pronóstico para esta ubicación."); fuentePronostico("dailySource", false); } else { fuentePronostico("dailySource", true); document.getElementById("dailySource").textContent = "Fuente: Meteored"; }
 }
 
+/** UV v1.15 uses only the documented daily Meteored maximum, never hourly UV. */
+function valorUvDiario(value) { return Number.isFinite(value) && value >= 0 ? value : null; }
+function categoriaUv(value) {
+  const uv = valorUvDiario(value);
+  if (uv === null) return null;
+  if (uv < 3) return "Bajo";
+  if (uv < 6) return "Moderado";
+  if (uv < 8) return "Alto";
+  if (uv < 11) return "Muy alto";
+  return "Extremo";
+}
+function fechaLocalMeteoredIso(value) {
+  const parsed = timestampMeteored(value); if (!Number.isFinite(parsed)) return null;
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(parsed)).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+function fechaUvActual(now = Date.now()) { return fechaLocalMeteoredIso(now); }
+function fechaUvSiguiente(date) { const [year, month, day] = date.split("-").map(Number); return new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10); }
+function diasUvDiarios(data) {
+  const unique = new Map(); const duplicates = new Set();
+  (Array.isArray(data?.days) ? data.days : []).forEach((day) => {
+    const date = fechaLocalMeteoredIso(day?.start); const uv = valorUvDiario(day?.uv_index_max);
+    if (!date || uv === null) return;
+    if (unique.has(date)) { duplicates.add(date); return; }
+    unique.set(date, { date, uv, category: categoriaUv(uv) });
+  });
+  duplicates.forEach((date) => unique.delete(date));
+  return [...unique.values()].sort((left, right) => left.date.localeCompare(right.date));
+}
+function etiquetaDiaUv(date, today) {
+  if (date === today) return "Hoy";
+  if (date === fechaUvSiguiente(today)) return "Mañana";
+  return new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "short" }).format(new Date(`${date}T12:00:00-03:00`)).replace(".", "");
+}
+function formatoUv(value) { return new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(value); }
+function mostrarUvNoDisponible() {
+  const forecast = document.getElementById("uvForecast"); const future = document.getElementById("uvFutureDays"); const source = document.getElementById("uvSource");
+  if (forecast) forecast.innerHTML = '<p class="forecast-message">Información UV temporalmente no disponible.</p>';
+  if (future) { future.replaceChildren(); future.hidden = true; }
+  if (source) source.hidden = true;
+}
+function renderizarUvDiario(data, now = Date.now()) {
+  const forecast = document.getElementById("uvForecast"); const future = document.getElementById("uvFutureDays"); const source = document.getElementById("uvSource");
+  if (!forecast || !future || !source) return;
+  const today = fechaUvActual(now); const days = diasUvDiarios(data); const current = days.find((day) => day.date === today);
+  if (!today || !current) { mostrarUvNoDisponible(); return; }
+  const value = document.createElement("strong"); value.className = "uv-value"; value.textContent = formatoUv(current.uv);
+  const category = document.createElement("span"); category.className = "uv-category"; category.textContent = current.category;
+  const description = document.createElement("span"); description.className = "uv-description"; description.textContent = "Máximo previsto hoy.";
+  forecast.replaceChildren(value, category, description);
+  future.replaceChildren(...days.map((day) => {
+    const row = document.createElement("article"); row.className = "uv-day";
+    const label = document.createElement("strong"); label.textContent = etiquetaDiaUv(day.date, today);
+    const uv = document.createElement("span"); uv.textContent = formatoUv(day.uv);
+    const category = document.createElement("small"); category.textContent = day.category;
+    row.append(label, uv, category); return row;
+  }));
+  future.hidden = !days.length;
+  source.hidden = false; source.textContent = "Fuente: Meteored · Pronóstico diario.";
+}
+
 function leerCacheMeteored(tipo) {
   try { return JSON.parse(localStorage.getItem(`${METEORED_CACHE_PREFIX}${tipo}`)); } catch (error) { return null; }
 }
@@ -427,7 +488,7 @@ function fuenteCachePronostico(tipo, cache) {
 /** Lee la caché D1 publicada; el navegador nunca solicita Meteored directamente. */
 async function cargarPronosticos() {
   try { const forecast = await obtenerPronosticoMeteored("hourly"); renderizarHorario(forecast.data); fuenteCachePronostico("hourly", forecast); } catch (error) { console.error("No se pudo cargar el pronóstico horario:", error); const exhausted = error?.forecastCacheState === "EXHAUSTED"; mensajePronostico("hourlyForecast", exhausted ? "El pronóstico horario está temporalmente sin actualización reciente." : "No se pudo actualizar el pronóstico horario de Meteored."); fuentePronostico("hourlySource", false); }
-  try { const forecast = await obtenerPronosticoMeteored("daily"); renderizarDiario(forecast.data); fuenteCachePronostico("daily", forecast); } catch (error) { console.error("No se pudo cargar el pronóstico extendido:", error); mensajePronostico("dailyForecast", "No se pudo actualizar el pronóstico extendido de Meteored."); fuentePronostico("dailySource", false); }
+  try { const forecast = await obtenerPronosticoMeteored("daily"); renderizarDiario(forecast.data); renderizarUvDiario(forecast.data); fuenteCachePronostico("daily", forecast); } catch (error) { console.error("No se pudo cargar el pronóstico extendido:", error); mensajePronostico("dailyForecast", "No se pudo actualizar el pronóstico extendido de Meteored."); fuentePronostico("dailySource", false); mostrarUvNoDisponible(); }
 }
 
 function horaActualizacion() { return DateTime.formatTime(new Date()); }

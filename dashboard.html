@@ -129,6 +129,13 @@
       <p id="dailySource" class="forecast-source" hidden></p>
     </section>
 
+    <section class="forecast-section uv-section" aria-labelledby="uv-title">
+      <div class="section-heading"><div><p class="eyebrow">Pronóstico ambiental</p><h2 id="uv-title">Índice UV previsto</h2></div></div>
+      <div id="uvForecast" class="uv-forecast" aria-live="polite"><p class="forecast-message">Preparando información UV…</p></div>
+      <div id="uvFutureDays" class="uv-future-days" hidden></div>
+      <p id="uvSource" class="forecast-source" hidden></p>
+    </section>
+
     <section class="forecast-section media-section" aria-labelledby="radar-title">
       <div class="section-heading"><div><p class="eyebrow">Precipitación</p><h2 id="radar-title">Radar meteorológico</h2></div><button id="refreshRadar" class="media-refresh" type="button"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Actualizar</button></div>
       <div class="media-frame"><img id="radarImage" alt="Radar meteorológico de Ezeiza" loading="lazy" decoding="async"></div>
