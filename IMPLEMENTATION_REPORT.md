@@ -1,3 +1,23 @@
+# Informe de implementación v1.16.2
+
+## Hotfix: reproductor satelital mobile
+
+### Causa raíz
+
+La secuencia CONAE continúa cargando una lista de URLs en `actualizarSatelite`, guarda el índice en `satelite.indice` y cambia `img.src` mediante `cambiarCuadroSatelital`. El tick y su módulo eran correctos. La regresión fue introducida por la transición v1.16/v1.16.1: `reproduciendo` representaba intención de autoplay, pero v1.16.1 hizo que el texto del botón representara la existencia real del timer. Cuando la sección aún no tenía timer, el botón decía «Reproducir» aunque `reproduciendo` seguía en `true`; el click lo invertía a `false` y bloqueaba el arranque. La misma condición `!reducedMotion` también impedía un Play explícito.
+
+### Máquina de estados
+
+El estado se normaliza como `initialized`, `framesReady`, `visible`, `paginaVisible`, `reducedMotion`, `autoplayHabilitado`, `userRequestedPlayback` y `temporizador`. La intención de reproducir es automática sólo sin reduced motion, o explícita si el usuario la solicita. El timer de 500 ms se crea exclusivamente con al menos dos cuadros, documento/sección visibles e intención activa; el inicio duplicado no crea otro intervalo. `alternarReproduccionSatelital` ejecuta la acción manual directamente, sin esperar otro observer. Si la intención llega antes de tener dos cuadros, permanece guardada y la sincronización posterior al fetch inicia la secuencia.
+
+`IntersectionObserver` permanece como optimización: uno carga cerca del viewport y otro, con umbral bajo, pausa/reanuda el autoplay. No es requisito frágil para el Play manual una vez que el reproductor es visible. El cambio no precarga ni redescarga cuadros al alternar Play/Pause: reutiliza las URLs obtenidas de CONAE. Con `prefers-reduced-motion`, no hay autoanimación; Play explícito es una elección del usuario y sí puede animar.
+
+### Pruebas y alcance
+
+`satellite-player.test.mjs` ejecuta la máquina real extraída de `dashboard.js` con seis cuadros: comprueba timer, avance, wrap, fuente de imagen, idempotencia, un cuadro insuficiente, intención pendiente, pausa/reanudación por viewport y pestaña, y reduced motion con Play manual. La verificación de dispositivo móvil físico sigue siendo necesaria antes de declarar cerrada visualmente la incidencia; el entorno de automatización disponible no ofrece una captura móvil utilizable. No hubo cambios CSS ni de tamaño; se preservan lazy loading y todas las optimizaciones de v1.16/v1.16.1. Worker, D1, crons, proveedores, Meteored, PWS, UV, SMN/CAP, Social, EMA, Resend, Históricos, SEO, Blogger y AdSense permanecen sin cambios.
+
+---
+
 # Informe de implementación v1.16.1
 
 ## Hotfix: proporción de medios y ciclo satelital

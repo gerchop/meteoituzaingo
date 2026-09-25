@@ -45,7 +45,7 @@ const METEORED_SIMBOLOS = {
   30: ["Lluvia y nieve", "fa-cloud-rain"], 31: ["Lluvia y nieve", "fa-cloud-rain"], 32: ["Nevada intensa", "fa-snowflake"], 33: ["Nevada intensa", "fa-snowflake"], 34: ["Tormentas", "fa-cloud-bolt"], 35: ["Tormentas", "fa-cloud-bolt"],
   36: ["Granizo", "fa-cloud-bolt"], 37: ["Granizo", "fa-cloud-bolt"], 38: ["Tormentas con granizo", "fa-cloud-bolt"], 39: ["Tormentas con granizo", "fa-cloud-bolt"], 40: ["Tormenta de arena", "fa-wind"], 41: ["Ventisca", "fa-wind"]
 };
-let satelite = { imagenes: [], indice: 0, reproduciendo: true, temporizador: null, actualizador: null, visible: false, paginaVisible: document.visibilityState !== "hidden", reducedMotion: false, initialized: false };
+let satelite = { imagenes: [], indice: 0, framesReady: false, userRequestedPlayback: false, autoplayHabilitado: true, temporizador: null, actualizador: null, visible: false, paginaVisible: document.visibilityState !== "hidden", reducedMotion: false, initialized: false };
 let graficoHistorico;
 let chartJsPromise = null;
 let radarInitialized = false;
@@ -573,8 +573,12 @@ function actualizarBotonReproduccion() {
   boton.innerHTML = animando ? '<i class="fa-solid fa-pause" aria-hidden="true"></i> Pausar' : '<i class="fa-solid fa-play" aria-hidden="true"></i> Reproducir';
 }
 
+function hayIntencionDeReproducirSatelite() {
+  return satelite.userRequestedPlayback || (satelite.autoplayHabilitado && !satelite.reducedMotion);
+}
+
 function puedeAnimarSatelite() {
-  return satelite.reproduciendo && satelite.visible && satelite.paginaVisible && !satelite.reducedMotion && satelite.imagenes.length >= 2;
+  return hayIntencionDeReproducirSatelite() && satelite.visible && satelite.paginaVisible && satelite.framesReady && satelite.imagenes.length >= 2;
 }
 
 function iniciarAnimacionSatelital() {
@@ -591,6 +595,16 @@ function detenerAnimacionSatelital() {
 function sincronizarAnimacionSatelital() {
   if (puedeAnimarSatelite()) iniciarAnimacionSatelital(); else detenerAnimacionSatelital();
   actualizarBotonReproduccion();
+}
+
+function alternarReproduccionSatelital() {
+  if (satelite.temporizador !== null) {
+    satelite.userRequestedPlayback = false;
+    satelite.autoplayHabilitado = false;
+  } else {
+    satelite.userRequestedPlayback = true;
+  }
+  sincronizarAnimacionSatelital();
 }
 
 /** Obtiene la secuencia oficial de CONAE; la petición simple evita preflight y no recarga el sitio. */
@@ -610,12 +624,14 @@ async function actualizarSatelite() {
     if (!imagenes.length) throw new Error("CONAE no devolvió imágenes");
     satelite.imagenes = imagenes.map(function (item) { return { url: new URL(item.image, CONAE_BASE_URL).href }; });
     satelite.indice = 0;
+    satelite.framesReady = satelite.imagenes.length >= 2;
     satelite.ultimaFecha = datos.items.ultFecha || "no informada por CONAE";
     aviso.hidden = true; imagen.hidden = false;
     mostrarCuadroSatelital(); sincronizarAnimacionSatelital();
   } catch (error) {
     console.error("No se pudo actualizar el satélite:", error);
     detenerAnimacionSatelital();
+    satelite.framesReady = false;
     imagen.hidden = true; aviso.hidden = false;
     document.getElementById("satelliteMessage").textContent = "Imagen satelital temporalmente no disponible.";
     document.getElementById("satelliteMeta").textContent = "No fue posible obtener la secuencia de CONAE. El resto del dashboard continúa disponible.";
@@ -642,11 +658,10 @@ function iniciarSatelite() {
   document.getElementById("satelliteProduct").addEventListener("change", function () { if (!activarSatelite()) actualizarSatelite(); });
   document.getElementById("satellitePrevious").addEventListener("click", function () { cambiarCuadroSatelital(-1); });
   document.getElementById("satelliteNext").addEventListener("click", function () { cambiarCuadroSatelital(1); });
-  document.getElementById("satellitePlay").addEventListener("click", function () { satelite.reproduciendo = !satelite.reproduciendo; sincronizarAnimacionSatelital(); });
+  document.getElementById("satellitePlay").addEventListener("click", alternarReproduccionSatelital);
   const reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)");
   satelite.reducedMotion = Boolean(reducedMotion && reducedMotion.matches);
-  if (satelite.reducedMotion) satelite.reproduciendo = false;
-  if (reducedMotion && reducedMotion.addEventListener) reducedMotion.addEventListener("change", function (event) { satelite.reducedMotion = event.matches; if (event.matches) satelite.reproduciendo = false; sincronizarAnimacionSatelital(); });
+  if (reducedMotion && reducedMotion.addEventListener) reducedMotion.addEventListener("change", function (event) { satelite.reducedMotion = event.matches; sincronizarAnimacionSatelital(); });
   const section = document.querySelector(".satellite-section");
   document.addEventListener("visibilitychange", function () { satelite.paginaVisible = document.visibilityState !== "hidden"; sincronizarAnimacionSatelital(); });
   if (!("IntersectionObserver" in window)) { satelite.visible = true; activarSatelite(); return; }

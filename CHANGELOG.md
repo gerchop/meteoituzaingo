@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.16.2 - Reproductor satelital mobile
+
+- Se corrige el estado del botón de la secuencia CONAE: en v1.16.1 el texto podía indicar `Reproducir` por no existir timer mientras el booleano interno seguía activo; al pulsarlo se invertía a detenido. El reproductor ahora separa autoplay, intención explícita del usuario, disponibilidad de cuadros, visibilidad de sección/pestaña y timer efectivo.
+- Play guarda y ejecuta inmediatamente la intención del usuario cuando existen dos o más cuadros y la sección es visible. Si los cuadros aún no están listos, la intención persiste y se inicia al llegar el segundo cuadro. Pausa detiene el timer y desactiva el autoplay; salida/retorno al viewport y visibilidad de pestaña pausan/reanudan sin perder un Play solicitado.
+- `prefers-reduced-motion` sigue bloqueando sólo la autoanimación. Un usuario que pulsa Reproducir explícitamente puede iniciar la secuencia y conserva los controles manuales.
+- Se agrega una prueba determinística de la máquina de estados del reproductor: avance, vuelta al primer cuadro, timer único, un cuadro insuficiente, intención pendiente, viewport, visibilidad de documento y movimiento reducido. No cambian CSS, sizing, lazy loading, proveedores, Worker, D1, migraciones, crons ni funcionalidades meteorológicas.
+
 ## v1.16.1 - Corrección de medios y animación satelital
 
 - Se corrige la regresión visual de Radar y Satélite en tablet/escritorio: la reserva móvil conserva las proporciones reales, mientras que desde 620 px ambos componentes recuperan una altura contenida y responsiva de `clamp(240px, 40vw, 420px)`, equivalente al límite visual de la v1.15. Las imágenes siguen usando `object-fit: contain`, sin recorte ni desborde horizontal.
