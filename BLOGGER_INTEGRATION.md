@@ -1,5 +1,17 @@
 # Integración final con Blogger
 
+## Estado v1.17.1: Blogger LAB Foundation cerrada
+
+El único entorno Blogger autorizado para preparación es `https://meteoituzaingolab.blogspot.com/`. Es privado para autores, no figura en Blogger, no es visible para motores de búsqueda y mantiene HTTPS activo. No posee dominio personalizado, Search Console, AdSense, Analytics, integración con Worker/API, cambios de CORS ni enlaces entrantes desde GitHub Pages.
+
+El Blogger productivo `https://meteoituzaingo.blogspot.com/` está **FROZEN / UNCHANGED**. Ninguna personalización, contenido, backup, restauración o prueba documentada en esta sección puede aplicarse allí durante v1.17.1.
+
+El LAB conserva Contempo Light con fondo nativo eliminado, `#1976b9` como color principal, cuerpo `#f2f7fa`, entradas `#ffffff`, difuminado cero, cabecera de 220 px, título de 36 px, sidebar de 284 px, contenido de 922 px y margen de 117 px. El CSS aprobado se aplicó manualmente desde **Tema → Personalizar → Avanzado → Añadir CSS**, sobre selectores comprobados del backup XML. Compacta la cabecera con el gradiente `#0c3b66` → `#1976b9`, mantiene superficies y tarjetas editoriales, reduce el peso visual del sidebar y preserva el responsive de Contempo. La corrección de contraste de PageList se limita a sus enlaces sobre fondo claro.
+
+El backup `meteo-ituzaingo-lab-baseline-theme.xml` es el rollback del estado inicial del LAB. Para revertir la identidad aplicada, primero retirar el bloque añadido en **Añadir CSS**; si eso no basta, restaurar el XML sólo en el LAB. Los widgets bloqueados AdSense1 y AdSense2 permanecen `LOCKED / UNUSED`: no se configuran, no se ocultan mediante CSS y no se modifican mediante XML.
+
+La navegación y la entrada de prueba del LAB fueron validadas en desktop y móvil real. Los enlaces permitidos son sólo **LAB → GitHub Pages**; GitHub Pages conserva v1.16.2 sin enlaces al LAB ni cambios funcionales. El siguiente alcance permitido es v1.17.2, contenido editorial e institucional: no habilita aún indexación, Analytics, AdSense, CORS, Worker/API ni una migración de la aplicación.
+
 ## Preparación v1.16
 
 Home expone el wrapper estable `#meteo-dashboard` y los estilos nuevos de UX v1.16 se acotan a ese contexto cuando resulta práctico, incluyendo foco visible y la franja de avisos activos. Esto reduce, pero no elimina, el riesgo de colisión con una plantilla Blogger.

@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.17.1 - Blogger LAB Foundation
+
+- Se cerró la fundación aislada de Blogger LAB en `meteoituzaingolab.blogspot.com`, con tema Contempo Light, acceso privado para autores, HTTPS activo y exclusión de listado e indexación. El Blogger productivo permanece congelado y sin cambios.
+- La personalización nativa del LAB fija la identidad editorial aprobada: fondo `#f2f7fa`, superficies `#ffffff`, color principal `#1976b9`, cabecera compacta de 220 px y título de 36 px. El CSS adicional, aplicado manualmente mediante el personalizador de Blogger, usa selectores comprobados del XML de Contempo para el gradiente `#0c3b66` a `#1976b9`, tarjetas, sidebar secundaria, búsqueda, footer y responsive nativo; también corrige el contraste de PageList sobre superficie clara.
+- Se configuró navegación desde el LAB hacia las rutas públicas existentes de GitHub Pages y se publicó una única entrada de prueba. La dirección es sólo LAB → GitHub Pages: GitHub Pages no enlaza al LAB y su baseline funcional v1.16.2 no se modificó.
+- Se conservaron Buscar, Cabecera, Páginas, Entradas, Archivo, Etiquetas, Denunciar abuso y Atribución; se retiraron los gadgets opcionales permitidos por Blogger. AdSense1 y AdSense2 permanecen como widgets Contempo bloqueados y sin uso: no se configuraron, ocultaron ni modificaron por XML o CSS.
+- La validación visual desktop y en móvil real aprobó navegación, hamburger/drawer, búsqueda, legibilidad, adaptación y ausencia de overflow horizontal. El backup XML baseline del LAB queda reservado exclusivamente para rollback del LAB.
+- No hubo cambios de código funcional, dashboard, históricos, Worker, D1, CORS, crons, proveedores, Search Console, Analytics, AdSense, `ads.txt` ni CMP.
+
 ## v1.16.2 - Reproductor satelital mobile
 
 - Se corrige el estado del botón de la secuencia CONAE: en v1.16.1 el texto podía indicar `Reproducir` por no existir timer mientras el booleano interno seguía activo; al pulsarlo se invertía a detenido. El reproductor ahora separa autoplay, intención explícita del usuario, disponibilidad de cuadros, visibilidad de sección/pestaña y timer efectivo.

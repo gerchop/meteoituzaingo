@@ -1,3 +1,19 @@
+# Informe de implementación v1.17.1
+
+## Blogger LAB Foundation — cierre
+
+La fundación se realizó exclusivamente en `https://meteoituzaingolab.blogspot.com/`, un blog privado para autores, sin listado en Blogger ni visibilidad para motores de búsqueda. HTTPS está activo. No se integraron Search Console, AdSense, Analytics, Worker/API, CORS ni GitHub Pages en el LAB. El Blogger de producción continúa **FROZEN / UNCHANGED**.
+
+El LAB conserva Contempo Light. La configuración nativa elimina la imagen de fondo y establece `#1976b9` como color principal, `#f2f7fa` como fondo de cuerpo, `#ffffff` para entradas, difuminado cero, fondo de 220 px, título de 36 px y los anchos nativos de sidebar (284 px), contenido (922 px) y margen (117 px). El CSS aprobado se cargó manualmente mediante **Tema → Personalizar → Avanzado → Añadir CSS**; usa únicamente selectores verificados en el XML baseline de Contempo y da una cabecera editorial con gradiente `#0c3b66` → `#1976b9`, superficies blancas, tarjetas discretas, sidebar secundaria y el responsive nativo. PageList recibió una regla de contraste específica sobre su superficie clara.
+
+La navegación del LAB incluye Inicio y accesos a Tiempo actual, Pronóstico, Históricos y Radar y satélite en GitHub Pages. La relación es deliberadamente unidireccional: **LAB → GitHub Pages**. No se añadieron enlaces desde GitHub Pages hacia el LAB. La entrada de prueba «Bienvenidos a Meteo Ituzaingó» y su vista individual validaron el flujo editorial; los comentarios están deshabilitados globalmente.
+
+Se conservan Buscar este blog, Cabecera, Páginas, Entradas del blog, Archivo del blog, Etiquetas, Denunciar abuso y Atribución. Datos personales, Entrada destacada y Entradas populares fueron retirados cuando Blogger lo permitió. AdSense1 y AdSense2 siguen siendo widgets bloqueados de Contempo, sin configurar ni ocultar; no se modificó XML para intervenirlos. El rollback nivel 1 consiste en retirar el bloque de CSS adicional del LAB; el nivel 2, en restaurar exclusivamente el backup XML baseline del LAB, nunca sobre producción.
+
+La validación manual desktop y en un móvil real fue satisfactoria: no hubo overflow horizontal; hamburger, drawer/sidebar, búsqueda, navegación, legibilidad del título, contenido responsive, header compacto y superficies funcionaron correctamente. Por tanto, el estado es **GO — Blogger LAB FOUNDATION READY**. No se hicieron cambios a la aplicación de GitHub Pages (baseline funcional v1.16.2), dashboard, históricos, Worker, D1, CORS, crons, proveedores, Search Console, Cloudflare Analytics, AdSense, `ads.txt` o CMP.
+
+---
+
 # Informe de implementación v1.16.2
 
 ## Hotfix: reproductor satelital mobile
