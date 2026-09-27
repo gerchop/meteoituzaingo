@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { alertsResponse, CAP_BATCH_SIZE, CAP_CONCURRENCY, CAP_FAST_PATH_QUOTA, CAP_TIMEOUT_MS, distributedCapSample, mapWithConcurrency, normalizeCap, pointInPolygon, referenceMatchesCapIdentifier, rssIdentities, selectCapBatch } from "../src/smn-alerts.js";
+import { alertsResponse, CAP_BATCH_SIZE, CAP_CONCURRENCY, CAP_FAST_PATH_QUOTA, CAP_TIMEOUT_MS, distributedCapSample, mapWithConcurrency, normalizeCap, pointInPolygon, referenceMatchesCapIdentifier, rssIdentities, selectCapBatch, selectFastPathGeneration } from "../src/smn-alerts.js";
 
 const NOW = Date.parse("2026-09-19T16:00:00-03:00");
 const INSIDE = "-34.56,-58.52 -34.70,-58.52 -34.70,-58.90 -34.56,-58.90 -34.56,-58.52";
@@ -30,6 +30,21 @@ assert.equal(selectedBatch.items.length, CAP_BATCH_SIZE, "La ejecución conserva
 assert.equal(selectedBatch.fastPathCount, CAP_FAST_PATH_QUOTA, "Sólo cuatro solicitudes usan la vía rápida de generación nueva.");
 assert.ok(selectedBatch.items.some((item) => item.cap_url === newGeneration.at(-1).cap_url), "El extremo final de Tormentas Llanura entra en el primer tick.");
 assert.deepEqual(selectedBatch.items.slice(CAP_FAST_PATH_QUOTA).map((item) => item.cap_url), oldBacklog.slice(0, CAP_BATCH_SIZE - CAP_FAST_PATH_QUOTA).map((item) => item.cap_url), "La cuota FIFO evita que el backlog existente quede sin progreso.");
+const generations = [{ first_seen_at: "2026-09-27T14:05:26.210Z", pending_count: 76 }, { first_seen_at: "2026-09-27T14:15:26.210Z", pending_count: 76 }];
+assert.equal(selectFastPathGeneration(generations, 0).first_seen_at, generations[0].first_seen_at, "La cohorte persistida más antigua puede recibir fast-path tras un deploy.");
+assert.equal(selectFastPathGeneration(generations, 1).first_seen_at, generations[1].first_seen_at, "scan_generation rota de forma determinista entre cohortes grandes.");
+let remainingGeneration = [...newGeneration];
+const distributedHistory = new Set();
+for (let tick = 0; tick < 25 && remainingGeneration.length; tick += 1) {
+  const tickSelection = selectCapBatch(remainingGeneration, oldBacklog);
+  const tickFast = tickSelection.items.slice(0, CAP_FAST_PATH_QUOTA);
+  assert.ok(tickFast.every((item) => !distributedHistory.has(item.cap_url)), "Los cron consecutivos no repiten posiciones rápidas ya procesadas.");
+  tickFast.forEach((item) => distributedHistory.add(item.cap_url));
+  remainingGeneration = remainingGeneration.filter((item) => !distributedHistory.has(item.cap_url));
+}
+assert.ok(distributedHistory.has(newGeneration[50].cap_url), "Un CAP intermedio recibe cobertura distribuida en cron posteriores.");
+assert.ok(distributedHistory.has(newGeneration.at(-1).cap_url), "El extremo final mantiene cobertura aun tras reinicio/deploy.");
+assert.equal(distributedCapSample(newGeneration.slice(0, 4), CAP_FAST_PATH_QUOTA).length, 4, "Una cohorte pequeña no necesita cobertura rápida adicional.");
 const failedFast = { ...newGeneration.at(-1), attempts: 1 };
 const retryBatch = selectCapBatch([failedFast], [failedFast, ...oldBacklog]);
 assert.equal(retryBatch.items.filter((item) => item.cap_url === failedFast.cap_url).length, 1, "Una descarga fallida/reintentable no duplica la solicitud dentro del mismo tick.");

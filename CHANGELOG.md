@@ -9,6 +9,13 @@
 - La validación visual desktop y en móvil real aprobó navegación, hamburger/drawer, búsqueda, legibilidad, adaptación y ausencia de overflow horizontal. El backup XML baseline del LAB queda reservado exclusivamente para rollback del LAB.
 - No hubo cambios de código funcional, dashboard, históricos, Worker, D1, CORS, crons, proveedores, Search Console, Analytics, AdSense, `ads.txt` ni CMP.
 
+## v1.16.4 - SMN CAP fast-path persistence hotfix
+
+- La vía rápida CAP deja de depender de que los URLs hayan sido descubiertos en el mismo tick. Cada cohorte persistida de descubrimiento se identifica de forma técnica por `first_seen_at`; no se presenta como una semántica o clasificación emitida por el SMN.
+- Mientras una cohorte tenga más de cuatro CAP pendientes y reintentables, puede recibir cuatro selecciones distribuidas en cada turno de fast-path, aun después de reiniciar o desplegar el Worker. Las posiciones ya procesadas se excluyen; las ejecuciones posteriores distribuyen sobre las pendientes restantes.
+- Las cohortes grandes pendientes rotan de manera determinista usando el contador persistido `scan_generation`; la cuota regular conserva al menos cuatro oportunidades FIFO. Se registran cohorte seleccionada, pendientes de cohorte, cupos FIFO y cobertura rápida restante.
+- Se preservan lote ocho, concurrencia tres, timeout ocho segundos, sin migraciones, crons, visitas que inicien consultas SMN, cambios a geolocalización CAP, colores SAT, Avisos Locales o Blogger.
+
 ## v1.16.3 - SMN CAP ingestion backlog latency hotfix
 
 - La ingesta CAP conserva el máximo de ocho descargas por cron, concurrencia tres y timeout de ocho segundos, pero ya no inspecciona una generación RSS nueva grande únicamente en orden léxico. Cuatro cupos realizan una muestra distribuida en el orden publicado por RSS y los otros cuatro conservan el progreso FIFO de la cola existente.

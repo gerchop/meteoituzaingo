@@ -14,6 +14,20 @@ La validación manual desktop y en un móvil real fue satisfactoria: no hubo ove
 
 ---
 
+# Informe de implementación v1.16.4
+
+## Hotfix: persistencia de fast-path CAP SMN
+
+v1.16.3 distribuía cuatro selecciones solamente entre URLs insertados durante el mismo cron. Una generación descubierta antes de un deploy conservaba sus filas pendientes, pero perdía esa elegibilidad en el tick siguiente. La corrección usa la cohorte de descubrimiento persistida por `smn_cap_items.first_seen_at`; es una identidad técnica de ingesta, no una afirmación sobre la generación semántica del SMN.
+
+En cada cron se buscan cohortes con más de cuatro CAP pendientes y reintentables. `scan_generation`, ya persistido en `smn_ingestion_state`, actúa como offset determinista de rotación entre cohortes. La cohorte seleccionada aporta hasta cuatro CAP pendientes distribuidos por su orden estable de URL; los otros cuatro cupos siguen FIFO por antigüedad. Como los CAP exitosos dejan de estar pendientes, cada ejecución posterior toma posiciones adicionales y no repite las cuatro ya descargadas. Una cohorte pequeña queda en la vía FIFO normal.
+
+No se necesita migración: tanto la cohorte como el contador de rotación ya sobreviven deploys, reinicios y crons. El evento `smn_ingestion` suma `fastPathGeneration`, `fastPathGenerationPending`, `fastPathRemaining` y `fifo`; conserva `newlyDiscovered`, `fastPath`, procesados, fallos, pendientes y aplicables. Se mantienen lote ocho, concurrencia tres, timeout ocho segundos y cero requests SMN por visitantes.
+
+Las pruebas cubren una cohorte anterior a deploy, último e intermedio, posiciones ya procesadas, progreso entre cron, rotación de múltiples cohortes, backlog FIFO, cohorte pequeña, reintento sin duplicación, Update, Cancel, polígono, UTC, proyección pública y frontend. La suite completa pasa localmente. No cambian D1 schema, cron, Worker adicional, fuentes, severidad/color SAT, Avisos Locales ni Blogger.
+
+---
+
 # Informe de implementación v1.16.3
 
 ## Hotfix: latencia de backlog CAP SMN
