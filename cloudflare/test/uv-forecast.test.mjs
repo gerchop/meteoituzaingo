@@ -51,11 +51,27 @@ assert.equal(context.etiquetaDiaUv("2026-09-25", "2026-09-24"), "Mañana");
 assert.equal(context.etiquetaDiaUv("2026-09-26", "2026-09-24"), "sáb");
 const duplicate = context.diasUvDiarios({ days: [{ start: at("2026-09-24"), uv_index_max: 6 }, { start: at("2026-09-24", 1), uv_index_max: 7 }] });
 assert.deepEqual(JSON.parse(JSON.stringify(duplicate)), [], "Duplicate local dates are not guessed.");
+assert.equal(context.fechaUvSiguiente("2026-12-31"), "2027-01-01", "Tomorrow keeps the local calendar across a year boundary.");
 context.renderizarUvDiario({ days: [{ start: at("2026-09-24"), uv_index_max: 6.9 }] }, artLateSep24);
 assert.equal(elements.get("uvForecast").children[0].textContent, "6,9");
 assert.equal(elements.get("uvForecast").children[1].textContent, "Alto");
 assert.equal(elements.get("uvForecast").children[2].textContent, "Máximo previsto hoy.");
 assert.equal(elements.get("uvSource").textContent, "Fuente: Meteored · Pronóstico diario.");
+assert.equal(elements.get("uvFutureDays").children.length, 0, "Today is represented only by the UV summary.");
+assert.equal(elements.get("uvFutureDays").hidden, true, "The future list stays hidden when there are no future days.");
+context.renderizarUvDiario({ days: [
+  { start: at("2026-09-23"), uv_index_max: 5.5 },
+  { start: at("2026-09-24"), uv_index_max: 6.9 },
+  { start: at("2026-09-25"), uv_index_max: 8.3 },
+  { start: at("2026-09-26"), uv_index_max: 7.6 },
+  { start: at("2026-09-27"), uv_index_max: 7.2 }
+] }, artLateSep24);
+assert.deepEqual(elements.get("uvFutureDays").children.map((row) => row.children[0].textContent), ["Ma\u00f1ana", "s\u00e1b", "dom"], "The secondary UV list starts tomorrow and preserves future ART order.");
+assert.deepEqual(elements.get("uvFutureDays").children.map((row) => row.children[1].textContent), ["8,3", "7,6", "7,2"], "Future UV values remain unchanged.");
+assert.equal(elements.get("uvFutureDays").hidden, false);
+const artNewYear = Date.parse("2027-01-01T02:30:00.000Z");
+context.renderizarUvDiario({ days: [{ start: at("2026-12-30"), uv_index_max: 4 }, { start: at("2026-12-31"), uv_index_max: 6 }, { start: at("2027-01-01"), uv_index_max: 8 }] }, artNewYear);
+assert.equal(elements.get("uvFutureDays").children[0].children[0].textContent, "Ma\u00f1ana", "Tomorrow remains first across month and year boundaries.");
 context.renderizarUvDiario({ days: [{ start: at("2026-09-24"), uv_index_max: null }] }, artLateSep24);
 assert.match(elements.get("uvForecast").innerHTML, /Información UV temporalmente no disponible\./);
 assert.equal(elements.get("uvFutureDays").hidden, true);

@@ -1,3 +1,13 @@
+# Informe de implementación v1.16.5
+
+## Limpieza visual de duplicación de Hoy en UV
+
+La tarjeta UV continúa resolviendo Hoy con la fecha local `America/Argentina/Buenos_Aires` y muestra su máximo, categoría y la leyenda «Máximo previsto hoy.». La lista secundaria se filtra durante el renderizado con `day.date > today`: así no repite Hoy, no muestra días anteriores de una caché utilizable y comienza por Mañana. No se altera el dataset, las categorías ni los valores entregados por Meteored.
+
+El pronóstico extendido se conserva sin cambios porque no cuenta con una tarjeta independiente de Hoy seguida de otra lista: su grid diario es la única representación de esos días. Las pruebas cubren la exclusión de Hoy, preservación de valores futuros, orden ART, ausencia de filas cuando no hay futuro y cruce de mes/año. No cambian CSS, backend, caché, D1, crons, proveedores, alertas, avisos, históricos, radar, satélite ni Blogger.
+
+---
+
 # Informe de implementación v1.17.1
 
 ## Blogger LAB Foundation — cierre

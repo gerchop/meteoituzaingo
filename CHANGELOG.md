@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.16.5 - Forecast duplicate-today UI cleanup
+
+- El resumen de Índice UV previsto conserva el máximo, categoría y texto de Hoy. La lista secundaria ahora renderiza sólo fechas posteriores a la fecha local actual de `America/Argentina/Buenos_Aires`; empieza en Mañana y no se basa en la posición del arreglo.
+- El pronóstico extendido no cambia: su único grid diario no tiene un resumen destacado de Hoy que duplicar, por lo que conserva Hoy y los demás días disponibles.
+- Sin cambios a datos Meteored, caché, Worker/API, D1, crons, SMN, Avisos Locales, Social, EMA, históricos, radar, satélite ni Blogger.
+
 ## v1.17.1 - Blogger LAB Foundation
 
 - Se cerró la fundación aislada de Blogger LAB en `meteoituzaingolab.blogspot.com`, con tema Contempo Light, acceso privado para autores, HTTPS activo y exclusión de listado e indexación. El Blogger productivo permanece congelado y sin cambios.

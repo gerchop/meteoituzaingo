@@ -462,14 +462,15 @@ function renderizarUvDiario(data, now = Date.now()) {
   const category = document.createElement("span"); category.className = "uv-category"; category.textContent = current.category;
   const description = document.createElement("span"); description.className = "uv-description"; description.textContent = "Máximo previsto hoy.";
   forecast.replaceChildren(value, category, description);
-  future.replaceChildren(...days.map((day) => {
+  const futureDays = days.filter((day) => day.date > today);
+  future.replaceChildren(...futureDays.map((day) => {
     const row = document.createElement("article"); row.className = "uv-day";
     const label = document.createElement("strong"); label.textContent = etiquetaDiaUv(day.date, today);
     const uv = document.createElement("span"); uv.textContent = formatoUv(day.uv);
     const category = document.createElement("small"); category.textContent = day.category;
     row.append(label, uv, category); return row;
   }));
-  future.hidden = !days.length;
+  future.hidden = !futureDays.length;
   source.hidden = false; source.textContent = "Fuente: Meteored · Pronóstico diario.";
 }
 
