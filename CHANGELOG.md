@@ -9,6 +9,13 @@
 - La validación visual desktop y en móvil real aprobó navegación, hamburger/drawer, búsqueda, legibilidad, adaptación y ausencia de overflow horizontal. El backup XML baseline del LAB queda reservado exclusivamente para rollback del LAB.
 - No hubo cambios de código funcional, dashboard, históricos, Worker, D1, CORS, crons, proveedores, Search Console, Analytics, AdSense, `ads.txt` ni CMP.
 
+## v1.16.3 - SMN CAP ingestion backlog latency hotfix
+
+- La ingesta CAP conserva el máximo de ocho descargas por cron, concurrencia tres y timeout de ocho segundos, pero ya no inspecciona una generación RSS nueva grande únicamente en orden léxico. Cuatro cupos realizan una muestra distribuida en el orden publicado por RSS y los otros cuatro conservan el progreso FIFO de la cola existente.
+- La muestra distribuida incluye los extremos de una generación superior a cuatro CAP; por ello un CAP al final del RSS recibe oportunidad de inspección en el primer tick, sin afirmar que toda geometría relevante pueda detectarse inmediatamente antes de descargar el CAP.
+- Se agrega observabilidad acotada al evento `smn_ingestion`: `newlyDiscovered` y `fastPath`, además de los contadores existentes de procesados, fallos y pendientes.
+- No hay cambios de esquema, migraciones, crons, fuentes alternativas, scraping, consultas SMN iniciadas por visitantes, inferencia de aplicabilidad geográfica desde RSS ni inferencia de color SAT desde severidad CAP. Blogger permanece fuera de este hotfix.
+
 ## v1.16.2 - Reproductor satelital mobile
 
 - Se corrige el estado del botón de la secuencia CONAE: en v1.16.1 el texto podía indicar `Reproducir` por no existir timer mientras el booleano interno seguía activo; al pulsarlo se invertía a detenido. El reproductor ahora separa autoplay, intención explícita del usuario, disponibilidad de cuadros, visibilidad de sección/pestaña y timer efectivo.

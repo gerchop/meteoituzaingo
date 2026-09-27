@@ -14,6 +14,20 @@ La validación manual desktop y en un móvil real fue satisfactoria: no hubo ove
 
 ---
 
+# Informe de implementación v1.16.3
+
+## Hotfix: latencia de backlog CAP SMN
+
+El incidente del 27/09/2026 confirmó que una publicación RSS amplia podía registrar decenas de CAP nuevos en el mismo instante y procesarlos por `cap_url` léxico: con lote ocho, 76 CAP de Tormentas Llanura quedaban detrás de CAP no relacionados. El feed RSS no provee geometría suficiente para saber qué URL contiene Ituzaingó, por lo que no se utiliza título, evento, área textual o nombre de archivo para inferir aplicabilidad.
+
+La corrección mantiene el presupuesto máximo de ocho descargas CAP por cron, concurrencia tres y timeout de ocho segundos. Si existen CAP realmente nuevos en la generación RSS actual, cuatro cupos se eligen equidistantemente en el orden RSS, incluyendo primero y último; cuatro cupos se reservan a la cola regular FIFO por `first_seen_at`. Una URL situada al final de una generación grande recibe oportunidad de descarga en el primer tick, y la cola previa conserva progreso de al menos cuatro elementos por tick. Esto es una garantía de oportunidad distribuida, no una promesa de descubrir cualquier polígono aplicable en un único ciclo.
+
+No se requirió migración ni schema nuevo: la generación se identifica con el `first_seen_at` ya persistido por la inserción normal. El log estructurado de ingesta incluye `newlyDiscovered` y `fastPath`, junto con `processed`, `failed`, `pending` y `applicable`. No cambian Worker adicional, D1, crons, consultas por visita, fuentes, reglas geográficas, consolidación Update/Cancel, filtro temporal UTC, severidad CAP, colores SAT, Avisos Locales ni Blogger.
+
+La regresión agrega una generación de 99 CAP de cuatro familias, con 76 Tormentas Llanura y un candidato al final; verifica la inclusión inmediata de ese extremo, el límite total de ocho, cuatro cupos de fast-path, la cuota FIFO de backlog antiguo, el reintento sin duplicación y la proyección pública. Se preservan pruebas existentes de timeout, concurrencia, geometría, UTC, Update, Cancel y frontend. La suite completa pasa localmente.
+
+---
+
 # Informe de implementación v1.16.2
 
 ## Hotfix: reproductor satelital mobile
