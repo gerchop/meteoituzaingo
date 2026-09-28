@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.16.6 - Local thunderstorm advisory temporal fix
+
+- Los Avisos Locales de Tormentas normalizan los intervalos Meteored con su inicio real (`end - 1 h` cuando no existe `start`) y agrupan los slots 34/35 en episodios contiguos, sin unir huecos ni cortar un episodio al cruzar medianoche.
+- Si hourly fresco y utilizable cubre una fecha, sólo los episodios en curso o futuros sostienen el aviso; los episodios totalmente terminados ya no mantienen «Aviso vigente». `startsAt` y `endsAt` reflejan los episodios relevantes y la respuesta agrega su lista sin romper consumidores existentes.
+- Si hourly está ausente o no es utilizable, se conserva el fallback diario; una señal de Mañana no desaparece sólo porque hourly aún no cubre esa fecha. No cambian D1, schema, crons, proveedores, cache Meteored, SMN/CAP, otras familias, Social, EMA, UV, históricos, radar, satélite ni Blogger.
+
 ## v1.16.5 - Forecast duplicate-today UI cleanup
 
 - El resumen de Índice UV previsto conserva el máximo, categoría y texto de Hoy. La lista secundaria ahora renderiza sólo fechas posteriores a la fecha local actual de `America/Argentina/Buenos_Aires`; empieza en Mañana y no se basa en la posición del arreglo.

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { advisoriesResponse, evaluateAdvisories, evaluateHighTemperature, evaluateLowTemperature, evaluateThunderstorm, evaluateWind, publicAdvisoryStatus, selectLowTemperatureTargetPeriod } from "../src/advisories.js";
+import { advisoriesResponse, evaluateAdvisories, evaluateHighTemperature, evaluateLowTemperature, evaluateThunderstorm, evaluateWind, publicAdvisoryStatus, selectLowTemperatureTargetPeriod, thunderstormEpisodes } from "../src/advisories.js";
 
 const at = (date, hour) => Date.parse(`${date}T${String(hour).padStart(2, "0")}:00:00-03:00`);
 const atLocal = (date, hour, minute = 0) => Date.parse(`${date}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00-03:00`);
@@ -134,7 +134,7 @@ const stormDaily = (todaySymbol = 3, tomorrowSymbol = 3, extra = {}) => ({ days:
   { start: at(TOMORROW, 0), symbol: tomorrowSymbol, ...extra }
 ] });
 const stormHour = (date, hour, symbol) => ({ end: at(date, hour), symbol });
-const storm = (extra = {}) => evaluateThunderstorm({ daily: stormDaily(), dailyUpdatedAt: new Date(NOW).toISOString(), hourly: { hours: [] }, hourlyUpdatedAt: new Date(NOW).toISOString(), now: NOW, ...extra });
+const storm = (extra = {}) => { const referenceNow = extra.now ?? NOW; return evaluateThunderstorm({ daily: stormDaily(), dailyUpdatedAt: new Date(referenceNow).toISOString(), hourly: { hours: [] }, hourlyUpdatedAt: new Date(referenceNow).toISOString(), now: referenceNow, ...extra }); };
 for (const symbol of [34, 35]) assert.equal(storm({ daily: stormDaily(symbol) }).status, "advisory", `symbol ${symbol}`);
 for (const symbol of [3, 12, 13, 28, 29, 10, 11, 38, 39]) assert.equal(storm({ daily: stormDaily(symbol) }).status, "no_advisory", `reserved/non-trigger symbol ${symbol}`);
 assert.equal(storm({ daily: stormDaily(3, 3, { rain: 80 }) }).status, "no_advisory");
@@ -152,15 +152,45 @@ assert.equal(storm({ daily: stormDaily(34), dailyUpdatedAt: null }).status, "ins
 const dailyOnlyStorm = storm({ daily: stormDaily(34, 3, { rain: 6.1, rain_probability: 80 }), hourly: null, hourlyUpdatedAt: null }).advisories[0];
 assert.equal(dailyOnlyStorm.temporalPrecision, "daily"); assert.deepEqual(dailyOnlyStorm.evidencePeriods, [{ date: TARGET, dayParts: [] }]);
 for (const [hour, expected] of [[2, "dawn"], [7, "morning"], [13, "afternoon"], [20, "night"]]) {
-  const advisory = storm({ daily: stormDaily(34), hourly: { hours: [stormHour(TARGET, hour, 34)] } }).advisories[0];
+  const advisory = storm({ daily: stormDaily(34), hourly: { hours: [stormHour(TARGET, hour, 34)] }, now: atLocal(TARGET, 0) }).advisories[0];
   assert.deepEqual(advisory.evidencePeriods[0].dayParts, [expected]);
 }
-const multiParts = storm({ daily: stormDaily(34), hourly: { hours: [stormHour(TARGET, 13, 34), stormHour(TARGET, 20, 35)] } }).advisories[0];
+const multiParts = storm({ daily: stormDaily(34), hourly: { hours: [stormHour(TARGET, 13, 34), stormHour(TARGET, 20, 35)] }, now: atLocal(TARGET, 0) }).advisories[0];
 assert.deepEqual(multiParts.evidencePeriods[0].dayParts, ["afternoon", "night"]);
-const midnightStorm = storm({ daily: stormDaily(3, 34), hourly: { hours: [stormHour(TOMORROW, 0, 35)] } }).advisories[0];
-assert.deepEqual(midnightStorm.evidencePeriods[0].dayParts, ["dawn"]);
+const midnightStorm = storm({ daily: stormDaily(34, 34), hourly: { hours: [stormHour(TOMORROW, 0, 35)] }, now: atLocal(TARGET, 20) }).advisories[0];
+assert.deepEqual(midnightStorm.evidencePeriods[0].dayParts, ["night"]);
 const twoDaysStorm = storm({ daily: stormDaily(34, 35) }).advisories[0];
 assert.equal(twoDaysStorm.targetLocalDates.length, 2); assert.equal(twoDaysStorm.id, "thunderstorm:local");
+
+// v1.16.6: hourly intervals govern thunderstorm lifetime when usable.
+const thunderstormRun = (date, firstStart, lastEnd, symbol = 34) => Array.from({ length: lastEnd - firstStart }, (_, index) => stormHour(date, firstStart + index + 1, symbol));
+const incidentNow = atLocal("2026-09-27", 21, 42);
+const incidentDaily = { days: [{ start: at("2026-09-27", 0), symbol: 34, rain_probability: 90, rain: 29.7 }, { start: at("2026-09-28", 0), symbol: 12 }] };
+const incidentHours = [
+  ...thunderstormRun("2026-09-27", 0, 6),
+  ...thunderstormRun("2026-09-27", 9, 10),
+  ...Array.from({ length: 14 }, (_, index) => stormHour("2026-09-27", index + 11, 3))
+];
+assert.equal(evaluateThunderstorm({ daily: incidentDaily, dailyUpdatedAt: new Date(incidentNow).toISOString(), hourly: { hours: incidentHours }, hourlyUpdatedAt: new Date(incidentNow).toISOString(), now: incidentNow }).status, "no_advisory", "The 27/09 incident expires after its final 09:00–10:00 ART episode.");
+const morningEpisodes = thunderstormEpisodes({ hours: thunderstormRun(TARGET, 3, 9) }, new Date(atLocal(TARGET, 8)).toISOString(), [TARGET], atLocal(TARGET, 8));
+assert.deepEqual(morningEpisodes.active.map((episode) => [episode.startsAt, episode.endsAt]), [[new Date(at(TARGET, 3)).toISOString(), new Date(at(TARGET, 9)).toISOString()]]);
+assert.equal(evaluateThunderstorm({ daily: stormDaily(34), dailyUpdatedAt: new Date(atLocal(TARGET, 9)).toISOString(), hourly: { hours: thunderstormRun(TARGET, 3, 9) }, hourlyUpdatedAt: new Date(atLocal(TARGET, 9)).toISOString(), now: atLocal(TARGET, 9) }).status, "no_advisory", "Episodes use [start,end) without a grace period.");
+const futureStorm = evaluateThunderstorm({ daily: stormDaily(34), dailyUpdatedAt: new Date(atLocal(TARGET, 18)).toISOString(), hourly: { hours: thunderstormRun(TARGET, 22, 23) }, hourlyUpdatedAt: new Date(atLocal(TARGET, 18)).toISOString(), now: atLocal(TARGET, 18) });
+assert.equal(futureStorm.status, "advisory", "A future episode remains prospectively active.");
+assert.equal(futureStorm.advisories[0].startsAt, new Date(at(TARGET, 22)).toISOString());
+assert.equal(futureStorm.advisories[0].endsAt, new Date(at(TARGET, 23)).toISOString());
+const splitHours = [...thunderstormRun(TARGET, 3, 8), ...thunderstormRun(TARGET, 20, 23)];
+const splitStorm = evaluateThunderstorm({ daily: stormDaily(34), dailyUpdatedAt: new Date(atLocal(TARGET, 12)).toISOString(), hourly: { hours: splitHours }, hourlyUpdatedAt: new Date(atLocal(TARGET, 12)).toISOString(), now: atLocal(TARGET, 12) });
+assert.equal(splitStorm.status, "advisory"); assert.equal(splitStorm.advisories[0].episodes.length, 1, "Past episodes do not merge with a future episode.");
+assert.equal(splitStorm.advisories[0].episodes[0].startsAt, new Date(at(TARGET, 20)).toISOString());
+assert.equal(thunderstormEpisodes({ hours: splitHours }, new Date(atLocal(TARGET, 12)).toISOString(), [TARGET], atLocal(TARGET, 12)).episodes.length, 2, "Discontinuous storm episodes remain separate internally.");
+const crossMidnightHours = [...thunderstormRun(TARGET, 22, 24), stormHour(TOMORROW, 1, 34), stormHour(TOMORROW, 2, 34)];
+const crossMidnight = thunderstormEpisodes({ hours: crossMidnightHours }, new Date(atLocal(TARGET, 21)).toISOString(), [TARGET, TOMORROW], atLocal(TARGET, 21));
+assert.equal(crossMidnight.active.length, 1); assert.equal(crossMidnight.active[0].startsAt, new Date(at(TARGET, 22)).toISOString()); assert.equal(crossMidnight.active[0].endsAt, new Date(at(TOMORROW, 2)).toISOString());
+const endOnly = thunderstormEpisodes({ hours: [stormHour(TARGET, 10, 34)] }, new Date(atLocal(TARGET, 8)).toISOString(), [TARGET], atLocal(TARGET, 8));
+assert.equal(endOnly.active[0].startsAt, new Date(at(TARGET, 9)).toISOString()); assert.equal(endOnly.active[0].endsAt, new Date(at(TARGET, 10)).toISOString());
+assert.equal(storm({ daily: stormDaily(34), hourly: { hours: [] }, now: atLocal(TARGET, 21) }).status, "advisory", "Daily fallback remains when hourly data is absent or unusable.");
+assert.equal(storm({ daily: stormDaily(3, 34), hourly: { hours: Array.from({ length: 24 }, (_, index) => stormHour(TARGET, index + 1, 3)) }, now: atLocal(TARGET, 18) }).status, "advisory", "Tomorrow remains prospectively covered by daily fallback when hourly has no tomorrow slots.");
 
 // Engine aggregation deliberately supports future families without limiting the output array.
 const fakeInformation = () => ({ type: "future_information", status: "advisory", advisories: [{ id: "a", category: "information" }] });

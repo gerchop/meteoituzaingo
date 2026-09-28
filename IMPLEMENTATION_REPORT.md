@@ -1,3 +1,15 @@
+# Informe de implementación v1.16.6
+
+## Vigencia temporal de Avisos Locales de Tormentas
+
+El aviso de Tormentas se activaba por el símbolo daily 34/35 de Hoy o Mañana y la evidencia hourly sólo construía texto. Por eso, un episodio terminado podía conservar el estado público activo hasta el cambio de jornada. La corrección reutiliza `hourlyIntervalStart()` para interpretar `end` como el fin del intervalo y forma episodios horarios contiguos con símbolos 34/35.
+
+Con hourly fresco y utilizable, únicamente los episodios en curso o futuros sostienen el aviso; un episodio usa semántica `[start,end)`, sin período de gracia. Las separaciones se conservan internamente y el payload expone los episodios relevantes; sus límites reemplazan los límites genéricos Hoy/Mañana como vigencia meteorológica. El fixture del incidente del 27/09/2026 (daily 34, 90 %, 29,7 mm; episodios hasta 10:00 ART; consulta a las 21:42 ART) ahora resulta `no_advisory`.
+
+El fallback daily se mantiene cuando hourly está ausente o no es utilizable. Si una serie usable cubre Hoy, pero todavía no aporta slots de una señal de Mañana, esa fecha continúa con fallback daily prospectivo. No se modifican D1, cache, cron, proveedores, símbolos admitidos, SMN/CAP, otras familias, frontend, Social, EMA, UV, históricos, radar, satélite ni Blogger. Las pruebas cubren normalización, fin exacto, futuro, discontinuidad, cruce de medianoche, incidente real y fallback.
+
+---
+
 # Informe de implementación v1.16.5
 
 ## Limpieza visual de duplicación de Hoy en UV

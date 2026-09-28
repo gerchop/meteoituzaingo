@@ -175,21 +175,38 @@ function stormDailyTargets(daily, targetDates) {
   return { status: "available", days };
 }
 
-function stormHourlyEvidence(hourly, updatedAt, targetDates, now) {
-  if (!forecastFreshness(updatedAt, now) || !Array.isArray(hourly?.hours)) return [];
+function episodeEvidence(episodes) {
   const evidence = new Map();
-  for (const hour of hourly.hours) {
-    const end = timestamp(hour?.end); const symbol = finite(hour?.symbol);
-    if (end === null || symbol === null || !THUNDERSTORM_SYMBOLS.includes(symbol)) continue;
-    const date = localDate(new Date(end));
+  episodes.forEach((episode) => getDayPartsForInterval(episode.startsAt, episode.endsAt).forEach((period) => {
+    if (!evidence.has(period.date)) evidence.set(period.date, []);
+    const dayParts = evidence.get(period.date);
+    period.dayParts.forEach((part) => { if (!dayParts.includes(part)) dayParts.push(part); });
+  }));
+  return [...evidence.entries()].map(([date, dayParts]) => ({ date, dayParts }));
+}
+
+/** Builds real one-hour storm episodes from the cached Meteored intervals. */
+export function thunderstormEpisodes(hourly, updatedAt, targetDates, now = Date.now()) {
+  if (!forecastFreshness(updatedAt, now) || !Array.isArray(hourly?.hours)) return { usable: false, dates: [], episodes: [], active: [], evidencePeriods: [] };
+  const slots = new Map(); let invalid = false;
+  for (const item of hourly.hours) {
+    const start = hourlyIntervalStart(item); const end = timestamp(item?.end);
+    if (start === null || end === null || end - start !== HOUR_MS) { invalid = true; continue; }
+    const date = localDate(new Date(start));
     if (!targetDates.includes(date)) continue;
-    const dayPart = getDayPartsForInterval(iso(end), iso(end + HOUR_MS))[0]?.dayParts?.[0];
-    if (!dayPart) continue;
-    if (!evidence.has(date)) evidence.set(date, []);
-    const items = evidence.get(date);
-    if (!items.includes(dayPart)) items.push(dayPart);
+    if (slots.has(start)) { invalid = true; continue; }
+    slots.set(start, { start, end, symbol: finite(item?.symbol) });
   }
-  return targetDates.filter((date) => evidence.has(date)).map((date) => ({ date, dayParts: evidence.get(date) }));
+  if (invalid || !slots.size) return { usable: false, dates: [], episodes: [], active: [], evidencePeriods: [] };
+  const stormSlots = [...slots.values()].filter((slot) => THUNDERSTORM_SYMBOLS.includes(slot.symbol)).sort((left, right) => left.start - right.start);
+  const episodes = [];
+  stormSlots.forEach((slot) => {
+    const previous = episodes.at(-1);
+    if (previous && previous.endsAtMs === slot.start) { previous.endsAtMs = slot.end; previous.endsAt = iso(slot.end); return; }
+    episodes.push({ startsAt: iso(slot.start), endsAt: iso(slot.end), startsAtMs: slot.start, endsAtMs: slot.end });
+  });
+  const active = episodes.filter((episode) => episode.endsAtMs > now).map(({ startsAt, endsAt, startsAtMs, endsAtMs }) => ({ startsAt, endsAt, startsAtMs, endsAtMs }));
+  return { usable: true, dates: [...new Set([...slots.values()].map((slot) => localDate(new Date(slot.start))))], episodes, active, evidencePeriods: episodeEvidence(active) };
 }
 
 /**
@@ -203,9 +220,14 @@ export function evaluateThunderstorm({ daily, hourly, dailyAvailable = true, dai
   const dailyResult = stormDailyTargets(daily, targetLocalDates);
   if (dailyResult.status !== "available") return { type: "thunderstorm", status: "insufficient_data", target, sourceStatus: { forecastDaily: "insufficient", forecastHourly: Array.isArray(hourly?.hours) ? "available" : "unavailable" }, advisories: [] };
   const positive = dailyResult.days.filter((day) => THUNDERSTORM_SYMBOLS.includes(day.symbol));
-  const sourceStatus = { forecastDaily: "available", forecastHourly: forecastFreshness(hourlyUpdatedAt, now) && Array.isArray(hourly?.hours) ? "available" : "unavailable" };
+  const hourlyEpisodes = thunderstormEpisodes(hourly, hourlyUpdatedAt, positive.map((day) => day.date), now);
+  const sourceStatus = { forecastDaily: "available", forecastHourly: hourlyEpisodes.usable ? "available" : "unavailable" };
   if (!positive.length) return { type: "thunderstorm", status: "no_advisory", target, sourceStatus, advisories: [] };
-  const hourlyEvidence = stormHourlyEvidence(hourly, hourlyUpdatedAt, positive.map((day) => day.date), now);
+  // Fresh, usable hourly data is authoritative for temporal validity. Daily
+  // remains the conservative fallback only when hourly evidence is unusable.
+  const dailyFallback = hourlyEpisodes.usable ? positive.filter((day) => !hourlyEpisodes.dates.includes(day.date)) : positive;
+  if (hourlyEpisodes.usable && !hourlyEpisodes.active.length && !dailyFallback.length) return { type: "thunderstorm", status: "no_advisory", target, sourceStatus, advisories: [] };
+  const hourlyEvidence = hourlyEpisodes.evidencePeriods;
   const dayPartsByDate = new Map(hourlyEvidence.map((period) => [period.date, period.dayParts]));
   const evidencePeriods = positive.map((day) => ({ date: day.date, dayParts: dayPartsByDate.get(day.date) || [] }));
   const forecastDays = positive.map((day) => ({
@@ -214,12 +236,14 @@ export function evaluateThunderstorm({ daily, hourly, dailyAvailable = true, dai
     rainMm: finite(day.item?.rain),
     dayParts: dayPartsByDate.get(day.date) || []
   }));
+  const timing = hourlyEpisodes.active.length ? { startsAt: hourlyEpisodes.active[0].startsAt, endsAt: hourlyEpisodes.active.at(-1).endsAt } : target;
   const advisory = {
     id: "thunderstorm:local", type: "thunderstorm", category: "information",
     title: "Tormentas previstas", summary: "El pronóstico disponible indica tormentas para la jornada señalada.",
-    startsAt: target.startsAt, endsAt: target.endsAt, targetLocalDate: positive[0].date,
-    targetLocalDates: positive.map((day) => day.date), temporalPrecision: "daily",
+    ...timing, targetLocalDate: positive[0].date,
+    targetLocalDates: positive.map((day) => day.date), temporalPrecision: hourlyEpisodes.active.length && !dailyFallback.length ? "hourly" : "daily",
     evaluationPeriod: target, evidencePeriods, supportingEvidencePeriods: hourlyEvidence,
+    episodes: hourlyEpisodes.usable ? hourlyEpisodes.active.map(({ startsAt, endsAt }) => ({ startsAt, endsAt })) : [],
     displayValidity: "dynamic", basis: ["forecast_daily_symbol"],
     values: { forecastDays, forecastUpdatedAt: dailyUpdatedAt }, disclaimer: DISCLAIMER
   };
