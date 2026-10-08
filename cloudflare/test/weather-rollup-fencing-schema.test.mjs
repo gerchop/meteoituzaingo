@@ -3,7 +3,10 @@ import { DatabaseSync } from "node:sqlite";
 import { readFile } from "node:fs/promises";
 
 const db = new DatabaseSync(":memory:");
-for (const migration of ["0001_create_weather_observations.sql", "0007_create_weather_rollups.sql", "0008_add_weather_rollup_control_state.sql", "0009_add_weather_rollup_fencing.sql"]) db.exec(await readFile(new URL(`../migrations/${migration}`, import.meta.url), "utf8"));
+const migrations = ["0001_create_weather_observations.sql", "0007_create_weather_rollups.sql", "0008_add_weather_rollup_control_state.sql", "0009_add_weather_rollup_fencing.sql"];
+const fencingMigration = await readFile(new URL("../migrations/0009_add_weather_rollup_fencing.sql", import.meta.url), "utf8");
+assert.ok(!fencingMigration.includes("\r"), "0009 usa LF: D1 remoto no acepta CRLF en triggers");
+for (const migration of migrations) db.exec(migration === "0009_add_weather_rollup_fencing.sql" ? fencingMigration : await readFile(new URL(`../migrations/${migration}`, import.meta.url), "utf8"));
 const columns = db.prepare("PRAGMA table_info(weather_rollup_state)").all();
 for (const name of ["backfill_lease_token", "backfill_fence", "canonical_revision", "validation_canonical_revision"]) assert.ok(columns.some((column) => column.name === name), `${name} existe`);
 const state = () => db.prepare("SELECT * FROM weather_rollup_state WHERE id=1").get();
