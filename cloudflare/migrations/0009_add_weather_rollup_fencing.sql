@@ -10,22 +10,22 @@ ALTER TABLE weather_rollup_state ADD COLUMN validation_canonical_revision INTEGE
 CREATE TRIGGER weather_observations_rollup_revision
 AFTER INSERT ON weather_observations
 BEGIN
-  SELECT CASE
+  SELECT (CASE
     WHEN julianday(NEW.observed_at) IS NULL THEN RAISE(ABORT, 'invalid observed_at for rollup revision')
-  END;
+  END);
 
   UPDATE weather_rollup_state
   SET
     canonical_revision = canonical_revision + 1,
-    dirty_from_local_date = CASE
+    dirty_from_local_date = (CASE
       WHEN dirty_from_local_date IS NULL THEN date(datetime(NEW.observed_at), '-3 hours')
       WHEN date(datetime(NEW.observed_at), '-3 hours') < dirty_from_local_date THEN date(datetime(NEW.observed_at), '-3 hours')
       ELSE dirty_from_local_date
-    END,
+    END),
     validation_cursor_observed_at = NULL,
     validation_passed_at = NULL,
     validation_canonical_revision = NULL,
-    status = CASE WHEN status = 'ready' THEN 'repairing' ELSE status END,
+    status = (CASE WHEN status = 'ready' THEN 'repairing' ELSE status END),
     updated_at = CURRENT_TIMESTAMP
   WHERE id = 1;
 END;
