@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { acquireBackfillLease, releaseBackfillLease } from "../src/weather-rollup-runner.js";
+import { acquireBackfillLease, finalizeControlledBackfill, releaseBackfillLease, validateControlledBackfill } from "../src/weather-rollup-runner.js";
 import { backfillBatch } from "../src/weather-rollups.js";
 
 const ISO = (value) => new Date(value).toISOString();
-const START = new Date("2026-10-08T03:00:00.000Z");
+const START = new Date();
 
 class Statement {
   constructor(owner, sql, values = []) { this.owner = owner; this.sql = sql; this.values = values; }
@@ -49,21 +49,22 @@ function seeded(options) { const db = new LocalD1(options); db.insert("2026-10-0
 const db = seeded();
 const leaseA = await acquireBackfillLease(db, START, 60_000, () => "lease-A");
 assert.equal(leaseA.acquired, true);
-const leaseB = await acquireBackfillLease(db, new Date(START.getTime() + 61_000), 60_000, () => "lease-B");
+db.db.prepare("UPDATE weather_rollup_state SET backfill_lease_until='2000-01-01T00:00:00.000Z' WHERE id=1").run();
+const leaseB = await acquireBackfillLease(db, START, 60_000, () => "lease-B");
 assert.equal(leaseB.acquired, true); assert.ok(leaseB.fence > leaseA.fence);
 const beforeA = db.snapshot();
-const staleA = await backfillBatch(db, { now: new Date(START.getTime() + 62_000), batchSize: 10, lease: leaseA });
+const staleA = await backfillBatch(db, { now: START, batchSize: 10, lease: leaseA });
 assert.equal(staleA.fenced, true); assert.deepEqual(db.snapshot(), beforeA, "A no persiste agregados, records ni cursor después de B");
 assert.equal(await releaseBackfillLease(db, leaseA), false, "A no libera lease de B"); assert.equal(db.state().backfill_lease_token, "lease-B");
-const batchB = await backfillBatch(db, { now: new Date(START.getTime() + 62_000), batchSize: 10, lease: leaseB });
+const batchB = await backfillBatch(db, { now: START, batchSize: 10, lease: leaseB });
 assert.equal(batchB.processed, 2); assert.equal(db.state().rollup_cursor_observed_at, "2026-10-08T03:10:00.000Z"); assert.ok(db.snapshot().days.length); assert.ok(db.snapshot().records.length);
-const afterB = db.snapshot();
-assert.equal((await backfillBatch(db, { now: new Date(START.getTime() + 63_000), batchSize: 10, lease: { ...leaseB, token: "wrong" } })).fenced, true, "token incorrecto rechazado");
+db.db.prepare("UPDATE weather_rollup_state SET backfill_lease_until='2000-01-01T00:00:00.000Z' WHERE id=1").run(); const afterB = db.snapshot();
+assert.equal((await backfillBatch(db, { now: START, batchSize: 10, lease: { ...leaseB, token: "wrong" } })).fenced, true, "token incorrecto rechazado");
 assert.deepEqual(db.snapshot(), afterB);
-assert.equal((await backfillBatch(db, { now: new Date(START.getTime() + 63_000), batchSize: 10, lease: { ...leaseB, fence: leaseB.fence - 1 } })).fenced, true, "fence antiguo rechazado");
-assert.equal((await backfillBatch(db, { now: new Date(START.getTime() + 122_000), batchSize: 10, lease: leaseB })).fenced, true, "lease vencido rechazado");
+assert.equal((await backfillBatch(db, { now: START, batchSize: 10, lease: { ...leaseB, fence: leaseB.fence - 1 } })).fenced, true, "fence antiguo rechazado");
+assert.equal((await backfillBatch(db, { now: START, batchSize: 10, lease: leaseB })).fenced, true, "lease vencido rechazado");
 assert.deepEqual(db.snapshot(), afterB);
-assert.equal((await backfillBatch(db, { now: new Date(START.getTime() + 63_000), batchSize: 10, lease: leaseB })).processed, 0, "ejecución duplicada no reescribe");
+assert.equal((await backfillBatch(db, { now: START, batchSize: 10, lease: leaseB })).processed, 0, "ejecución duplicada no reescribe");
 
 const failed = seeded({ failAt: 1 }); const leaseFailed = await acquireBackfillLease(failed, START, 60_000, () => "lease-failure"); const beforeFailure = failed.snapshot();
 await assert.rejects(() => backfillBatch(failed, { now: new Date(START.getTime() + 1_000), batchSize: 10, lease: leaseFailed }), /INJECTED_BATCH_FAILURE/);
@@ -74,3 +75,20 @@ const revised = seeded(); const leaseRevised = await acquireBackfillLease(revise
 const staleRevision = await backfillBatch(revised, { now: new Date(START.getTime() + 1_000), batchSize: 10, lease: leaseRevised });
 assert.equal(staleRevision.fenced, true, "un cambio canónico invalida el lote"); assert.deepEqual(revised.snapshot().days, beforeRevision.days); assert.deepEqual(revised.snapshot().records, beforeRevision.records); assert.equal(revised.state().rollup_cursor_observed_at, null);
 console.log("weather rollup fencing tests: OK (A/B, token, fence, expiry, duplicate, rollback and canonical revision)");
+const control = seeded();
+control.db.prepare("UPDATE weather_rollup_state SET rollup_cursor_observed_at=?, dirty_from_local_date=NULL, status='backfilling' WHERE id=1").run("2026-10-08T03:10:00.000Z");
+const controlLease = await acquireBackfillLease(control, START, 60_000, () => "lease-control");
+const validation = await validateControlledBackfill(control, { lease: controlLease, validate: async () => ({ ok: true, mismatches: [] }) });
+assert.equal(validation.ok, true, "validate persiste evidencia sólo para la revisión actual");
+control.db.prepare("UPDATE weather_rollup_state SET dirty_from_local_date='2026-10-08' WHERE id=1").run();
+assert.equal((await finalizeControlledBackfill(control, { lease: controlLease })).ok, false, "dirty pendiente bloquea ready");
+control.db.prepare("UPDATE weather_rollup_state SET dirty_from_local_date=NULL, validation_canonical_revision=canonical_revision-1 WHERE id=1").run();
+assert.equal((await finalizeControlledBackfill(control, { lease: controlLease })).ok, false, "evidencia de revisión obsoleta bloquea ready");
+control.db.prepare("UPDATE weather_rollup_state SET validation_canonical_revision=canonical_revision, rollup_cursor_observed_at='2026-10-08T03:00:00.000Z' WHERE id=1").run();
+assert.equal((await finalizeControlledBackfill(control, { lease: controlLease })).ok, false, "cursor incompleto bloquea ready");
+control.db.prepare("UPDATE weather_rollup_state SET rollup_cursor_observed_at='2026-10-08T03:10:00.000Z', backfill_lease_until='2000-01-01T00:00:00.000Z' WHERE id=1").run();
+assert.equal((await finalizeControlledBackfill(control, { lease: controlLease })).conflict, true, "lease vencido bloquea ready");
+const successor = await acquireBackfillLease(control, START, 60_000, () => "lease-successor");
+assert.equal((await finalizeControlledBackfill(control, { lease: { ...successor, token: "wrong" } })).conflict, true, "token incorrecto bloquea ready");
+assert.equal((await finalizeControlledBackfill(control, { lease: { ...successor, fence: successor.fence - 1 } })).conflict, true, "fence antiguo bloquea ready");
+console.log("weather rollup control tests: OK (validate revision, dirty, cursor, expiry, token and fence)");

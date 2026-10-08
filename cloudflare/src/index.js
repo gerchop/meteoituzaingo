@@ -5,7 +5,7 @@ import { argentinaDate as socialDate, buildSocialForecast, ForecastAvailabilityE
 import { alertsResponse, ingestSmnAlerts } from "./smn-alerts.js";
 import { advisoriesResponse } from "./advisories.js";
 import { classifyCaptureError, monitorEmaHealth } from "./ema-health.js";
-import { finalizeControlledBackfill, readRollupStatus, runControlledBackfill, validateControlledBackfill } from "./weather-rollup-runner.js";
+import { readRollupStatus, runControlledBackfill, runControlledFinalize, runControlledValidation } from "./weather-rollup-runner.js";
 
 const ARGENTINA_TIME_ZONE = "America/Argentina/Buenos_Aires";
 const HISTORY_LIMITS = { hours: [24], days: [7, 30] };
@@ -360,7 +360,7 @@ function socialScript() { return String.raw`(()=>{
   restoreSession();
 })()`; }
 function isAuthorizedCapture(request, env) { return Boolean(env.ADMIN_TOKEN) && (request.headers.get("Authorization") || "") === `Bearer ${env.ADMIN_TOKEN}`; }
-async function weatherRollupAdmin(request, env, url) { if (!isAuthorizedCapture(request, env)) return jsonResponse(request, env, { ok: false, error: "No autorizado." }, 401); const path = url.pathname; if (request.method === "GET" && path === "/api/admin/weather-rollups/status") return jsonResponse(request, env, { ok: true, data: await readRollupStatus(env.HISTORY_DB) }); if (request.method === "POST" && path === "/api/admin/weather-rollups/backfill") { const result = await runControlledBackfill(env.HISTORY_DB); return jsonResponse(request, env, result, result.conflict ? 409 : 200); } if (request.method === "POST" && path === "/api/admin/weather-rollups/validate") return jsonResponse(request, env, await validateControlledBackfill(env.HISTORY_DB)); if (request.method === "POST" && path === "/api/admin/weather-rollups/finalize") { const result = await finalizeControlledBackfill(env.HISTORY_DB); return jsonResponse(request, env, result, result.ok ? 200 : 409); } return jsonResponse(request, env, { ok: false, error: "Ruta o metodo no permitido." }, 405); }
+async function weatherRollupAdmin(request, env, url) { if (!isAuthorizedCapture(request, env)) return jsonResponse(request, env, { ok: false, error: "No autorizado." }, 401); const path = url.pathname; if (request.method === "GET" && path === "/api/admin/weather-rollups/status") return jsonResponse(request, env, { ok: true, data: await readRollupStatus(env.HISTORY_DB) }); if (request.method === "POST" && path === "/api/admin/weather-rollups/backfill") { const result = await runControlledBackfill(env.HISTORY_DB); return jsonResponse(request, env, result, result.conflict ? 409 : 200); } if (request.method === "POST" && path === "/api/admin/weather-rollups/validate") return jsonResponse(request, env, await runControlledValidation(env.HISTORY_DB)); if (request.method === "POST" && path === "/api/admin/weather-rollups/finalize") { const result = await runControlledFinalize(env.HISTORY_DB); return jsonResponse(request, env, result, result.ok ? 200 : 409); } return jsonResponse(request, env, { ok: false, error: "Ruta o metodo no permitido." }, 405); }
 function withCors(request, env, response) { const headers = new Headers(response.headers); corsHeaders(request, env).forEach((value, name) => headers.set(name, value)); return new Response(response.body, { status: response.status, statusText: response.statusText, headers }); }
 async function route(request, env) {
   const url = new URL(request.url);
