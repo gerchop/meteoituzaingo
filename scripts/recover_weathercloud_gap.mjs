@@ -19,6 +19,7 @@ const TIME_ZONE = "America/Argentina/Buenos_Aires";
 const REPO_ROOT = resolve(fileURLToPath(new URL("../", import.meta.url)));
 const CLOUDFLARE_DIRECTORY = resolve(REPO_ROOT, "cloudflare");
 const WRANGLER_CLI = resolve(CLOUDFLARE_DIRECTORY, "node_modules", "wrangler", "bin", "wrangler.js");
+export const TEMPORAL_DUPLICATE_TOLERANCE_MS = 30_000;
 const D1_COLUMNS = [
   "observed_at", "temperature", "feels_like", "humidity", "pressure",
   "wind_speed", "wind_gust", "wind_direction", "wind_direction_degrees",
@@ -140,7 +141,7 @@ function cardinalFromDegrees(degrees) {
   return Number.isFinite(degrees) ? directions[Math.round(degrees / 22.5) % 16] : null;
 }
 function checkRange(label, value, minimum, maximum, errors) { if (value !== null && (value < minimum || value > maximum)) errors.push(`${label}: ${value} fuera del rango ${minimum}–${maximum}.`); }
-function normalizeRecords(csv, mappedHeaders) {
+export function normalizeRecords(csv, mappedHeaders) {
   if (!mappedHeaders.observedAt || !mappedHeaders.temperature) fail("No se identificaron las columnas obligatorias de fecha/hora y temperatura. Revise los headers del CSV.");
   const errors = []; const timestamps = new Set(); const records = [];
   csv.records.forEach((row, index) => {
@@ -186,11 +187,19 @@ function d1(command) {
   return output[0].results || [];
 }
 function sqlQuote(value) { return `'${String(value).replace(/'/g, "''")}'`; }
-function existingTimestamps(records) {
-  if (!records.length) return new Set();
-  const min = records[0].observedAt; const max = records.at(-1).observedAt;
-  const rows = d1(`SELECT observed_at FROM weather_observations WHERE observed_at >= ${sqlQuote(min)} AND observed_at <= ${sqlQuote(max)} ORDER BY observed_at`);
-  return new Set(rows.map((row) => row.observed_at));
+function nearbyObservations(records) {
+  if (!records.length) return [];
+  const min = new Date(Date.parse(records[0].observedAt) - TEMPORAL_DUPLICATE_TOLERANCE_MS).toISOString();
+  const max = new Date(Date.parse(records.at(-1).observedAt) + TEMPORAL_DUPLICATE_TOLERANCE_MS).toISOString();
+  return d1(`SELECT observed_at FROM weather_observations WHERE observed_at >= ${sqlQuote(min)} AND observed_at <= ${sqlQuote(max)} ORDER BY observed_at`);
+}
+export function classifyRecords(records, bounds, nearby) {
+  return records.map((record) => {
+    const collision = nearby.find((row) => Math.abs(Date.parse(row.observed_at) - Date.parse(record.observedAt)) <= TEMPORAL_DUPLICATE_TOLERANCE_MS);
+    if (collision) return { record, status: collision.observed_at === record.observedAt ? "exact_duplicate" : "temporal_collision", collision };
+    if (record.observedAt <= bounds.lastBefore.observed_at || record.observedAt >= bounds.firstAfter.observed_at) return { record, status: "outside_gap", collision: null };
+    return { record, status: "candidate", collision: null };
+  });
 }
 function gapBounds(records, options) {
   if (!records.length) fail("No hay registros CSV para determinar el hueco.");
@@ -211,11 +220,11 @@ function gapBounds(records, options) {
 function rowSummary(record) {
   return `${record.localTimestamp} | ${record.observedAt} | temp ${record.temperature ?? "NULL"} °C | hum ${record.humidity ?? "NULL"} % | presión ${record.pressure ?? "NULL"} hPa | viento ${record.windSpeed ?? "NULL"} km/h | ráfaga ${record.windGust ?? "NULL"} km/h | dirección ${record.windDirection ?? "NULL"}/${record.windDirectionDegrees ?? "NULL"}° | lluvia ${record.precipTotal ?? "NULL"} mm`;
 }
-function printPreview({ csvPath, csv, mappedHeaders, normalized, existing, bounds }) {
-  const insideGap = (record) => record.observedAt > bounds.lastBefore.observed_at && record.observedAt < bounds.firstAfter.observed_at;
-  const alreadyExisting = normalized.records.filter((record) => existing.has(record.observedAt));
-  const outsideGap = normalized.records.filter((record) => !existing.has(record.observedAt) && !insideGap(record));
-  const candidates = normalized.records.filter((record) => !existing.has(record.observedAt) && insideGap(record));
+function printPreview({ csvPath, csv, mappedHeaders, normalized, classifications, bounds }) {
+  const alreadyExisting = classifications.filter(({ status }) => status === "exact_duplicate");
+  const temporalCollisions = classifications.filter(({ status }) => status === "temporal_collision");
+  const outsideGap = classifications.filter(({ status }) => status === "outside_gap");
+  const candidates = classifications.filter(({ status }) => status === "candidate").map(({ record }) => record);
   const gaps = normalized.intervals.filter((minutes) => minutes !== 10);
   console.log("\n================================================");
   console.log("RECUPERACIÓN WEATHERCLOUD — PREVIEW");
@@ -226,7 +235,8 @@ function printPreview({ csvPath, csv, mappedHeaders, normalized, existing, bound
   console.log(`Timezone de conversión: ${TIME_ZONE}`);
   console.log(`Última observación D1 antes del hueco: ${bounds.lastBefore.observed_at}`);
   console.log(`Primera observación D1 posterior al hueco: ${bounds.firstAfter.observed_at}`);
-  console.log(`Registros ya existentes (timestamp exacto): ${alreadyExisting.length}`); console.log(`Registros fuera del hueco: ${outsideGap.length}`); console.log(`Registros candidatos a insertar: ${candidates.length}`);
+  console.log(`Registros ya existentes (timestamp exacto): ${alreadyExisting.length}`); console.log(`Colisiones temporales (±${TEMPORAL_DUPLICATE_TOLERANCE_MS / 1000} s): ${temporalCollisions.length}`); console.log(`Registros fuera del hueco: ${outsideGap.length}`); console.log(`Registros candidatos a insertar: ${candidates.length}`);
+  temporalCollisions.forEach(({ record, collision }) => console.log(`- Colision temporal: ${record.observedAt} <> ${collision.observed_at}`));
   console.log(`Duplicados CSV: ${normalized.errors.filter((item) => item.includes("duplicado")).length}`); console.log(`Errores de conversión/sanity checks: ${normalized.errors.length}`);
   console.log(`Intervalos no equivalentes a 10 minutos: ${gaps.length}${gaps.length ? ` (${gaps.join(", ")} min)` : ""}`);
   console.log("\nMapping detectado:");
@@ -243,7 +253,7 @@ function printPreview({ csvPath, csv, mappedHeaders, normalized, existing, bound
   if ((temperatureJumpStart !== null && temperatureJumpStart > 15) || (temperatureJumpEnd !== null && temperatureJumpEnd > 15)) console.log("- Advertencia: salto térmico importante; revisar antes de aplicar.");
   else console.log("- Sin saltos térmicos importantes en los bordes.");
   console.log("\nNO SE MODIFICÓ D1.");
-  return { candidates, outsideGap, alreadyExisting };
+  return { candidates, outsideGap, alreadyExisting, temporalCollisions };
 }
 function insertStatement(record) {
   const values = [record.observedAt, record.temperature, record.feelsLike, record.humidity, record.pressure, record.windSpeed, record.windGust, record.windDirection, record.windDirectionDegrees, record.precipRate, record.precipTotal, record.dewPoint, record.weatherCondition, new Date().toISOString()];
@@ -256,16 +266,24 @@ function insertBatch(records) {
   // con INSERT condicionales; cada sentencia es idempotente por observed_at.
   d1(records.map(insertStatement).join("\n"));
 }
+function candidateTimestamps(classifications) { return classifications.filter(({ status }) => status === "candidate").map(({ record }) => record.observedAt); }
+function sameCandidates(left, right) { return left.length === right.length && left.every((value, index) => value === right[index]); }
+function inspect(normalized, options) {
+  const bounds = gapBounds(normalized.records, options);
+  return { bounds, classifications: classifyRecords(normalized.records, bounds, nearbyObservations(normalized.records)) };
+}
 function main() {
   const options = parseArgs(process.argv.slice(2)); const csvPath = resolve(options.csv);
   const csv = parseCsv(csvPath); const mappedHeaders = findHeaders(csv.headers); const normalized = normalizeRecords(csv, mappedHeaders);
-  const existing = existingTimestamps(normalized.records); const bounds = gapBounds(normalized.records, options); const preview = printPreview({ csvPath, csv, mappedHeaders, normalized, existing, bounds }); const { candidates } = preview;
+  const firstInspection = inspect(normalized, options); const preview = printPreview({ csvPath, csv, mappedHeaders, normalized, ...firstInspection }); const { candidates } = preview;
   if (options.apply) {
     if (normalized.errors.length) fail("No se ejecuta --apply: el preview contiene errores de conversión o validación.");
+    const applyInspection = inspect(normalized, options);
+    if (!sameCandidates(candidates.map((record) => record.observedAt), candidateTimestamps(applyInspection.classifications))) fail("D1 changed since preview; apply cancelled. Run preview again.");
     const before = d1(`SELECT COUNT(*) AS count FROM weather_observations WHERE observed_at >= ${sqlQuote(normalized.records[0].observedAt)} AND observed_at <= ${sqlQuote(normalized.records.at(-1).observedAt)}`)[0].count;
     insertBatch(candidates);
     const after = d1(`SELECT COUNT(*) AS count FROM weather_observations WHERE observed_at >= ${sqlQuote(normalized.records[0].observedAt)} AND observed_at <= ${sqlQuote(normalized.records.at(-1).observedAt)}`)[0].count;
     console.log(`\nAplicación finalizada: ${after - before} filas insertadas; ${candidates.length} candidatas previsualizadas.`);
   }
 }
-main();
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
