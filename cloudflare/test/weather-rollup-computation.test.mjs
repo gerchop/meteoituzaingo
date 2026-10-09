@@ -1,0 +1,9 @@
+import assert from "node:assert/strict";
+import { aggregateRows, materializeRecords } from "../src/weather-rollups.js";
+import { deriveGlobalRecordsFromDaily, rebuildArtDay } from "../src/weather-rollup-computation.js";
+const row=(observed_at, extra={})=>({observed_at,temperature:10,humidity:50,pressure:1000,wind_speed:10,wind_gust:20,precip_total:null,...extra});
+const rows=[row("2025-12-31T02:50:00.000Z",{temperature:20,wind_gust:30,precip_total:2}),row("2026-01-01T03:00:00.000Z",{temperature:20,wind_gust:30,precip_total:1}),row("2026-01-01T03:10:00.000Z",{temperature:8,humidity:null,pressure:990,precip_total:2}),row("2026-01-01T03:20:00.000Z",{temperature:9,humidity:70,pressure:1010,precip_total:.5}),row("2027-01-01T03:00:00.000Z",{temperature:-2,humidity:80,pressure:980,wind_gust:35,precip_total:3})];
+const days=aggregateRows(rows); const rebuilt=rebuildArtDay("2026-01-01", [...rows].reverse()); assert.deepEqual(rebuilt, days.get("2026-01-01"),"día ART determinístico y sin mutar entrada"); assert.equal(rebuilt.precipitation_total,2.5,"incrementos y reset preservados");
+const raw=materializeRecords(rows,days); const daily=deriveGlobalRecordsFromDaily([...days.values()]); assert.deepEqual([...daily.entries()], [...raw.entries()],"ocho récords diarios equivalen al cálculo crudo");
+const withoutRecord=[...days.values()].filter((day)=>day.local_date!=="2027-01-01"); const invalidated=deriveGlobalRecordsFromDaily(withoutRecord); assert.equal(invalidated.get("temperature_min").numeric_value,8,"récord invalidado se reconstruye desde diarios"); assert.equal(invalidated.get("precipitation_daily_max").local_date,"2026-01-01"); assert.equal(deriveGlobalRecordsFromDaily([{local_date:"x",temperature_max:null,precipitation_total:null}]).size,0,"nulos no producen récords");
+console.log("weather rollup computation tests: OK (ART, resets, ties, invalidation and eight records)");

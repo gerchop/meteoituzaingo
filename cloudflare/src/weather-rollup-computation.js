@@ -1,0 +1,10 @@
+import { aggregateRows, localDate } from "./weather-rollups.js";
+const specs = [
+  ["temperature_max", "temperature_max", "temperature_max_at", "max"], ["temperature_min", "temperature_min", "temperature_min_at", "min"],
+  ["wind_gust_max", "gust_max", "gust_max_at", "max"], ["pressure_max", "pressure_max", "pressure_max_at", "max"],
+  ["pressure_min", "pressure_min", "pressure_min_at", "min"], ["humidity_max", "humidity_max", "humidity_max_at", "max"], ["humidity_min", "humidity_min", "humidity_min_at", "min"]
+];
+const finite = (value) => Number.isFinite(value);
+function better(candidate, current, direction, field) { if (!current) return true; if (candidate.numeric_value !== current.numeric_value) return direction === "max" ? candidate.numeric_value > current.numeric_value : candidate.numeric_value < current.numeric_value; return candidate[field] < current[field]; }
+export function rebuildArtDay(localDateArt, observations) { const rows = observations.filter((row) => localDate(row.observed_at) === localDateArt).map((row) => ({ ...row })); const day = aggregateRows(rows).get(localDateArt); return day ? { ...day } : null; }
+export function deriveGlobalRecordsFromDaily(dailyRows) { const output = new Map(); for (const [metric, valueKey, atKey, direction] of specs) for (const day of dailyRows) if (finite(day[valueKey]) && day[atKey]) { const candidate = { metric, numeric_value: day[valueKey], observed_at: day[atKey], local_date: null }; const current = output.get(metric); if (better(candidate, current, direction, "observed_at")) output.set(metric, candidate); } for (const day of dailyRows) if (finite(day.precipitation_total)) { const candidate = { metric: "precipitation_daily_max", numeric_value: day.precipitation_total, observed_at: null, local_date: day.local_date }; const current = output.get(candidate.metric); if (better(candidate, current, "max", "local_date")) output.set(candidate.metric, candidate); } return output; }

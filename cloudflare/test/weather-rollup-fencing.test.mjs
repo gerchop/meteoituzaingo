@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { acquireBackfillLease, finalizeControlledBackfill, releaseBackfillLease, validateControlledBackfill } from "../src/weather-rollup-runner.js";
+import { acquireBackfillLease, finalizeControlledBackfill, releaseBackfillLease, runControlledReconciliation, validateControlledBackfill } from "../src/weather-rollup-runner.js";
 import { backfillBatch } from "../src/weather-rollups.js";
 
 const ISO = (value) => new Date(value).toISOString();
@@ -22,7 +22,7 @@ class LocalD1 {
   constructor({ failAt = null } = {}) { this.db = new DatabaseSync(":memory:"); this.failAt = failAt; this.beforeRawRead = null; this.schema(); }
   schema() {
     this.db.exec(`CREATE TABLE weather_observations (observed_at TEXT PRIMARY KEY, temperature REAL, humidity REAL, pressure REAL, wind_speed REAL, wind_gust REAL, precip_total REAL);
-CREATE TABLE weather_rollup_state (id INTEGER PRIMARY KEY, first_observed_at TEXT, last_observed_at TEXT, observation_count INTEGER NOT NULL DEFAULT 0, rollup_cursor_observed_at TEXT, dirty_from_local_date TEXT, status TEXT NOT NULL DEFAULT 'pending_backfill', last_reconciled_at TEXT, updated_at TEXT, backfill_lease_until TEXT, validation_cursor_observed_at TEXT, validation_passed_at TEXT, backfill_lease_token TEXT, backfill_fence INTEGER NOT NULL DEFAULT 0, canonical_revision INTEGER NOT NULL DEFAULT 0, validation_canonical_revision INTEGER);
+CREATE TABLE weather_rollup_state (id INTEGER PRIMARY KEY, first_observed_at TEXT, last_observed_at TEXT, observation_count INTEGER NOT NULL DEFAULT 0, rollup_cursor_observed_at TEXT, dirty_from_local_date TEXT, status TEXT NOT NULL DEFAULT 'pending_backfill', last_reconciled_at TEXT, updated_at TEXT, backfill_lease_until TEXT, validation_cursor_observed_at TEXT, validation_passed_at TEXT, backfill_lease_token TEXT, backfill_fence INTEGER NOT NULL DEFAULT 0, canonical_revision INTEGER NOT NULL DEFAULT 0, validation_canonical_revision INTEGER, reconciliation_cursor_local_date TEXT, reconciliation_target_revision INTEGER, reconciliation_started_at TEXT, reconciliation_dirty_from_local_date TEXT);
 INSERT INTO weather_rollup_state (id) VALUES (1);
 CREATE TABLE weather_daily_aggregates (local_date TEXT PRIMARY KEY, first_observed_at TEXT NOT NULL, last_observed_at TEXT NOT NULL, observation_count INTEGER NOT NULL, temperature_count INTEGER NOT NULL, temperature_sum REAL NOT NULL, temperature_min REAL, temperature_min_at TEXT, temperature_max REAL, temperature_max_at TEXT, humidity_count INTEGER NOT NULL, humidity_sum REAL NOT NULL, humidity_min REAL, humidity_min_at TEXT, humidity_max REAL, humidity_max_at TEXT, pressure_count INTEGER NOT NULL, pressure_sum REAL NOT NULL, pressure_min REAL, pressure_min_at TEXT, pressure_max REAL, pressure_max_at TEXT, wind_count INTEGER NOT NULL, wind_sum REAL NOT NULL, wind_max REAL, wind_max_at TEXT, gust_max REAL, gust_max_at TEXT, precipitation_total REAL, precipitation_sample_count INTEGER NOT NULL, last_precip_total REAL, last_precip_observed_at TEXT, updated_at TEXT NOT NULL);
 CREATE TABLE weather_record_values (metric TEXT PRIMARY KEY, numeric_value REAL, observed_at TEXT, local_date TEXT, updated_at TEXT NOT NULL);
@@ -57,7 +57,7 @@ const staleA = await backfillBatch(db, { now: START, batchSize: 10, lease: lease
 assert.equal(staleA.fenced, true); assert.deepEqual(db.snapshot(), beforeA, "A no persiste agregados, records ni cursor después de B");
 assert.equal(await releaseBackfillLease(db, leaseA), false, "A no libera lease de B"); assert.equal(db.state().backfill_lease_token, "lease-B");
 const batchB = await backfillBatch(db, { now: START, batchSize: 10, lease: leaseB });
-assert.equal(batchB.processed, 2); assert.equal(db.state().rollup_cursor_observed_at, "2026-10-08T03:10:00.000Z"); assert.ok(db.snapshot().days.length); assert.ok(db.snapshot().records.length);
+assert.equal(batchB.processed, 2); assert.equal(db.state().rollup_cursor_observed_at, "2026-10-08T03:10:00.000Z"); assert.equal(db.state().dirty_from_local_date, "2026-10-08", "backfill conserva dirty para reconciliación"); assert.ok(db.snapshot().days.length); assert.ok(db.snapshot().records.length);
 db.db.prepare("UPDATE weather_rollup_state SET backfill_lease_until='2000-01-01T00:00:00.000Z' WHERE id=1").run(); const afterB = db.snapshot();
 assert.equal((await backfillBatch(db, { now: START, batchSize: 10, lease: { ...leaseB, token: "wrong" } })).fenced, true, "token incorrecto rechazado");
 assert.deepEqual(db.snapshot(), afterB);
@@ -92,3 +92,15 @@ const successor = await acquireBackfillLease(control, START, 60_000, () => "leas
 assert.equal((await finalizeControlledBackfill(control, { lease: { ...successor, token: "wrong" } })).conflict, true, "token incorrecto bloquea ready");
 assert.equal((await finalizeControlledBackfill(control, { lease: { ...successor, fence: successor.fence - 1 } })).conflict, true, "fence antiguo bloquea ready");
 console.log("weather rollup control tests: OK (validate revision, dirty, cursor, expiry, token and fence)");
+const integration = seeded();
+const backfillLease = await acquireBackfillLease(integration, START, 60_000, () => "backfill-owner");
+const reconciliationConflict = await runControlledReconciliation(integration, { runBatch: async () => ({ processedDays: 1, complete: false }) });
+assert.equal(reconciliationConflict.conflict, true, "reconciliación no comparte lease con backfill activo");
+assert.equal(await releaseBackfillLease(integration, backfillLease), true);
+const incomplete = await runControlledReconciliation(integration);
+assert.equal(incomplete.ok, false); assert.equal(incomplete.blocked, "initial_backfill_incomplete", "runner no reconcilia antes del backfill inicial");
+integration.db.prepare("UPDATE weather_rollup_state SET rollup_cursor_observed_at='2026-10-08T03:10:00.000Z', dirty_from_local_date='2026-10-08'").run();
+let receivedLease = null;
+const reconciled = await runControlledReconciliation(integration, { runBatch: async (_database, options) => { receivedLease = options.lease; return { processedDays: 1, complete: false }; } });
+assert.equal(reconciled.ok, true); assert.ok(receivedLease?.token); assert.ok(Number.isInteger(receivedLease?.fence), "runner entrega token/fence al reconciliador");
+console.log("weather rollup reconciliation runner tests: OK (exclusive lease, initial-backfill gate and fenced invocation)");

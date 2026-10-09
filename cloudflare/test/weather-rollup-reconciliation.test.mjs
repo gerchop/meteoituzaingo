@@ -1,0 +1,33 @@
+import assert from "node:assert/strict";
+import { DatabaseSync } from "node:sqlite";
+import { readFile } from "node:fs/promises";
+import { acquireBackfillLease } from "../src/weather-rollup-runner.js";
+import { reconcileRollupBatch, artDayUtcRange } from "../src/weather-rollup-reconciliation.js";
+
+class Statement { constructor(owner, sql, values = []) { this.owner=owner; this.sql=sql; this.values=values; } bind(...values) { return new Statement(this.owner,this.sql,values); } async first() { return this.owner.db.prepare(this.sql).get(...this.values) || null; } async all() { return { results:this.owner.db.prepare(this.sql).all(...this.values) }; } async run() { const out=this.owner.db.prepare(this.sql).run(...this.values); return { meta:{changes:Number(out.changes)} }; } }
+class D1 { constructor(failAt=null) { this.db=new DatabaseSync(":memory:"); this.failAt=failAt; } prepare(sql) { return new Statement(this,sql); } async batch(items) { this.db.exec("BEGIN IMMEDIATE"); try { const result=[]; for(let i=0;i<items.length;i++) { if(this.failAt===i) throw new Error("INJECTED_BATCH_FAILURE"); result.push(await items[i].run()); } this.db.exec("COMMIT"); return result; } catch(error) { this.db.exec("ROLLBACK"); throw error; } } }
+const db=new D1();
+for(const name of ["0001_create_weather_observations.sql","0007_create_weather_rollups.sql","0008_add_weather_rollup_control_state.sql","0009_add_weather_rollup_fencing.sql","0010_add_weather_reconciliation_state.sql"]) db.db.exec(await readFile(new URL(`../migrations/${name}`,import.meta.url),"utf8"));
+const cols=db.db.prepare("PRAGMA table_info(weather_rollup_state)").all().map((row)=>row.name);
+for(const name of ["reconciliation_cursor_local_date","reconciliation_target_revision","reconciliation_started_at","reconciliation_dirty_from_local_date"]) assert.ok(cols.includes(name),`${name} migrates`);
+const insert=db.db.prepare("INSERT INTO weather_observations (observed_at,temperature,humidity,pressure,wind_speed,wind_gust,precip_total,created_at) VALUES (?,?,?,?,?,?,?,?)");
+const put=(at,temp,precip=0)=>insert.run(at,temp,50,1000,10,20,precip,"2026-10-08T00:00:00.000Z");
+put("2026-01-01T03:00:00.000Z",20,0); put("2026-01-01T03:10:00.000Z",22,2); put("2026-01-02T03:00:00.000Z",10,0);
+// Pretend the separate initial pipeline completed; its cursor must not be used by reconciliation.
+db.db.prepare("UPDATE weather_rollup_state SET rollup_cursor_observed_at='2026-01-02T03:00:00.000Z', dirty_from_local_date=NULL, canonical_revision=3, status='ready'").run();
+const range=artDayUtcRange("2026-01-01"); assert.equal(range.start,"2026-01-01T03:00:00.000Z"); assert.equal(range.end,"2026-01-02T03:00:00.000Z");
+put("2026-01-01T03:05:00.000Z",30,1); // historical insert: trigger marks day + increments revision
+const beforeCursor=db.db.prepare("SELECT rollup_cursor_observed_at FROM weather_rollup_state WHERE id=1").get().rollup_cursor_observed_at;
+const lease=await acquireBackfillLease(db,new Date(),60_000,()=>"reconcile-A"); assert.equal(lease.acquired,true);
+const first=await reconcileRollupBatch(db,{lease,dayBatchSize:1}); assert.equal(first.processedDays,1); assert.equal(first.complete,false); assert.equal(db.db.prepare("SELECT rollup_cursor_observed_at FROM weather_rollup_state WHERE id=1").get().rollup_cursor_observed_at,beforeCursor,"initial cursor remains separate");
+assert.equal(db.db.prepare("SELECT temperature_max FROM weather_daily_aggregates WHERE local_date='2026-01-01'").get().temperature_max,30);
+assert.equal(db.db.prepare("SELECT numeric_value FROM weather_record_values WHERE metric='temperature_max'").get().numeric_value,30,"records share the persisted logical day version");
+const second=await reconcileRollupBatch(db,{lease,dayBatchSize:5}); assert.equal(second.complete,true); const state=db.db.prepare("SELECT * FROM weather_rollup_state WHERE id=1").get(); assert.equal(state.dirty_from_local_date,null); assert.equal(state.reconciliation_cursor_local_date,null); assert.equal(state.reconciliation_target_revision,null);
+assert.equal((await reconcileRollupBatch(db,{lease})).idle,true,"repeat is idempotent");
+// Initial backfill is a hard gate even if a dirty date exists.
+db.db.prepare("UPDATE weather_rollup_state SET rollup_cursor_observed_at=NULL,dirty_from_local_date='2026-01-01'").run(); assert.equal((await reconcileRollupBatch(db,{lease})).blocked,"initial_backfill_incomplete");
+// Revision change before writes fences stale work and retains dirty work.
+db.db.prepare("UPDATE weather_rollup_state SET rollup_cursor_observed_at='2026-01-02T03:00:00.000Z',dirty_from_local_date='2026-01-01',canonical_revision=99,reconciliation_cursor_local_date='2026-01-02',reconciliation_target_revision=98,reconciliation_dirty_from_local_date='2026-01-03'").run(); const stale=await reconcileRollupBatch(db,{lease}); assert.equal(stale.rebased,true); assert.equal(stale.cursor,"2026-01-02","captura posterior conserva progreso ya demostrado"); assert.equal(db.db.prepare("SELECT reconciliation_target_revision FROM weather_rollup_state WHERE id=1").get().reconciliation_target_revision,null); put("2026-01-01T03:30:00.000Z",5,2); const resumed=await reconcileRollupBatch(db,{lease}); assert.equal(resumed.complete,true,"nueva revisión adopta la señal histórica entre rebase y adopción"); assert.equal(db.db.prepare("SELECT temperature_min FROM weather_daily_aggregates WHERE local_date='2026-01-01'").get().temperature_min,5,"cursor retrocede al día histórico exacto"); assert.equal(db.db.prepare("SELECT dirty_from_local_date FROM weather_rollup_state WHERE id=1").get().dirty_from_local_date,null);
+// SQLite transaction semantics: an injected intermediate failure leaves all derived tables/state unchanged.
+db.db.prepare("UPDATE weather_rollup_state SET reconciliation_cursor_local_date=NULL,reconciliation_target_revision=NULL,dirty_from_local_date='2026-01-01',canonical_revision=100").run(); const snapshot=()=>JSON.stringify({state:db.db.prepare("SELECT dirty_from_local_date,reconciliation_cursor_local_date FROM weather_rollup_state").get(),days:db.db.prepare("SELECT * FROM weather_daily_aggregates ORDER BY local_date").all(),records:db.db.prepare("SELECT * FROM weather_record_values ORDER BY metric").all()}); const before=snapshot(); db.failAt=1; await assert.rejects(()=>reconcileRollupBatch(db,{lease,dayBatchSize:1}),/INJECTED_BATCH_FAILURE/); assert.equal(snapshot(),before,"batch rollback is complete");
+console.log("weather reconciliation tests: OK (schema, ART ranges, cursor separation, records, revision fence, idempotency, rollback)");
