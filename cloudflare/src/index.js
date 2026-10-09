@@ -6,6 +6,7 @@ import { alertsResponse, ingestSmnAlerts } from "./smn-alerts.js";
 import { advisoriesResponse } from "./advisories.js";
 import { classifyCaptureError, monitorEmaHealth } from "./ema-health.js";
 import { readRollupStatus, runControlledBackfill, runControlledFinalize, runControlledReconciliation, runControlledValidation } from "./weather-rollup-runner.js";
+import { runDailyRollupCertification, runIncrementalRollupMaintenance } from "./weather-rollup-maintenance.js";
 
 const ARGENTINA_TIME_ZONE = "America/Argentina/Buenos_Aires";
 const HISTORY_LIMITS = { hours: [24], days: [7, 30] };
@@ -121,6 +122,19 @@ async function captureAndMonitorEma(env) {
   let captureHealth = "OK"; let captureError = null;
   try { await captureWeatherObservation(env); } catch (error) { captureHealth = "ERROR"; captureError = error; console.error("Error de captura programada:", classifyCaptureError(error)); }
   try { await monitorEmaHealth(env.HISTORY_DB, { captureHealth, captureError }); } catch (error) { console.error("Error de monitor EMA:", classifyCaptureError(error)); }
+}
+
+function logRollupMaintenance(result) {
+  if (!result?.enabled) return;
+  const compact = (value) => value && { ok: value.ok, complete: value.complete, conflict: value.conflict, processed: value.processed, processedDays: value.processedDays, reason: value.reason };
+  console.log("[rollup-auto]", JSON.stringify({
+    phase: result.phase,
+    complete: result.complete,
+    backfill: compact(result.backfill),
+    reconcile: compact(result.reconcile),
+    validation: compact(result.validation),
+    finalize: compact(result.finalize)
+  }));
 }
 
 async function rawRows(database, start, end) {
@@ -393,4 +407,22 @@ async function route(request, env) {
   if (["GET", "POST"].includes(request.method)) return jsonResponse(request, env, { ok: false, error: "Ruta no encontrada." }, 404);
   return jsonResponse(request, env, { ok: false, error: "Método no permitido." }, 405);
 }
-export default { async fetch(request, env) { try { return await route(request, env); } catch (error) { console.error("Error de API histórica:", error instanceof Error ? error.message : "error desconocido"); return jsonResponse(request, env, { ok: false, error: "No fue posible procesar la solicitud." }, 500); } }, async scheduled(event, env, ctx) { if (event.cron === CAPTURE_CRON) { ctx.waitUntil(captureAndMonitorEma(env).catch((error) => console.error("Error de captura programada:", classifyCaptureError(error)))); ctx.waitUntil(maintainForecastCache(env.HISTORY_DB, env).catch((error) => console.error("Error de mantenimiento Meteored:", error instanceof Error ? error.message : "error desconocido"))); return; } if (event.cron === SMN_CRON) { ctx.waitUntil(ingestSmnAlerts(env).catch((error) => console.error("Error de ingesta SMN:", error instanceof Error ? error.message : "error desconocido"))); return; } if (event.cron === SOCIAL_CRON) { ctx.waitUntil(buildSocialForecast(env.HISTORY_DB, env).then((forecast) => saveSocialForecast(env.HISTORY_DB, forecast)).catch((error) => console.error("Error de pronóstico social:", error instanceof Error ? error.message : "error desconocido"))); return; } console.error("Cron no reconocido"); } };
+export default { async fetch(request, env) { try { return await route(request, env); } catch (error) { console.error("Error de API histórica:", error instanceof Error ? error.message : "error desconocido"); return jsonResponse(request, env, { ok: false, error: "No fue posible procesar la solicitud." }, 500); } },
+  async scheduled(event, env, ctx) {
+    if (event.cron === CAPTURE_CRON) {
+      ctx.waitUntil(captureAndMonitorEma(env).then(() => runIncrementalRollupMaintenance(env.HISTORY_DB, env)).then(logRollupMaintenance).catch((error) => console.error("Error de mantenimiento incremental de rollups:", error instanceof Error ? error.message : "error desconocido")));
+      ctx.waitUntil(maintainForecastCache(env.HISTORY_DB, env).catch((error) => console.error("Error de mantenimiento Meteored:", error instanceof Error ? error.message : "error desconocido")));
+      return;
+    }
+    if (event.cron === SMN_CRON) {
+      ctx.waitUntil(ingestSmnAlerts(env).catch((error) => console.error("Error de ingesta SMN:", error instanceof Error ? error.message : "error desconocido")));
+      return;
+    }
+    if (event.cron === SOCIAL_CRON) {
+      ctx.waitUntil(buildSocialForecast(env.HISTORY_DB, env).then((forecast) => saveSocialForecast(env.HISTORY_DB, forecast)).catch((error) => console.error("Error de pronóstico social:", error instanceof Error ? error.message : "error desconocido")));
+      ctx.waitUntil(runDailyRollupCertification(env.HISTORY_DB, env).then(logRollupMaintenance).catch((error) => console.error("Error de certificación diaria de rollups:", error instanceof Error ? error.message : "error desconocido")));
+      return;
+    }
+    console.error("Cron no reconocido");
+  }
+};
