@@ -9,7 +9,7 @@
     "ALLOWED_ORIGINS": "https://gerchop.github.io",
     "METEORED_LOCATION_HASH": "02fb9feb8e7f9462733d7279a5479236",
     "ROLLUP_AUTO_INCREMENTAL_ENABLED": "true",
-    "ROLLUP_AUTO_CERTIFICATION_ENABLED": "false"
+    "ROLLUP_AUTO_CERTIFICATION_ENABLED": "true"
   },
   "triggers": {
     "crons": ["*/10 * * * *", "5,15,25,35,45,55 * * * *", "11 3 * * *"]
